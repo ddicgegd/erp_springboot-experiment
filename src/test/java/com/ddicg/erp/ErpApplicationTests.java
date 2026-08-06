@@ -1,7 +1,7 @@
 package com.ddicg.erp;
 
-import com.ddicg.erp.service.EmailService;
-import com.ddicg.erp.service.MinioService;
+import com.ddicg.erp.modules.iam.service.EmailService;
+import com.ddicg.erp.core.common.service.MinioService;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;

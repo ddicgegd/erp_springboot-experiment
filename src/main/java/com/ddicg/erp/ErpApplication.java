@@ -1,6 +1,6 @@
 package com.ddicg.erp;
 
-import com.ddicg.erp.config.MinioProperties;
+import com.ddicg.erp.core.config.MinioProperties;
 import io.micrometer.common.util.StringUtils;
 
 import org.slf4j.Logger;
