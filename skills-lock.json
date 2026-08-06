@@ -1,35 +1,29 @@
 {
   "version": 1,
   "skills": {
-    "architecture-blueprint-generator": {
-      "source": "github/awesome-copilot",
+    "changelog-automation": {
+      "source": "wshobson/agents",
       "sourceType": "github",
-      "skillPath": "skills/architecture-blueprint-generator/SKILL.md",
-      "computedHash": "9b20f13d1d96ba1c2550e1ce535f932e943c42939d3fae906a9e0d6c1bfb471a"
+      "skillPath": "plugins/documentation-generation/skills/changelog-automation/SKILL.md",
+      "computedHash": "b1dbf331730361654b2d50f6750c8bf055e8d3cd454f03496c87e87c5497d27c"
     },
-    "codebase-summarizer": {
-      "source": "patricio0312rev/skills",
+    "codebase-design": {
+      "source": "mattpocock/skills",
       "sourceType": "github",
-      "skillPath": "foundation/codebase-summarizer/SKILL.md",
-      "computedHash": "e9198897108b73c9a470d0692774b87972455ae9887c7b5be8f930c55b3ca72c"
+      "skillPath": "skills/engineering/codebase-design/SKILL.md",
+      "computedHash": "6d9d51d8caa01633fd00cf87089c5618c982321f942ac69f62565dc001c6b22f"
     },
-    "create-skill": {
-      "source": "siviter-xyz/dot-agent",
+    "find-skills": {
+      "source": "vercel-labs/skills",
       "sourceType": "github",
-      "skillPath": "skills/create-skill/SKILL.md",
-      "computedHash": "117464d5a01acfbf3c7d3939a90df78e2196025f545bdded831aa4aa63a80080"
+      "skillPath": "skills/find-skills/SKILL.md",
+      "computedHash": "b146008599c31057cef1c145774cea5d5afb30e8f43fa802e47a4b461419aaaf"
     },
-    "creating-oracle-to-postgres-master-migration-plan": {
-      "source": "github/awesome-copilot",
+    "handoff": {
+      "source": "mattpocock/skills",
       "sourceType": "github",
-      "skillPath": "skills/creating-oracle-to-postgres-master-migration-plan/SKILL.md",
-      "computedHash": "ce2312736dc93dc9375d22c419da83cc8278f520d0852aeb2260649e97febe56"
-    },
-    "docker-expert": {
-      "source": "sickn33/antigravity-awesome-skills",
-      "sourceType": "github",
-      "skillPath": "skills/docker-expert/SKILL.md",
-      "computedHash": "0974b5f64fcd284c1bd662810e2388f7beb9be6784c597de4d0ad4213ccbd6af"
+      "skillPath": "skills/productivity/handoff/SKILL.md",
+      "computedHash": "ad03e8d4ea3cbbff66420eb7ba3cc375b5cbe1821a2449b53e863256cf5b5cde"
     },
     "improve-codebase-architecture": {
       "source": "mattpocock/skills",
@@ -37,29 +31,23 @@
       "skillPath": "skills/engineering/improve-codebase-architecture/SKILL.md",
       "computedHash": "66e8a50c83c3c724fcfe0769701b665c56cec220cc4f49cc1aee8bdfc07de94a"
     },
-    "java-springboot": {
-      "source": "github/awesome-copilot",
+    "planning-and-task-breakdown": {
+      "source": "addyosmani/agent-skills",
       "sourceType": "github",
-      "skillPath": "skills/java-springboot/SKILL.md",
-      "computedHash": "f1b9c6b1277178fc33e5a612761c1cd1cf6ab5f946d05d69d52026d142c0a0c1"
+      "skillPath": "skills/planning-and-task-breakdown/SKILL.md",
+      "computedHash": "ecc29e854ff27b26a2e6b3e4f15ec5b9bd74f65c7e434515eb0e4ac23cc6cdee"
     },
-    "spring-boot-engineer": {
-      "source": "jeffallan/claude-skills",
+    "spring-boot-saga-pattern": {
+      "source": "giuseppe-trisciuoglio/developer-kit",
       "sourceType": "github",
-      "skillPath": "skills/spring-boot-engineer/SKILL.md",
-      "computedHash": "ed065f5db45afe9dc2739cff713927d0b6b6ad3e667bdf7b40340d1a5543bb0f"
-    },
-    "webapp-testing": {
-      "source": "anthropics/skills",
-      "sourceType": "github",
-      "skillPath": "skills/webapp-testing/SKILL.md",
-      "computedHash": "ad5b1fc52807e9afa4635e59218a026b164dc58b6c3f41b0f7c644dcd6ccf572"
+      "skillPath": "plugins/developer-kit-java/skills/spring-boot-saga-pattern/SKILL.md",
+      "computedHash": "5aee1fdf7697237cb6ea893d9c317849d4d04cad5c1640a9b680c59c4727df57"
     },
     "writing-plans": {
       "source": "obra/superpowers",
       "sourceType": "github",
       "skillPath": "skills/writing-plans/SKILL.md",
-      "computedHash": "b73b59d43c34c3fc225bfae419c458bb216af80df25fc0c545dfa7fd2a161722"
+      "computedHash": "a8a8b0d07b744173079b25d26c6a189a0b5e7ddd80444ce92055b974dab7352b"
     }
   }
 }

@@ -1,0 +1,34 @@
+[mcp_servers.context7]
+command = "npx"
+args = ["-y", "@upstash/context7-mcp"]
+
+[mcp_servers.oracle-sqlcl]
+command = "/home/ddicgegd/.local/opt/oracle/sqlcl/bin/sql"
+args = ["-mcp"]
+
+[mcp_servers.kafka]
+command = "npx"
+args = ["-y", "mcp-kafka"]
+
+[mcp_servers.kafka.env]
+KAFKA_BROKERS = "localhost:9093"
+KAFKA_USERNAME = "kafka"
+KAFKA_PASSWORD = "kafka@2025"
+KAFKA_SSL = "false"
+KAFKA_SASL_MECHANISM = "plain"
+KAFKAJS_NO_PARTITIONER_WARNING = "1"
+
+[mcp_servers.redis]
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-redis", "redis://app_admin:admin789@localhost:6379"]
+
+[mcp_servers.minio]
+command = "npx"
+args = ["-y", "mcp-minio"]
+
+[mcp_servers.minio.env]
+MINIO_ENDPOINT = "localhost"
+MINIO_PORT = "9000"
+MINIO_SSL = "false"
+MINIO_ACCESS_KEY = "admin"
+MINIO_SECRET_KEY = "admin@2025"

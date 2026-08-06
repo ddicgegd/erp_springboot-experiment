@@ -6,6 +6,7 @@ include:
   - compose/oracle-db.yml
   - compose/redis.yml
   - compose/kafka.yml
+  - compose/redpanda-console.yml
   - compose/minio.yml
   - compose/spring-app.yml
 

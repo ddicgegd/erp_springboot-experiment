@@ -27,7 +27,7 @@ This prevents treating `0.0` or `null` as free items.
 2. Create a new method in `Helper.java`:
 ```java
 @org.springframework.transaction.annotation.Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
-public ShoppingCart getOrCreateCart(User user, com.anno.ERP_SpringBoot_Experiment.repository.ShoppingCartRepository repo) {
+public ShoppingCart getOrCreateCart(User user, com.ddicg.erp.repository.ShoppingCartRepository repo) {
     return repo.findByUser(user).orElseGet(() -> {
         try {
             return repo.saveAndFlush(createNewCart(user));

@@ -5,7 +5,7 @@
 - `Attributes`: Located at `src/main/java/com/anno/ERP_SpringBoot_Experiment/model/entity/Attributes.java`. Inherits from `BaseEntity<Long>`. Contains `price` and `salePrice` properties. It maps SKU strings via an embedded `SkuInfo` object (column `sku_name`).
 
 ## 2. Package Structure
-The application follows a layered architecture under `com.anno.ERP_SpringBoot_Experiment`:
+The application follows a layered architecture under `com.ddicg.erp`:
 - **Entities**: `.model.entity`
 - **Repositories**: `.repository`
 - **Services (Interfaces)**: `.service.interfaces`

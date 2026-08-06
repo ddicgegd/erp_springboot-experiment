@@ -1,13 +1,13 @@
-package com.anno.ERP_SpringBoot_Experiment.service.Merchandise;
+package com.ddicg.erp.service.Merchandise;
 
-import com.anno.ERP_SpringBoot_Experiment.model.embedded.AuditInfo;
-import com.anno.ERP_SpringBoot_Experiment.model.entity.Attributes;
-import com.anno.ERP_SpringBoot_Experiment.model.entity.CartItem;
-import com.anno.ERP_SpringBoot_Experiment.model.entity.ShoppingCart;
-import com.anno.ERP_SpringBoot_Experiment.model.entity.User;
-import com.anno.ERP_SpringBoot_Experiment.repository.AttributesRepository;
-import com.anno.ERP_SpringBoot_Experiment.repository.ShoppingCartRepository;
-import com.anno.ERP_SpringBoot_Experiment.service.dto.ShoppingCartDto;
+import com.ddicg.erp.model.embedded.AuditInfo;
+import com.ddicg.erp.model.entity.Attributes;
+import com.ddicg.erp.model.entity.CartItem;
+import com.ddicg.erp.model.entity.ShoppingCart;
+import com.ddicg.erp.model.entity.User;
+import com.ddicg.erp.repository.AttributesRepository;
+import com.ddicg.erp.repository.ShoppingCartRepository;
+import com.ddicg.erp.service.dto.ShoppingCartDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -18,8 +18,8 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
-import com.anno.ERP_SpringBoot_Experiment.web.rest.error.BusinessException;
-import com.anno.ERP_SpringBoot_Experiment.web.rest.error.ErrorCode;
+import com.ddicg.erp.web.rest.error.BusinessException;
+import com.ddicg.erp.web.rest.error.ErrorCode;
 
 @Component("featureMerchandiseHelper")
 @Slf4j
@@ -111,7 +111,7 @@ public class Helper {
     }
 
     @org.springframework.transaction.annotation.Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
-    public ShoppingCart getOrCreateCart(User user, com.anno.ERP_SpringBoot_Experiment.repository.ShoppingCartRepository repo) {
+    public ShoppingCart getOrCreateCart(User user, com.ddicg.erp.repository.ShoppingCartRepository repo) {
         return repo.findByUser(user).orElseGet(() -> {
             try {
                 return repo.saveAndFlush(createNewCart(user));

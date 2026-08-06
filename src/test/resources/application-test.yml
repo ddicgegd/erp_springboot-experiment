@@ -7,6 +7,7 @@ spring:
     exclude:
       - org.springframework.boot.autoconfigure.mail.MailSenderAutoConfiguration
       - org.springframework.boot.actuate.autoconfigure.mail.MailHealthContributorAutoConfiguration
+      - org.redisson.spring.starter.RedissonAutoConfigurationV2
 
   # H2 in-memory database — Oracle compatibility mode
   datasource:
@@ -20,12 +21,11 @@ spring:
   jpa:
     hibernate:
       ddl-auto: create-drop
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
         format_sql: true
     open-in-view: false
-    database-platform: org.hibernate.dialect.H2Dialect
 
   # Tắt Kafka — dùng stream test binder
   cloud:
@@ -34,7 +34,9 @@ spring:
 
   # Tắt kafka listener
   kafka:
-    bootstrap-servers: localhost:9999
+    bootstrap-servers: localhost:9093
+    admin:
+      auto-create: false
     listener:
       auto-startup: false
 
@@ -81,7 +83,22 @@ springdoc:
 
 logging:
   level:
-    org.hibernate.SQL: DEBUG
-    org.hibernate.orm.jdbc.bind: TRACE
+    org.hibernate.SQL: WARN
+    org.hibernate.orm.jdbc.bind: WARN
     org.springframework.test: INFO
-    com.anno.ERP_SpringBoot_Experiment: DEBUG
+    com.ddicg.erp: INFO
+
+server:
+  url: http://localhost:8080
+
+frontend:
+  url: http://localhost:5173/berry-vue
+
+application:
+  security:
+    jwt:
+      secret-key: test-secret-key
+
+app:
+  redisson:
+    enabled: false

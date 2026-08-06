@@ -4,7 +4,7 @@
 - `ShoppingCartDto.java` contained `Long id;` which leaked internal identifiers.
 - `Helper.java` (`recalculateAndUpdateTotals`) calculated `totalDiscount` and incorrectly passed it as `totalSalePrice` to `cart.updateTotals`.
 - `Helper.java` (`toDto`) mapped `cart.getId()` to `ShoppingCartDto`.
-- `CartItemRepository.java` was missing from `com.anno.ERP_SpringBoot_Experiment.repository`.
+- `CartItemRepository.java` was missing from `com.ddicg.erp.repository`.
 - `ShoppingCartService.test.java` contained outdated and commented-out test code.
 
 ## Logic Chain

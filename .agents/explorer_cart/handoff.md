@@ -28,5 +28,5 @@ The feature is partially complete. A refactoring pass is needed to patch data pr
 ## Recommended Implementation Plan
 1. **Fix DTO**: Remove `Long id;` from `ShoppingCartDto.java`.
 2. **Update Helper**: Remove `cart.getId()` passing from the `toDto()` method in `src/main/java/.../service/Merchandise/Helper.java`.
-3. **Create Repository**: Create `CartItemRepository.java` in `com.anno.ERP_SpringBoot_Experiment.repository` extending `JpaRepository<CartItem, Long>`.
+3. **Create Repository**: Create `CartItemRepository.java` in `com.ddicg.erp.repository` extending `JpaRepository<CartItem, Long>`.
 4. **Restore Tests**: Uncomment and refactor `ShoppingCartService.test.java` using the correct `CartItemRequest` class and string-based SKUs. Rename it to `ShoppingCartServiceTest.java` to follow standard conventions.

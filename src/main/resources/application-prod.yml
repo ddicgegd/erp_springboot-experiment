@@ -1,0 +1,95 @@
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:oracle:thin:@localhost:1521/XEPDB1}
+    username: ${DB_USERNAME:Spring_app}
+    password: ${DB_PASSWORD}
+    driver-class-name: oracle.jdbc.OracleDriver
+    hikari:
+      initialization-fail-timeout: -1
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9093}
+    properties:
+      security.protocol: SASL_PLAINTEXT
+      sasl.mechanism: PLAIN
+      sasl.jaas.config: org.apache.kafka.common.security.plain.PlainLoginModule required username="${KAFKA_USER:kafka}" password="${KAFKA_PASSWORD:kafka@2025}";
+    listener:
+      concurrency: 3
+      auto-startup: true
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      username: ${REDIS_USERNAME:}
+      password: ${REDIS_PASSWORD:}
+
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:placeholder@example.com}
+    password: ${MAIL_PASSWORD:placeholder_password}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+integration:
+  minio:
+    access-key: ${MINIO_ACCESS_KEY:admin}
+    secret-key: ${MINIO_SECRET_KEY}
+    url: ${MINIO_URL:http://localhost:9000}
+
+server:
+  url: ${SERVER_URL:http://localhost:8080}
+
+frontend:
+  url: ${FRONTEND_URL:http://localhost:5173/berry-vue}
+
+application:
+  security:
+    jwt:
+      secret-key: ${JWT_SECRET}
+
+fineract:
+  base-url: ${FINERACT_BASE_URL:https://localhost:8443/fineract-provider/api/v1}
+  tenant-id: ${FINERACT_TENANT_ID:default}
+  username: ${FINERACT_USERNAME:mifos}
+  password: ${FINERACT_PASSWORD:password}
+  default-office-id: 1
+  default-legal-form-id: 1
+  date-format: "dd MMMM yyyy"
+  locale: "en"
+  ssl-bypass: ${FINERACT_SSL_BYPASS:true}
+  cash-gl-account-id: ${FINERACT_CASH_GL_ACCOUNT_ID:1}
+  sales-revenue-gl-account-id: ${FINERACT_SALES_REVENUE_GL_ACCOUNT_ID:2}
+  sales-returns-gl-account-id: ${FINERACT_SALES_RETURNS_GL_ACCOUNT_ID:3}
+
+logging:
+  level:
+    root: INFO
+    com:
+      anno:
+        ERP_SpringBoot_Experiment:
+          service: DEBUG
+    org:
+      springframework:
+        data:
+          repository:
+            config:
+              RepositoryConfigurationExtensionSupport: WARN
+      apache:
+        kafka: WARN
+      hibernate:
+        tool:
+          schema:
+            internal:
+              ExceptionHandlerLoggedImpl: ERROR
+    org.hibernate: WARN
