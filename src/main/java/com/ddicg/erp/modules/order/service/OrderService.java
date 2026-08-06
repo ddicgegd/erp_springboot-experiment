@@ -8,14 +8,12 @@ import com.ddicg.erp.core.common.model.embedded.AuditInfo;
 import com.ddicg.erp.modules.iam.model.*;
 import com.ddicg.erp.modules.merchandise.model.*;
 import com.ddicg.erp.modules.order.model.*;
-import com.ddicg.erp.modules.cart.model.*;
 import com.ddicg.erp.core.common.model.enums.OrderStatus;
 import com.ddicg.erp.core.common.model.enums.PaymentMethod;
 import com.ddicg.erp.core.common.model.enums.SearchOperation;
 import com.ddicg.erp.modules.iam.repository.*;
 import com.ddicg.erp.modules.merchandise.repository.*;
 import com.ddicg.erp.modules.order.repository.*;
-import com.ddicg.erp.modules.cart.repository.*;
 import com.ddicg.erp.core.common.repository.specification.SearchCriteria;
 import com.ddicg.erp.core.common.repository.specification.SpecificationBuilder;
 import com.ddicg.erp.modules.order.service.OutboxOrderHelper;
@@ -61,7 +59,6 @@ public class OrderService implements iOrder {
     private final AttributesRepository attributesRepository;
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
-    private final ShoppingCartRepository shoppingCartRepository;
     private final OrderMapper orderMapper;
     private final SecurityUtil securityUtil;
     private final OrderStatusHandler orderStatusHandler;
@@ -70,60 +67,34 @@ public class OrderService implements iOrder {
 
     @Override @Transactional
     public Response<OrderDto> createOrder(CreateOrderRequest request) {
-        User customer = securityUtil.getCurrentUser().orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED, ""));
+        User customer = securityUtil.getCurrentUser()
+                .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED, ""));
+
         Order order = new Order();
         order.setOrderNumber(generateOrderNumber());
-        var initialStatus = new ArrayList<OrderStatus>();
-        initialStatus.add(OrderStatus.PENDING);
-        if (request.getPaymentMethod() == PaymentMethod.COD) {
-            initialStatus.add(OrderStatus.CONFIRMED);
-            initialStatus.add(OrderStatus.PROCESSING);
-        } else if (request.getPaymentMethod() != null) {
-            initialStatus.add(OrderStatus.WAITING_PAYMENT);
-        }
+
+        populateCustomerDetails(order, customer);
+        populateAuditInfo(order);
+
+        List<OrderStatus> initialStatus = determineInitialStatuses(request.getPaymentMethod());
         order.setStatus(initialStatus);
         order.setCurrentStatus(initialStatus.get(initialStatus.size() - 1));
-        order.setCustomer(customer);
-        order.setCustomerName(customer.getFullName());
-        order.setCustomerEmail(customer.getEmail());
-        order.setCustomerPhone(customer.getPhoneNumber());
+
         order.setShippingMethod(request.getShippingMethod());
         order.setCustomerNotes(request.getCustomerNotes());
         order.setDiscountCode(request.getDiscountCode());
-        order.setShippingFee(30000.0);
-        order.setAuditInfo(new AuditInfo());
-        order.getAuditInfo().addUpdateEntry("Tạo đơn hàng", securityUtil.getCurrentUsername());
+        order.setShippingFee(30000.0); // fake
 
-        List<OrderItem> items = new ArrayList<>();
-        if (request.isFromCart()) {
-            var cart = shoppingCartRepository.findByUser(customer).orElseThrow();
-            items = cart.getCartItems().stream().map(i -> {
-                var a = attributesRepository.findAttributesBySku_sku(i.getSku()).orElseThrow();
-                return buildItem(a, i.getQuantity(), order);
-            }).toList();
-            cart.clearItems();
-            shoppingCartRepository.save(cart);
-        } else {
-            var skus = request.getItems().stream().map(CreateOrderRequest.OrderItemRequest::getAttributesSku).toList();
-            var qty = request.getItems().stream().map(CreateOrderRequest.OrderItemRequest::getQuantity).toList();
-            List<SearchCriteria> c = new ArrayList<>();
-            c.add(new SearchCriteria("sku.sku", SearchOperation.IN, skus));
-            var attrs = attributesRepository.findAll(new SpecificationBuilder<Attributes>(c).build());
-            if (attrs.size() != qty.size()) throw new BusinessException(ErrorCode.ATTRIBUTES_OUT_OF_STOCK, "");
-            items = buildItems(request.getItems(), order);
-        }
+        List<OrderItem> items = buildOrderItems(request.getItems(), order);
         order.setOrderItems(items);
-        items.forEach(i -> i.setOrder(order));
+
         calcTotal(order);
         Order saved = orderRepository.save(order);
         log.info("✅ ORDER_CREATED: {}", saved.getOrderNumber());
+
         outboxOrderHelper.saveOrderCreatedEvent(saved, request);
-        // Ghi outbox event cho auto-transition
-        if (request.getPaymentMethod() == PaymentMethod.COD) {
-            outboxOrderHelper.saveOrderStatusChangedEvent(saved, OrderStatus.PENDING, OrderStatus.PROCESSING, "COD auto", "system");
-        } else if (request.getPaymentMethod() != null) {
-            outboxOrderHelper.saveOrderStatusChangedEvent(saved, OrderStatus.PENDING, OrderStatus.WAITING_PAYMENT, "Online chờ thanh toán", "system");
-        }
+        publishAutoTransitionOutboxEvents(saved, request.getPaymentMethod());
+
         return Response.ok(orderMapper.toDto(saved));
     }
 
@@ -380,6 +351,63 @@ public class OrderService implements iOrder {
                 + (order.getShippingFee()!=null?order.getShippingFee():0)));
     }
 
+    private void populateCustomerDetails(Order order, User customer) {
+        order.setCustomer(customer);
+        order.setCustomerName(customer.getFullName());
+        order.setCustomerEmail(customer.getEmail());
+        order.setCustomerPhone(customer.getPhoneNumber());
+    }
+
+    private void populateAuditInfo(Order order) {
+        AuditInfo auditInfo = new AuditInfo();
+        auditInfo.addUpdateEntry("Tạo đơn hàng", securityUtil.getCurrentUsername());
+        order.setAuditInfo(auditInfo);
+    }
+
+    private List<OrderStatus> determineInitialStatuses(PaymentMethod paymentMethod) {
+        List<OrderStatus> statuses = new ArrayList<>();
+        statuses.add(OrderStatus.PENDING);
+        if (paymentMethod == PaymentMethod.COD) {
+            statuses.add(OrderStatus.CONFIRMED);
+            statuses.add(OrderStatus.PROCESSING);
+        } else if (paymentMethod != null) {
+            statuses.add(OrderStatus.WAITING_PAYMENT);
+        }
+        return statuses;
+    }
+
+    private List<OrderItem> buildOrderItems(List<CreateOrderRequest.OrderItemRequest> itemRequests, Order order) {
+        if (itemRequests == null || itemRequests.isEmpty()) {
+            throw new BusinessException(ErrorCode.ATTRIBUTES_OUT_OF_STOCK, "Danh sách sản phẩm không được rỗng");
+        }
+
+        List<String> skus = itemRequests.stream()
+                .map(CreateOrderRequest.OrderItemRequest::getAttributesSku)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+
+        Map<String, Attributes> attrMap = attributesRepository.findAllBySku_skuIn(skus).stream()
+                .collect(Collectors.toMap(a -> a.getSku().getSku(), a -> a, (existing, replacement) -> existing));
+
+        if (attrMap.size() < skus.size()) {
+            throw new BusinessException(ErrorCode.ATTRIBUTES_OUT_OF_STOCK, "Một hoặc nhiều mã SKU không tồn tại");
+        }
+
+        return itemRequests.stream().map(req -> {
+            Attributes attr = attrMap.get(req.getAttributesSku());
+            return buildItem(attr, req.getQuantity(), order);
+        }).toList();
+    }
+
+    private void publishAutoTransitionOutboxEvents(Order savedOrder, PaymentMethod paymentMethod) {
+        if (paymentMethod == PaymentMethod.COD) {
+            outboxOrderHelper.saveOrderStatusChangedEvent(savedOrder, OrderStatus.PENDING, OrderStatus.PROCESSING, "COD auto", "system");
+        } else if (paymentMethod != null) {
+            outboxOrderHelper.saveOrderStatusChangedEvent(savedOrder, OrderStatus.PENDING, OrderStatus.WAITING_PAYMENT, "Online chờ thanh toán", "system");
+        }
+    }
+
     private String generateOrderNumber() {
         return "ORD-" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")) + "-" + String.format("%04d",(int)(Math.random()*10000));
     }
@@ -389,13 +417,6 @@ public class OrderService implements iOrder {
                 .attributes(a).productSku(a.getProduct().getSkuInfo().getSku()).attributesSku(a.getSku().getSku())
                 .quantity(qty).unitPrice(a.getPrice()).salePrice(a.getSalePrice())
                 .subtotal(a.getSalePrice()*qty).build();
-    }
-
-    private List<OrderItem> buildItems(List<CreateOrderRequest.OrderItemRequest> reqs, Order order) {
-        return reqs.stream().map(r -> {
-            var a = attributesRepository.findAttributesBySku_sku(r.getAttributesSku()).orElseThrow();
-            return buildItem(a, r.getQuantity(), order);
-        }).toList();
     }
 
     private Long convertLong(String s) { return Long.valueOf(s); }
