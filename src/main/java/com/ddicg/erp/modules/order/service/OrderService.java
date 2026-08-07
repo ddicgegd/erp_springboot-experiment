@@ -51,7 +51,6 @@ import java.util.stream.IntStream;
 @Service
 @RequiredArgsConstructor
 public class OrderService implements iOrder {
-    private static final Logger log = LoggerFactory.getLogger(OrderService.class);
 
 
     private final OrderRepository orderRepository;
@@ -67,6 +66,9 @@ public class OrderService implements iOrder {
 
     @Override @Transactional
     public Response<OrderDto> createOrder(CreateOrderRequest request) {
+        // 1. Kiểm tra và lấy thông tin Attributes TRƯỚC TIÊN
+        Map<String, Attributes> attrMap = fetchAndValidateAttributes(request.getItems());
+
         User customer = securityUtil.getCurrentUser()
                 .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED, ""));
 
@@ -85,7 +87,8 @@ public class OrderService implements iOrder {
         order.setDiscountCode(request.getDiscountCode());
         order.setShippingFee(30000.0); // fake
 
-        List<OrderItem> items = buildOrderItems(request.getItems(), order);
+        // 2. Khởi tạo danh sách OrderItem dạng thông tin tĩnh
+        List<OrderItem> items = buildOrderItemsFromAttributes(request.getItems(), attrMap, order);
         order.setOrderItems(items);
 
         calcTotal(order);
@@ -376,7 +379,7 @@ public class OrderService implements iOrder {
         return statuses;
     }
 
-    private List<OrderItem> buildOrderItems(List<CreateOrderRequest.OrderItemRequest> itemRequests, Order order) {
+    private Map<String, Attributes> fetchAndValidateAttributes(List<CreateOrderRequest.OrderItemRequest> itemRequests) {
         if (itemRequests == null || itemRequests.isEmpty()) {
             throw new BusinessException(ErrorCode.ATTRIBUTES_OUT_OF_STOCK, "Danh sách sản phẩm không được rỗng");
         }
@@ -394,6 +397,13 @@ public class OrderService implements iOrder {
             throw new BusinessException(ErrorCode.ATTRIBUTES_OUT_OF_STOCK, "Một hoặc nhiều mã SKU không tồn tại");
         }
 
+        return attrMap;
+    }
+
+    private List<OrderItem> buildOrderItemsFromAttributes(
+            List<CreateOrderRequest.OrderItemRequest> itemRequests,
+            Map<String, Attributes> attrMap,
+            Order order) {
         return itemRequests.stream().map(req -> {
             Attributes attr = attrMap.get(req.getAttributesSku());
             return buildItem(attr, req.getQuantity(), order);
@@ -413,10 +423,24 @@ public class OrderService implements iOrder {
     }
 
     private OrderItem buildItem(Attributes a, int qty, Order order) {
-        return OrderItem.builder().order(order).product(a.getProduct()).productName(a.getProduct().getName())
-                .attributes(a).productSku(a.getProduct().getSkuInfo().getSku()).attributesSku(a.getSku().getSku())
-                .quantity(qty).unitPrice(a.getPrice()).salePrice(a.getSalePrice())
-                .subtotal(a.getSalePrice()*qty).build();
+        String pName = (a.getProduct() != null && a.getProduct().getName() != null)
+                ? a.getProduct().getName() : (a.getName() != null ? a.getName() : "");
+        String pSku = (a.getProduct() != null && a.getProduct().getSkuInfo() != null)
+                ? a.getProduct().getSkuInfo().getSku() : null;
+
+        return OrderItem.builder()
+                .order(order)
+                .productName(pName)
+                .productSku(pSku)
+                .attributesSku(a.getSku().getSku())
+                .attributesName(a.getName())
+                .quantity(qty)
+                .unitPrice(a.getPrice())
+                .salePrice(a.getSalePrice())
+                .costPrice(a.getCostPrice())
+                .variantOptions(a.getVariantOptions() != null ? new ArrayList<>(a.getVariantOptions()) : new ArrayList<>())
+                .subtotal(a.getSalePrice() * qty)
+                .build();
     }
 
     private Long convertLong(String s) { return Long.valueOf(s); }

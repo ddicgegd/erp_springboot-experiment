@@ -2,8 +2,6 @@ package com.ddicg.erp.modules.order.model;
 
 import com.ddicg.erp.core.common.model.base.IdentityOnly;
 import com.ddicg.erp.core.common.model.embedded.VariantOption;
-import com.ddicg.erp.modules.merchandise.model.Attributes;
-import com.ddicg.erp.modules.merchandise.model.Product;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
@@ -16,10 +14,7 @@ import java.util.List;
 
 @Entity
 @Table(name = "order_items", indexes = {
-        @Index(name = "idx_orderitem_id", columnList = "id", unique = true),
-        @Index(name = "idx_orderitem_order", columnList = "order_id"),
-        @Index(name = "idx_orderitem_product", columnList = "product_id"),
-        @Index(name = "idx_orderitem_attributes", columnList = "attributes_id")
+        @Index(name = "idx_orderitem_attributes_sku", columnList = "attributes_sku")
 })
 @Getter
 @Setter
@@ -35,24 +30,17 @@ public class OrderItem extends IdentityOnly<Long> {
     @OnDelete(action = OnDeleteAction.CASCADE)
     Order order;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "product_id", nullable = false, foreignKey = @ForeignKey(name = "FK_order_item_product"))
-    @ToString.Exclude
-    Product product;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "attributes_id", nullable = false, foreignKey = @ForeignKey(name = "FK_order_item_attributes"))
-    @ToString.Exclude
-    Attributes attributes;
-
     @Column(name = "product_name", nullable = false, length = 500)
     String productName;
 
     @Column(name = "product_sku", length = 100)
     String productSku;
 
-    @Column(name = "attributes_sku", length = 100)
+    @Column(name = "attributes_sku", nullable = false, length = 100)
     String attributesSku;
+
+    @Column(name = "attributes_name", length = 500)
+    String attributesName;
 
     @Convert(converter = com.ddicg.erp.core.config.converter.VariantOptionListConverter.class)
     @Column(name = "variant_options", columnDefinition = "CLOB")
@@ -67,6 +55,10 @@ public class OrderItem extends IdentityOnly<Long> {
 
     @Column(name = "sale_price", nullable = false)
     Double salePrice;
+
+    @Column(name = "cost_price")
+    @Builder.Default
+    Double costPrice = 0.0;
 
     @Column(name = "discount_amount")
     @Builder.Default
@@ -85,25 +77,5 @@ public class OrderItem extends IdentityOnly<Long> {
 
     @Column(name = "image_url", length = 500)
     String imageUrl;
-
-    public Order getOrder() { return order; }
-    public void setOrder(Order order) { this.order = order; }
-    public Product getProduct() { return product; }
-    public void setProduct(Product product) { this.product = product; }
-    public Attributes getAttributes() { return attributes; }
-    public void setAttributes(Attributes attributes) { this.attributes = attributes; }
-    public String getProductName() { return productName; }
-    public void setProductName(String productName) { this.productName = productName; }
-    public String getProductSku() { return productSku; }
-    public void setProductSku(String productSku) { this.productSku = productSku; }
-    public String getAttributesSku() { return attributesSku; }
-    public void setAttributesSku(String attributesSku) { this.attributesSku = attributesSku; }
-    public Integer getQuantity() { return quantity; }
-    public void setQuantity(Integer quantity) { this.quantity = quantity; }
-    public Double getUnitPrice() { return unitPrice; }
-    public void setUnitPrice(Double unitPrice) { this.unitPrice = unitPrice; }
-    public Double getSalePrice() { return salePrice; }
-    public void setSalePrice(Double salePrice) { this.salePrice = salePrice; }
-    public Double getSubtotal() { return subtotal != null ? subtotal : 0.0; }
-    public void setSubtotal(Double subtotal) { this.subtotal = subtotal; }
 }
+

@@ -40,12 +40,37 @@ public class RedisConfiguration {
 
     // Remap class name cũ → mới khi deserialize từ Redis
     objectMapper.addMixIn(Object.class, Object.class); // placeholder để trigger type resolution
+    java.util.Map<String, String> packageMappings = new java.util.LinkedHashMap<>();
+    packageMappings.put("com.ddicg.erp.model.", "com.ddicg.erp.core.common.model.");
+    packageMappings.put("com.anno.ERP_SpringBoot_Experiment.model.", "com.ddicg.erp.core.common.model.");
+    packageMappings.put("com.anno.ERP_SpringBoot_Experiment.", "com.ddicg.erp.");
+
+    objectMapper.addHandler(new com.fasterxml.jackson.databind.deser.DeserializationProblemHandler() {
+      @Override
+      public com.fasterxml.jackson.databind.JavaType handleUnknownTypeId(
+          com.fasterxml.jackson.databind.DeserializationContext ctxt,
+          com.fasterxml.jackson.databind.JavaType baseType,
+          String subTypeId,
+          com.fasterxml.jackson.databind.jsontype.TypeIdResolver idResolver,
+          String failureMsg) {
+        for (java.util.Map.Entry<String, String> entry : packageMappings.entrySet()) {
+          if (subTypeId.startsWith(entry.getKey())) {
+            String remapped = entry.getValue() + subTypeId.substring(entry.getKey().length());
+            try {
+              Class<?> cls = ctxt.findClass(remapped);
+              return ctxt.constructType(cls);
+            } catch (Exception ignored) {}
+          }
+        }
+        return null;
+      }
+    });
+
     objectMapper.setTypeFactory(
         objectMapper.getTypeFactory().withClassLoader(
             new PackageMigrationClassLoader(
                 Thread.currentThread().getContextClassLoader(),
-                "com.anno.ERP_SpringBoot_Experiment.",
-                "com.ddicg.erp."
+                packageMappings
             )
         )
     );
