@@ -33,87 +33,75 @@ public interface MerchandiseController {
         @ResponseStatus(HttpStatus.OK)
         Response<?> updateProduct(@Valid @RequestBody UpdateProductRequest request);
 
-        @DeleteMapping("/delete-Product")
+        @PostMapping("/delete-Product")
         @ResponseStatus(HttpStatus.NO_CONTENT)
-        Response<?> deleteProduct(@RequestParam List<String> ids);
+        Response<?> deleteProduct(@Valid @RequestBody DeleteBySkusRequest request);
 
         @PostMapping("/search-Product")
         @ResponseStatus(HttpStatus.OK)
         Response<PagingResponse<ProductDto>> searchProduct(@Valid @RequestBody GetProductRequest request);
 
-        @GetMapping("/products")
+        @PostMapping("/products/by-skus")
         @ResponseStatus(HttpStatus.OK)
-        Response<List<ProductDto>> getProductsByIds(@RequestParam List<Long> ids);
+        Response<List<ProductDto>> getProductsBySkus(@Valid @RequestBody GetBySkusRequest request);
 
-        @GetMapping("/products/by-skus")
+        @PostMapping("/products/by-category-skus")
         @ResponseStatus(HttpStatus.OK)
-        Response<List<ProductDto>> getProductsBySkus(@RequestParam List<String> skus);
-
-        @GetMapping("/products/by-category-skus")
-        @ResponseStatus(HttpStatus.OK)
-        Response<List<ProductDto>> getProductsByCategorySkus(@RequestParam List<String> categorySkus);
+        Response<List<ProductDto>> getProductsByCategorySkus(@Valid @RequestBody GetBySkusRequest request);
 
         /************* Product Images Management *****************/
 
-        @PostMapping(value = "/add-Product-Images/{productId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+        @PostMapping(value = "/add-Product-Images/{sku}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
         @ResponseStatus(HttpStatus.OK)
         Response<?> addProductImages(
-                        @PathVariable String productId,
+                        @PathVariable String sku,
                         @RequestParam("images") List<MultipartFile> images);
 
-        @DeleteMapping("/delete-Product-Image/{productId}")
+        @PostMapping("/delete-Product-Image")
         @ResponseStatus(HttpStatus.OK)
-        Response<?> deleteProductImage(
-                        @PathVariable String productId,
-                        @RequestParam String imageKey);
+        Response<?> deleteProductImage(@Valid @RequestBody DeleteProductImageRequest request);
 
-        @PutMapping(value = "/replace-Product-Images/{productId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+        @PutMapping(value = "/replace-Product-Images/{sku}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
         @ResponseStatus(HttpStatus.OK)
         Response<?> replaceProductImages(
-                        @PathVariable String productId,
+                        @PathVariable String sku,
                         @RequestParam("images") List<MultipartFile> images);
 
         @GetMapping(value = "/view-image/{imageName}", produces = MediaType.IMAGE_JPEG_VALUE)
         @ResponseStatus(HttpStatus.OK)
         byte[] viewProductImage(@PathVariable String imageName);
 
-        @GetMapping("/checkProduct/{name}")
-        ProductIsExiting checkProduct(@RequestParam String name);
+        @PostMapping("/checkProduct")
+        ProductIsExiting checkProduct(@Valid @RequestBody CheckNameRequest request);
 
-        @PostMapping("/view-Product/{productId}")
+        @PostMapping("/view-Product/{sku}")
         @ResponseStatus(HttpStatus.OK)
-        Response<?> incrementViewCount(@PathVariable String productId);
+        Response<?> incrementViewCount(@PathVariable String sku);
 
         /************* Category CRUD *****************/
 
         @PostMapping("/add-Category")
         @ResponseStatus(HttpStatus.CREATED)
-        Response<?> addCategory(@Valid @RequestParam String name);
+        Response<?> addCategory(@Valid @RequestBody CreateCategoryRequest request);
 
         @PutMapping("/update-Category")
         @ResponseStatus(HttpStatus.OK)
-        Response<?> updateCategory(@Valid @RequestBody UpdateCategoryRequest categoryDto);
+        Response<?> updateCategory(@Valid @RequestBody UpdateCategoryRequest request);
 
-        @DeleteMapping("/delete-Category")
+        @PostMapping("/delete-Category")
         @ResponseStatus(HttpStatus.NO_CONTENT)
-        Response<?> deleteCategory(@RequestParam @Valid List<String> ids);
+        Response<?> deleteCategory(@Valid @RequestBody DeleteBySkusRequest request);
 
         @PostMapping("/search-Category")
         @ResponseStatus(HttpStatus.OK)
         Response<PagingResponse<CategoryDto>> searchCategory(@Valid @RequestBody CategorySearchRequest request);
 
-        @GetMapping("/categories")
+        @PostMapping("/categories/by-skus")
         @ResponseStatus(HttpStatus.OK)
-        Response<List<CategoryDto>> getCategoriesByIds(@RequestParam List<Long> ids);
+        Response<List<CategoryDto>> getCategoriesBySkus(@Valid @RequestBody GetBySkusRequest request);
 
-        @GetMapping("/categories/by-skus")
-        @ResponseStatus(HttpStatus.OK)
-        Response<List<CategoryDto>> getCategoriesBySkus(@RequestParam List<String> skus);
-
-
-
-        @GetMapping("/checkCategory/{name}")
-        CategoryExitingResponse check(@RequestParam String name);
+        @PostMapping("/checkCategory")
+        CategoryExitingResponse check(@Valid @RequestBody CheckNameRequest request);
 
         /************* Attributes Management *****************/
 

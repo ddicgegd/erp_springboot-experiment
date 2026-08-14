@@ -1,7 +1,4 @@
 package com.ddicg.erp.modules.order.service;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 
 import com.ddicg.erp.core.event.model.OutboxEvent;
 import com.ddicg.erp.modules.order.model.Order;
@@ -14,18 +11,26 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 
+import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class OutboxOrderHelper {
-    private static final Logger log = LoggerFactory.getLogger(OutboxOrderHelper.class);
 
+    private static final List<String> ROLE_PRIORITY = List.of(
+            "SUPER_ADMIN", "ADMIN", "MANAGEMENT", "EMPLOYEE", "USER"
+    );
 
     private final OutboxEventRepository outboxEventRepository;
     private final ObjectMapper objectMapper;
@@ -39,7 +44,8 @@ public class OutboxOrderHelper {
             m.put("orderNumber",order.getOrderNumber()); m.put("amount",order.getTotalAmount());
             m.put("currency","VND"); m.put("paymentMethod",paymentMethod);
             m.put("bankCode",bankCode);
-            m.put("customerId",order.getCustomer()!=null?String.valueOf(order.getCustomer().getId()):null);
+            m.put("customerId",order.getCustomerInfo()!=null?order.getCustomerInfo().getCustomerId():null);
+            m.put("roles", resolveCurrentRoles());
             m.put("ipAddress",securityUtil.getIpAddress()); m.put("language","vn");
             m.put("createdAt",java.time.LocalDateTime.now().toString());
             m.put("correlationId",cid);
@@ -59,6 +65,29 @@ public class OutboxOrderHelper {
         saveOrderCreatedEvent(order,
                 request.getPaymentMethod()!=null?request.getPaymentMethod().toString().toUpperCase():"COD",
                 request.getBankCode());
+    }
+
+    private List<String> resolveCurrentRoles() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return List.of("ANONYMOUS");
+        }
+
+        List<String> roles = authentication.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .filter(Objects::nonNull)
+                .filter(authority -> authority.startsWith("ROLE_"))
+                .map(authority -> authority.substring("ROLE_".length()))
+                .distinct()
+                .sorted(Comparator.comparingInt(OutboxOrderHelper::rolePriority).thenComparing(Comparator.naturalOrder()))
+                .toList();
+
+        return roles.isEmpty() ? List.of("ANONYMOUS") : roles;
+    }
+
+    private static int rolePriority(String role) {
+        int index = ROLE_PRIORITY.indexOf(role);
+        return index >= 0 ? index : ROLE_PRIORITY.size();
     }
 
     public void saveOrderStatusChangedEvent(Order order, OrderStatus prev, OrderStatus next, String note) {

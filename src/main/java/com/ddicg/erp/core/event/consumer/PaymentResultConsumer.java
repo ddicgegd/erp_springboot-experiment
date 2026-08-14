@@ -24,7 +24,6 @@ import java.util.Map;
 @Component
 @RequiredArgsConstructor
 public class PaymentResultConsumer {
-    private static final Logger log = LoggerFactory.getLogger(PaymentResultConsumer.class);
 
     private final OrderRepository orderRepository;
     private final OrderInventoryService orderInventoryService;

@@ -28,7 +28,6 @@ import java.util.concurrent.TimeUnit;
 @Component
 @RequiredArgsConstructor
 public class OutboxEventPublisher {
-    private static final Logger log = LoggerFactory.getLogger(OutboxEventPublisher.class);
 
 
     private final OutboxEventRepository outboxEventRepository;
@@ -83,10 +82,18 @@ public class OutboxEventPublisher {
         log.debug("Publishing event: id={}, topic={}, type={}", 
                 event.getId(), event.getTopic(), event.getEventType());
 
+        Object payloadObj;
+        try {
+            payloadObj = objectMapper.readTree(event.getPayload());
+        } catch (Exception e) {
+            log.warn("Payload is not valid JSON, sending as string. id={}, type={}", event.getId(), event.getEventType());
+            payloadObj = event.getPayload();
+        }
+
         ProducerRecord<String, Object> record = new ProducerRecord<>(
                 event.getTopic(),
                 event.getMessageKey(),
-                event.getPayload()
+                payloadObj
         );
 
         // Add headers for tracing

@@ -21,7 +21,6 @@ import org.springframework.stereotype.Component;
 @Component
 @Slf4j
 public class RedisConsumer implements StreamListener<String, MapRecord<String, String, String>> {
-    private static final Logger log = LoggerFactory.getLogger(RedisConsumer.class);
 
 
   @Autowired

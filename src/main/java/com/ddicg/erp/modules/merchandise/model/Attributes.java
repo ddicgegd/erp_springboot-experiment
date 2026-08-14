@@ -38,7 +38,8 @@ public class Attributes extends BaseEntity<Long> {
                         @AttributeOverride(name = "sku", column = @Column(name = "sku_name"))
         })
         @JsonIgnore
-        SkuInfo sku;
+        @Builder.Default
+        SkuInfo sku = new SkuInfo();
 
         @Column(name = "name")
         String name;
@@ -48,6 +49,18 @@ public class Attributes extends BaseEntity<Long> {
 
         @Column(name = "sale_price")
         double salePrice;
+
+        @Column(name = "cost_price")
+        @Builder.Default
+        Double costPrice = 0.0;
+
+        @Column(name = "sold_quantity")
+        @Builder.Default
+        Integer soldQuantity = 0;
+
+        @Column(name = "total_orders")
+        @Builder.Default
+        Integer totalOrders = 0;
 
         @Convert(converter = com.ddicg.erp.core.config.converter.VariantOptionListConverter.class)
         @Column(name = "variant_options", columnDefinition = "CLOB")
@@ -79,37 +92,4 @@ public class Attributes extends BaseEntity<Long> {
         @JoinColumn(name = "product_id")
         @OnDelete(action = OnDeleteAction.CASCADE)
         Product product;
-
-        public SkuInfo getSku() { return sku != null ? sku : new SkuInfo(); }
-        public void setSku(SkuInfo sku) { this.sku = sku; }
-
-        public String getName() { return name; }
-        public void setName(String name) { this.name = name; }
-
-        public double getPrice() { return price; }
-        public void setPrice(double price) { this.price = price; }
-
-        public double getSalePrice() { return salePrice; }
-        public void setSalePrice(double salePrice) { this.salePrice = salePrice; }
-
-        public Product getProduct() { return product; }
-        public void setProduct(Product product) { this.product = product; }
-
-        public List<VariantOption> getVariantOptions() { return variantOptions; }
-        public void setVariantOptions(List<VariantOption> variantOptions) { this.variantOptions = variantOptions; }
-
-        public StockStatus getStatusProduct() { return statusProduct; }
-        public void setStatusProduct(StockStatus statusProduct) { this.statusProduct = statusProduct; }
-
-        public Set<String> getKeywords() { return keywords; }
-        public void setKeywords(Set<String> keywords) { this.keywords = keywords; }
-
-        public List<SpecificationGroup> getSpecifications() { return specifications; }
-        public void setSpecifications(List<SpecificationGroup> specifications) { this.specifications = specifications; }
-
-        public List<Promotion> getPromotions() { return promotions; }
-        public void setPromotions(List<Promotion> promotions) { this.promotions = promotions; }
-
-        public Double getCostPrice() { return 0.0; }
-        public Integer getSoldQuantity() { return 0; }
 }

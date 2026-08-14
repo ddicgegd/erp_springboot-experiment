@@ -22,7 +22,6 @@ import java.sql.Statement;
 @Lazy(false)
 @Slf4j
 public class OraclePrivilegeInitializer {
-    private static final Logger log = LoggerFactory.getLogger(OraclePrivilegeInitializer.class);
 
 
     @Value("${app.datasource.admin.url:}")

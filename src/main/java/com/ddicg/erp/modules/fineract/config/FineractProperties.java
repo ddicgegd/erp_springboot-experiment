@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Configuration;
 public class FineractProperties {
     private String baseUrl;
     private String tenant;
+    private String tenantId = "default";
     private String username;
     private String password;
     private Long defaultOfficeId = 1L;
@@ -15,10 +16,18 @@ public class FineractProperties {
     private String dateFormat = "dd MMMM yyyy";
     private String locale = "en";
 
+    private boolean sslBypass = true;
+
+    private Long cashGlAccountId = 1L;
+    private Long salesRevenueGlAccountId = 2L;
+    private Long salesReturnsGlAccountId = 3L;
+
     public String getBaseUrl() { return baseUrl; }
     public void setBaseUrl(String baseUrl) { this.baseUrl = baseUrl; }
     public String getTenant() { return tenant; }
     public void setTenant(String tenant) { this.tenant = tenant; }
+    public String getTenantId() { return tenantId != null ? tenantId : tenant; }
+    public void setTenantId(String tenantId) { this.tenantId = tenantId; }
     public String getUsername() { return username; }
     public void setUsername(String username) { this.username = username; }
     public String getPassword() { return password; }
@@ -32,13 +41,15 @@ public class FineractProperties {
     public String getLocale() { return locale; }
     public void setLocale(String locale) { this.locale = locale; }
 
-    public Long getCashGlAccountId() { return 1000L; }
+    public Long getCashGlAccountId() { return cashGlAccountId; }
+    public void setCashGlAccountId(Long cashGlAccountId) { this.cashGlAccountId = cashGlAccountId; }
 
-    public Long getSalesRevenueGlAccountId() { return 4000L; }
-    public Long getSalesReturnsGlAccountId() { return 4100L; }
+    public Long getSalesRevenueGlAccountId() { return salesRevenueGlAccountId; }
+    public void setSalesRevenueGlAccountId(Long salesRevenueGlAccountId) { this.salesRevenueGlAccountId = salesRevenueGlAccountId; }
 
+    public Long getSalesReturnsGlAccountId() { return salesReturnsGlAccountId; }
+    public void setSalesReturnsGlAccountId(Long salesReturnsGlAccountId) { this.salesReturnsGlAccountId = salesReturnsGlAccountId; }
 
-    public String getTenantId() { return "default"; }
-
-    public boolean isSslBypass() { return false; }
+    public boolean isSslBypass() { return sslBypass; }
+    public void setSslBypass(boolean sslBypass) { this.sslBypass = sslBypass; }
 }

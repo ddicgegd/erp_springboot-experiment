@@ -19,7 +19,6 @@ public record ProductPublicRecord(
         String sku,
         String name,
         List<MediaItemDto> mediaItems,
-        Double discountPercent,
         String categoryName,
         String status
 ) implements Serializable {}

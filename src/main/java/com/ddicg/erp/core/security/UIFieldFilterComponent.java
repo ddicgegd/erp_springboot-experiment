@@ -24,7 +24,6 @@ public class UIFieldFilterComponent {
                 dto.getSkuInfo() != null ? dto.getSkuInfo().getSku() : null,
                 dto.getName(),
                 dto.getMediaItems(),
-                dto.getDiscountPercent(),
                 dto.getCategoryName(),
                 dto.getStatus() != null ? dto.getStatus().name() : null
         );

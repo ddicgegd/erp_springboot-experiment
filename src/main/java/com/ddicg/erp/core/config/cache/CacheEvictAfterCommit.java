@@ -27,7 +27,6 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 @Component
 @RequiredArgsConstructor
 public class CacheEvictAfterCommit {
-    private static final Logger log = LoggerFactory.getLogger(CacheEvictAfterCommit.class);
 
 
     private final CacheManager cacheManager;

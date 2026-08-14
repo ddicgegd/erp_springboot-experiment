@@ -142,39 +142,9 @@ public class Product extends BaseEntity<Long> {
         @Builder.Default
         Integer reviewCount = 0;
 
-    /*
-     * ============================ 🏷️ Discount Fields ============================
-     */
 
-    /**
-     * Phần trăm giảm giá sản phẩm
-     * @en Product discount percent
-     */
-    @Column(name = "discount_percent")
-    @Builder.Default
-    Double discountPercent = 0.0;
-
-    /**
-     * Ngày bắt đầu giảm giá
-     * @en Discount start date
-     */
-    @Column(name = "discount_start_date")
-    LocalDateTime discountStartDate;
-
-    /**
-     * Ngày kết thúc giảm giá
-     * @en Discount end date
-     */
-    @Column(name = "discount_end_date")
-    LocalDateTime discountEndDate;
-
-    public String getName() { return null; }
-
-    public com.ddicg.erp.core.common.model.embedded.SkuInfo getSkuInfo() { return new com.ddicg.erp.core.common.model.embedded.SkuInfo(); }
 
     public Boolean getIsDeleted() { return false; }
-
-    public java.util.List<com.ddicg.erp.core.common.model.embedded.MediaItem> getMediaItems() { return new java.util.ArrayList<>(); }
 
     public void setCategory(Category category) { this.category = category; }
 }

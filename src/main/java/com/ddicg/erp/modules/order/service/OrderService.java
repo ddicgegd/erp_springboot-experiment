@@ -1,35 +1,31 @@
 package com.ddicg.erp.modules.order.service;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-
-import com.ddicg.erp.modules.merchandise.mapper.OrderMapper;
-import com.ddicg.erp.core.common.model.embedded.AuditInfo;
-import com.ddicg.erp.modules.iam.model.*;
-import com.ddicg.erp.modules.merchandise.model.*;
-import com.ddicg.erp.modules.order.model.*;
-import com.ddicg.erp.core.common.model.enums.OrderStatus;
-import com.ddicg.erp.core.common.model.enums.PaymentMethod;
-import com.ddicg.erp.core.common.model.enums.SearchOperation;
-import com.ddicg.erp.modules.iam.repository.*;
-import com.ddicg.erp.modules.merchandise.repository.*;
-import com.ddicg.erp.modules.order.repository.*;
-import com.ddicg.erp.core.common.repository.specification.SearchCriteria;
-import com.ddicg.erp.core.common.repository.specification.SpecificationBuilder;
-import com.ddicg.erp.modules.order.service.OutboxOrderHelper;
-import com.ddicg.erp.modules.order.service.OrderInventoryService;
-import com.ddicg.erp.modules.order.dto.OrderDto;
-import com.ddicg.erp.modules.iam.dto.request.*;
-import com.ddicg.erp.modules.merchandise.dto.request.*;
-import com.ddicg.erp.modules.order.dto.request.*;
 import com.ddicg.erp.core.common.dto.request.*;
 import com.ddicg.erp.core.common.dto.response.PageableData;
 import com.ddicg.erp.core.common.dto.response.PagingResponse;
 import com.ddicg.erp.core.common.dto.response.Response;
-import com.ddicg.erp.modules.order.service.iOrder;
-import com.ddicg.erp.core.security.SecurityUtil;
+import com.ddicg.erp.core.common.model.embedded.AuditInfo;
+import com.ddicg.erp.core.common.model.enums.OrderStatus;
+import com.ddicg.erp.core.common.model.enums.PaymentMethod;
+import com.ddicg.erp.core.common.model.enums.StockStatus;
+import com.ddicg.erp.core.common.model.enums.SearchOperation;
+import com.ddicg.erp.core.common.repository.specification.SearchCriteria;
+import com.ddicg.erp.core.common.repository.specification.SpecificationBuilder;
+import com.ddicg.erp.core.common.util.UUIDv7Generator;
 import com.ddicg.erp.core.exception.BusinessException;
 import com.ddicg.erp.core.exception.ErrorCode;
+import com.ddicg.erp.core.security.SecurityUtil;
+import com.ddicg.erp.modules.iam.dto.request.*;
+import com.ddicg.erp.modules.iam.model.*;
+import com.ddicg.erp.modules.iam.repository.*;
+import com.ddicg.erp.modules.merchandise.dto.request.*;
+import com.ddicg.erp.modules.merchandise.mapper.OrderMapper;
+import com.ddicg.erp.modules.merchandise.model.*;
+import com.ddicg.erp.modules.merchandise.repository.*;
+import com.ddicg.erp.modules.order.dto.OrderDto;
+import com.ddicg.erp.modules.order.dto.request.*;
+import com.ddicg.erp.modules.order.model.*;
+import com.ddicg.erp.modules.order.repository.*;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -58,6 +54,7 @@ public class OrderService implements iOrder {
     private final AttributesRepository attributesRepository;
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
+    private final AddressRepository addressRepository;
     private final OrderMapper orderMapper;
     private final SecurityUtil securityUtil;
     private final OrderStatusHandler orderStatusHandler;
@@ -66,16 +63,13 @@ public class OrderService implements iOrder {
 
     @Override @Transactional
     public Response<OrderDto> createOrder(CreateOrderRequest request) {
-        // 1. Kiểm tra và lấy thông tin Attributes TRƯỚC TIÊN
-        Map<String, Attributes> attrMap = fetchAndValidateAttributes(request.getItems());
-
-        User customer = securityUtil.getCurrentUser()
-                .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED, ""));
+        // 1. Query xác thực Attributes(skus) xem có hợp lệ không (không gộp) -> Trả ra là List
+        List<Attributes> attributesList = fetchAndValidateAttributes(request.getItems());
 
         Order order = new Order();
-        order.setOrderNumber(generateOrderNumber());
+        order.setOrderNumber(UUIDv7Generator.generate().toString());
 
-        populateCustomerDetails(order, customer);
+        populateCustomerDetails(order, request);
         populateAuditInfo(order);
 
         List<OrderStatus> initialStatus = determineInitialStatuses(request.getPaymentMethod());
@@ -88,7 +82,7 @@ public class OrderService implements iOrder {
         order.setShippingFee(30000.0); // fake
 
         // 2. Khởi tạo danh sách OrderItem dạng thông tin tĩnh
-        List<OrderItem> items = buildOrderItemsFromAttributes(request.getItems(), attrMap, order);
+        List<OrderItem> items = buildOrderItemsFromAttributes(request.getItems(), attributesList, order);
         order.setOrderItems(items);
 
         calcTotal(order);
@@ -111,8 +105,12 @@ public class OrderService implements iOrder {
     }
 
     @Override public Response<PagingResponse<OrderDto>> getMyOrders(OrderSearchRequest r) {
-        var u = securityUtil.getCurrentUser().orElseThrow();
-        var p = orderRepository.findByCustomerId(u.getId(), PageRequest.of(0,20));
+        String currentUserId = securityUtil.getCurrentUser().map(u -> String.valueOf(u.getId())).orElse(null);
+        if (currentUserId == null) {
+            return Response.ok(PagingResponse.<OrderDto>builder().contents(Collections.emptyList())
+                    .paging(PageableData.builder().pageNumber(0).totalPages(0).totalElements(0L).pageSize(20).build()).build());
+        }
+        var p = orderRepository.findByCustomerId(currentUserId, PageRequest.of(0,20));
         return Response.ok(PagingResponse.<OrderDto>builder().contents(p.map(orderMapper::toDto).getContent())
                 .paging(PageableData.builder().pageNumber(p.getNumber()).totalPages(p.getTotalPages())
                         .totalElements(p.getTotalElements()).pageSize(p.getSize()).build()).build());
@@ -354,16 +352,55 @@ public class OrderService implements iOrder {
                 + (order.getShippingFee()!=null?order.getShippingFee():0)));
     }
 
-    private void populateCustomerDetails(Order order, User customer) {
-        order.setCustomer(customer);
-        order.setCustomerName(customer.getFullName());
-        order.setCustomerEmail(customer.getEmail());
-        order.setCustomerPhone(customer.getPhoneNumber());
+    private void populateCustomerDetails(Order order, CreateOrderRequest request) {
+        if (!org.springframework.util.StringUtils.hasText(request.getAddressId())) {
+            throw new BusinessException(ErrorCode.INVALID_REQUEST, "Mã địa chỉ giao hàng không được để trống");
+        }
+
+        Long addrId;
+        try {
+            addrId = Long.parseLong(request.getAddressId());
+        } catch (NumberFormatException e) {
+            throw new BusinessException(ErrorCode.INVALID_REQUEST, "Mã địa chỉ giao hàng không hợp lệ");
+        }
+
+        Address selectedAddress = addressRepository.findById(addrId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_REQUEST, "Địa chỉ giao hàng không tồn tại"));
+
+        Optional<User> currentUserOpt = securityUtil.getCurrentUser();
+
+        String customerId = null;
+        String customerName = selectedAddress.getRecipientName();
+        String customerEmail = null;
+        String customerPhone = selectedAddress.getPhoneNumber();
+        String shippingAddress = selectedAddress.getAddress();
+
+        if (currentUserOpt.isPresent()) {
+            User user = currentUserOpt.get();
+            customerId = String.valueOf(user.getId());
+            customerEmail = user.getEmail();
+            if (!org.springframework.util.StringUtils.hasText(customerName)) {
+                customerName = org.springframework.util.StringUtils.hasText(user.getFullName()) ? user.getFullName() : user.getName();
+            }
+            if (!org.springframework.util.StringUtils.hasText(customerPhone)) {
+                customerPhone = user.getPhoneNumber();
+            }
+        }
+
+        CustomerInfo customerInfo = CustomerInfo.builder()
+                .customerId(customerId)
+                .customerName(customerName)
+                .customerEmail(customerEmail)
+                .customerPhone(customerPhone)
+                .shippingAddress(shippingAddress)
+                .build();
+        order.setCustomerInfo(customerInfo);
     }
 
     private void populateAuditInfo(Order order) {
         AuditInfo auditInfo = new AuditInfo();
-        auditInfo.addUpdateEntry("Tạo đơn hàng", securityUtil.getCurrentUsername());
+        String username = securityUtil.getCurrentUsername() != null ? securityUtil.getCurrentUsername() : "SYSTEM";
+        auditInfo.addUpdateEntry("Tạo đơn hàng", username);
         order.setAuditInfo(auditInfo);
     }
 
@@ -379,31 +416,59 @@ public class OrderService implements iOrder {
         return statuses;
     }
 
-    private Map<String, Attributes> fetchAndValidateAttributes(List<CreateOrderRequest.OrderItemRequest> itemRequests) {
+    private List<Attributes> fetchAndValidateAttributes(List<CreateOrderRequest.OrderItemRequest> itemRequests) {
         if (itemRequests == null || itemRequests.isEmpty()) {
             throw new BusinessException(ErrorCode.ATTRIBUTES_OUT_OF_STOCK, "Danh sách sản phẩm không được rỗng");
         }
 
+        // 1. Validate quantity > 0 và sku không rỗng
+        for (CreateOrderRequest.OrderItemRequest req : itemRequests) {
+            if (req == null || req.getAttributesSku() == null || req.getAttributesSku().isBlank()) {
+                throw new BusinessException(ErrorCode.ATTRIBUTES_OUT_OF_STOCK, "Mã SKU sản phẩm không được để trống");
+            }
+            if (req.getQuantity() == null || req.getQuantity() <= 0) {
+                throw new BusinessException(ErrorCode.ATTRIBUTES_OUT_OF_STOCK, "Số lượng sản phẩm phải lớn hơn 0");
+            }
+        }
+
+        // 2. Lấy danh sách SKU từ request (không distinct/gộp)
         List<String> skus = itemRequests.stream()
                 .map(CreateOrderRequest.OrderItemRequest::getAttributesSku)
                 .filter(Objects::nonNull)
-                .distinct()
                 .toList();
 
-        Map<String, Attributes> attrMap = attributesRepository.findAllBySku_skuIn(skus).stream()
-                .collect(Collectors.toMap(a -> a.getSku().getSku(), a -> a, (existing, replacement) -> existing));
+        // 3. Query danh sách Attributes từ DB
+        List<Attributes> fetchedAttributes = attributesRepository.findAllBySku_skuIn(skus);
 
-        if (attrMap.size() < skus.size()) {
+        // 4. Xác thực tất cả SKUs yêu cầu có tồn tại trong DB không
+        Set<String> foundSkus = fetchedAttributes.stream()
+                .map(a -> (a.getSku() != null) ? a.getSku().getSku() : null)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        boolean missingSku = skus.stream().anyMatch(sku -> !foundSkus.contains(sku));
+        if (missingSku) {
             throw new BusinessException(ErrorCode.ATTRIBUTES_OUT_OF_STOCK, "Một hoặc nhiều mã SKU không tồn tại");
         }
 
-        return attrMap;
+        // 5. Kiểm tra trạng thái khả dụng của sản phẩm
+        for (Attributes attr : fetchedAttributes) {
+            if (attr.getStatusProduct() != StockStatus.AVAILABLE) {
+                throw new BusinessException(ErrorCode.ATTRIBUTES_OUT_OF_STOCK,
+                        "Sản phẩm SKU " + (attr.getSku() != null ? attr.getSku().getSku() : "") + " hiện không khả dụng");
+            }
+        }
+
+        return fetchedAttributes;
     }
 
     private List<OrderItem> buildOrderItemsFromAttributes(
             List<CreateOrderRequest.OrderItemRequest> itemRequests,
-            Map<String, Attributes> attrMap,
+            List<Attributes> attributesList,
             Order order) {
+        Map<String, Attributes> attrMap = attributesList.stream()
+                .collect(Collectors.toMap(a -> a.getSku().getSku(), a -> a, (existing, replacement) -> existing));
+
         return itemRequests.stream().map(req -> {
             Attributes attr = attrMap.get(req.getAttributesSku());
             return buildItem(attr, req.getQuantity(), order);
@@ -423,17 +488,10 @@ public class OrderService implements iOrder {
     }
 
     private OrderItem buildItem(Attributes a, int qty, Order order) {
-        String pName = (a.getProduct() != null && a.getProduct().getName() != null)
-                ? a.getProduct().getName() : (a.getName() != null ? a.getName() : "");
-        String pSku = (a.getProduct() != null && a.getProduct().getSkuInfo() != null)
-                ? a.getProduct().getSkuInfo().getSku() : null;
-
         return OrderItem.builder()
                 .order(order)
-                .productName(pName)
-                .productSku(pSku)
+                .attributesId(a.getId())
                 .attributesSku(a.getSku().getSku())
-                .attributesName(a.getName())
                 .quantity(qty)
                 .unitPrice(a.getPrice())
                 .salePrice(a.getSalePrice())

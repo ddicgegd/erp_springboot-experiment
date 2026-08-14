@@ -24,7 +24,6 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @RequiredArgsConstructor
 public class CacheWarmupListener {
-    private static final Logger log = LoggerFactory.getLogger(CacheWarmupListener.class);
 
 
     private final CategoryService categoryService;

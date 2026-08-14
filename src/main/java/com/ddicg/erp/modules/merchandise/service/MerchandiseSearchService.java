@@ -61,11 +61,6 @@ public class MerchandiseSearchService {
         addIfNotEmpty(criteria, "name", filterBlank(request.getNames()));
         addIfNotEmpty(criteria, "skuInfo.sku", filterBlank(request.getSkus()));
 
-        List<Long> ids = parseLongList(filterBlank(request.getIds()), "ids");
-        if (!ids.isEmpty()) {
-            criteria.add(new SearchCriteria("id", "~", ids));
-        }
-
         if (StringUtils.hasText(request.getKeyword())) {
             criteria.add(new SearchCriteria("name", "~", request.getKeyword().trim()));
         }
@@ -83,11 +78,10 @@ public class MerchandiseSearchService {
 
         specification = specification.and(productKeywordSpecification(request.getKeyword()));
         specification = specification.and(equalsString("createdBy", request.getCreatedBy()));
-        specification = specification.and(equalsLong("category.id", request.getCategoryId(), "categoryId"));
-        specification = specification.and(inLongList("id", request.getProductIds(), "productIds"));
+        specification = specification.and(equalsString("category.skuInfo.sku", request.getCategorySku()));
         specification = specification.and(inStringList("skuInfo.sku", request.getSkus()));
         specification = specification.and(inEnumList("status", request.getStatuses(), ActiveStatus.class, "statuses"));
-        specification = specification.and(inLongList("category.id", request.getCategoryIds(), "categoryIds"));
+        specification = specification.and(inStringList("category.skuInfo.sku", request.getCategorySkus()));
         specification = specification.and(greaterThanOrEqualTo("totalSoldQuantity", request.getMinSoldQuantity()));
         specification = specification.and(lessThanOrEqualTo("totalSoldQuantity", request.getMaxSoldQuantity()));
         specification = specification.and(greaterThanOrEqualTo("totalRevenue", request.getMinRevenue() == null ? null : BigDecimal.valueOf(request.getMinRevenue())));

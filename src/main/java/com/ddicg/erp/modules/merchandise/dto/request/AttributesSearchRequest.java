@@ -75,4 +75,13 @@ public class AttributesSearchRequest {
     public void setUpdatedTo(LocalDateTime updatedTo) { this.updatedTo = updatedTo; }
     public PagingRequest getPaging() { return paging; }
     public void setPaging(PagingRequest paging) { this.paging = paging; }
+    public void setPage(Integer page) { ensurePaging().setPage(page); }
+    public void setSize(Integer size) { ensurePaging().setSize(size); }
+
+    private PagingRequest ensurePaging() {
+        if (paging == null) {
+            paging = new PagingRequest();
+        }
+        return paging;
+    }
 }

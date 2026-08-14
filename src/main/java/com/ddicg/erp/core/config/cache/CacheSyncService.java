@@ -26,7 +26,6 @@ import java.util.concurrent.ConcurrentHashMap;
 @Slf4j
 @RequiredArgsConstructor
 public class CacheSyncService {
-    private static final Logger log = LoggerFactory.getLogger(CacheSyncService.class);
 
 
     private final ProductRepository productRepository;

@@ -16,10 +16,7 @@ import java.util.List;
 public class OrderItemDto {
     Long id;
     Long orderId;
-    String productName;
-    String productSku;
     String attributesSku;
-    String attributesName;
     List<VariantOptionDto> variantOptions;
     Integer quantity;
     Double unitPrice;
@@ -32,4 +29,3 @@ public class OrderItemDto {
     String notes;
     String imageUrl;
 }
-

@@ -29,18 +29,13 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
     List<OrderItem> findByAttributesSku(String attributesSku);
 
     /**
-     * Tìm tất cả order items theo product SKU
-     */
-    List<OrderItem> findByProductSku(String productSku);
-
-    /**
      * Thống kê sản phẩm bán chạy nhất theo attributes SKU
      */
-    @Query("SELECT oi.attributesSku, oi.productName, SUM(oi.quantity) as totalQuantity " +
+    @Query("SELECT oi.attributesSku, SUM(oi.quantity) as totalQuantity " +
            "FROM OrderItem oi " +
            "JOIN oi.order o " +
            "WHERE o.status = 'COMPLETED' " +
-           "GROUP BY oi.attributesSku, oi.productName " +
+           "GROUP BY oi.attributesSku " +
            "ORDER BY totalQuantity DESC")
     List<Object[]> findBestSellingProducts();
 
@@ -97,4 +92,3 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
            "WHERE oi.attributesSku = :attributesSku AND o.status = 'RETURNED'")
     Integer countReturnedOrdersByAttributesSku(@Param("attributesSku") String attributesSku);
 }
-

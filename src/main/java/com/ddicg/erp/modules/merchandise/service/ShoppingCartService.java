@@ -29,7 +29,6 @@ import java.util.stream.Collectors;
 @Slf4j
 @RequiredArgsConstructor
 public class ShoppingCartService implements iShoppingCart {
-    private static final Logger log = LoggerFactory.getLogger(ShoppingCartService.class);
 
 
     private final ShoppingCartRepository shoppingCartRepository;

@@ -55,7 +55,6 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class AttributesService implements iAttributes {
-    private static final Logger log = LoggerFactory.getLogger(AttributesService.class);
 
   private static final String SMART_SEARCH_DISTINGUISH_PREFIX = "attributes:smart-search:";
   private static final com.github.benmanes.caffeine.cache.Cache<String, SmartSearchState> SMART_SEARCH_CACHE =

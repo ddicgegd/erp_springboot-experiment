@@ -32,7 +32,6 @@ import java.util.concurrent.TimeUnit;
 @Service
 @RequiredArgsConstructor
 public class OrderInventoryService {
-    private static final Logger log = LoggerFactory.getLogger(OrderInventoryService.class);
 
 
     private final ProductInventoryRepository inventoryRepository;

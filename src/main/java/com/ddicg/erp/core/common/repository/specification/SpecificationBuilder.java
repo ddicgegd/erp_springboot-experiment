@@ -36,7 +36,7 @@ public class SpecificationBuilder<T> {
 
     public Specification<T> build() {
         if (params.isEmpty()) {
-            return Specification.where(null);
+            return (root, query, criteriaBuilder) -> criteriaBuilder.conjunction();
         }
 
         return (root, query, criteriaBuilder) -> {

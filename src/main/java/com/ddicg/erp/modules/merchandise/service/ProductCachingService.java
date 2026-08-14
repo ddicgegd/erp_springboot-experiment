@@ -26,7 +26,6 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Slf4j
 public class ProductCachingService implements iProductCaching {
-    private static final Logger log = LoggerFactory.getLogger(ProductCachingService.class);
 
 
     private final RedisService redisService;

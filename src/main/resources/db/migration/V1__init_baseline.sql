@@ -1,0 +1,2 @@
+-- V1: Initial baseline schema migration
+-- Flyway baseline for ERP SpringBoot Experiment

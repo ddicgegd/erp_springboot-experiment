@@ -23,7 +23,6 @@ import java.util.Set;
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class UserSeeder implements CommandLineRunner {
-    private static final Logger log = LoggerFactory.getLogger(UserSeeder.class);
 
     UserRepository userRepository;
     PasswordEncoder passwordEncoder;

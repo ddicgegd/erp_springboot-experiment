@@ -1,0 +1,5 @@
+-- V2: Alter ORDER_ITEMS table to make PRODUCT_ID and ATTRIBUTES_ID columns nullable for static snapshot storage
+-- Oracle DB DDL Script
+
+ALTER TABLE ORDER_ITEMS MODIFY (PRODUCT_ID NULL);
+ALTER TABLE ORDER_ITEMS MODIFY (ATTRIBUTES_ID NULL);

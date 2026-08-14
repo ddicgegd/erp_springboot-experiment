@@ -38,7 +38,6 @@ public class AttributesDto implements Serializable {
     public void setSku(SkuInfoDto sku) { this.sku = sku; }
 
     public SkuInfoDto getSkuInfo() { return sku; }
-    public String getSkuStr() { return sku != null ? sku.getSku() : null; }
 
     public double getPrice() { return price; }
     public void setPrice(double price) { this.price = price; }

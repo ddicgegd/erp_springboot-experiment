@@ -1,0 +1,389 @@
+[
+  {
+    "product_name": "iPhone 15 Pro Max 256GB | Chính hãng VN/A",
+    "category_name": "Điện thoại",
+    "category_sku": "cat-phone",
+    "specifications": [
+      {
+        "key": "Hệ điều hành khi ra mắt",
+        "data": "iOS 17"
+      },
+      {
+        "key": "Chipset",
+        "data": "Apple A17 Pro 6 nhân"
+      },
+      {
+        "key": "Dung lượng RAM",
+        "data": "8 GB"
+      },
+      {
+        "key": "Bộ nhớ trong",
+        "data": "256 GB"
+      },
+      {
+        "key": "Loại CPU",
+        "data": "CPU 6 lõi mới với 2 lõi hiệu năng và 4 lõi hiệu suất"
+      },
+      {
+        "key": "GPU",
+        "data": "GPU 6 nhân mới"
+      },
+      {
+        "key": "Kích thước màn hình",
+        "data": "6.7 inches"
+      },
+      {
+        "key": "Công nghệ màn hình",
+        "data": "Super Retina XDR OLED"
+      },
+      {
+        "key": "Độ phân giải màn hình",
+        "data": "2796 x 1290-pixel"
+      },
+      {
+        "key": "Tính năng màn hình",
+        "data": "Tốc độ làm mới 120Hz 460 ppi 2000 nits HDR True Tone Dải màu rộng (P3) Haptic Touch Tỷ lệ tương phản 2.000.000:1"
+      },
+      {
+        "key": "Camera sau",
+        "data": "Camera chính: 48MP, 24 mm, ƒ/1.78 Camera góc siêu rộng: 12 MP, 13 mm, ƒ/2.2 Camera Tele: 12 MP"
+      },
+      {
+        "key": "Camera trước",
+        "data": "12MP, ƒ/1.9"
+      },
+      {
+        "key": "Pin",
+        "data": "4422 mAh"
+      },
+      {
+        "key": "Hỗ trợ mạng",
+        "data": "5G"
+      },
+      {
+        "key": "Thẻ SIM",
+        "data": "2 SIM (nano‑SIM và eSIM)"
+      },
+      {
+        "key": "Công nghệ NFC",
+        "data": "Có"
+      },
+      {
+        "key": "Thời điểm ra mắt",
+        "data": "09/2023"
+      }
+    ],
+    "variants": [
+      {
+        "name": "iPhone 15 Pro Max 256GB",
+        "sale_price": 24990000.0,
+        "price": 28740000.0
+      },
+      {
+        "name": "iPhone 15 Pro Max 512GB",
+        "sale_price": 28490000.0,
+        "price": 32760000.0
+      },
+      {
+        "name": "iPhone 15 Pro Max 1TB",
+        "sale_price": 31990000.0,
+        "price": 36790000.0
+      }
+    ]
+  },
+  {
+    "product_name": "Samsung Galaxy S24 Ultra 12GB 256GB",
+    "category_name": "Điện thoại",
+    "category_sku": "cat-phone",
+    "specifications": [
+      {
+        "key": "Kích thước màn hình",
+        "data": "6.8 inches"
+      },
+      {
+        "key": "Công nghệ màn hình",
+        "data": "Dynamic AMOLED 2X"
+      },
+      {
+        "key": "Camera sau",
+        "data": "Camera chính: 200MP, Laser AF, OIS Camera: 50MP, PDAF, OIS, zoom quang học 5x Camera tele: 10MP Camera góc siêu rộng: 12 MP, f/2.2, 13mm, 120˚"
+      },
+      {
+        "key": "Camera trước",
+        "data": "12 MP, f/2.2"
+      },
+      {
+        "key": "Chipset",
+        "data": "Snapdragon 8 Gen 3 For Galaxy"
+      },
+      {
+        "key": "Công nghệ NFC",
+        "data": "Có"
+      },
+      {
+        "key": "Dung lượng RAM",
+        "data": "12 GB"
+      },
+      {
+        "key": "Bộ nhớ trong",
+        "data": "256 GB"
+      },
+      {
+        "key": "Pin",
+        "data": "5,000mAh"
+      },
+      {
+        "key": "Thẻ SIM",
+        "data": "SIM 1 + SIM 2 / SIM 1 + eSIM / 2 eSIM"
+      },
+      {
+        "key": "Hệ điều hành",
+        "data": "Android 14, One UI 6.1"
+      },
+      {
+        "key": "Độ phân giải màn hình",
+        "data": "1440 x 3120 pixels"
+      },
+      {
+        "key": "Tính năng màn hình",
+        "data": "Độ sáng cao nhất 2,600 nits, 120Hz, Corning® Gorilla® Armor®, 16 triệu màu"
+      },
+      {
+        "key": "Loại CPU",
+        "data": "3.39GHz,3.1GHz,2.9GHz,2.2GHz"
+      },
+      {
+        "key": "Tương thích",
+        "data": "Bút SPEN - tích hợp sẵn lên máy"
+      }
+    ],
+    "variants": [
+      {
+        "name": "Samsung Galaxy S24 Ultra 12GB 256GB",
+        "sale_price": 25290000.0,
+        "price": 29080000.0
+      },
+      {
+        "name": "Samsung Galaxy S24 Ultra 12GB 512GB",
+        "sale_price": 23990000.0,
+        "price": 27590000.0
+      },
+      {
+        "name": "Samsung Galaxy S24 Ultra 12GB 1TB",
+        "sale_price": 44490000.0,
+        "price": 51160000.0
+      }
+    ]
+  },
+  {
+    "product_name": "Điện thoại iPhone 16 Pro Max 256GB",
+    "category_name": "Điện thoại",
+    "category_sku": "cat-phone",
+    "specifications": [
+      {
+        "key": "Hệ điều hành khi ra mắt",
+        "data": "iOS 18"
+      },
+      {
+        "key": "Chipset",
+        "data": "Apple A18 Pro"
+      },
+      {
+        "key": "Dung lượng RAM",
+        "data": "8 GB"
+      },
+      {
+        "key": "Bộ nhớ trong",
+        "data": "256 GB"
+      },
+      {
+        "key": "Loại CPU",
+        "data": "CPU 6 lõi mới với 2 lõi hiệu năng và 4 lõi hiệu suất"
+      },
+      {
+        "key": "GPU",
+        "data": "GPU 6 lõi mới"
+      },
+      {
+        "key": "Kích thước màn hình",
+        "data": "6.9 inches"
+      },
+      {
+        "key": "Công nghệ màn hình",
+        "data": "Super Retina XDR OLED"
+      },
+      {
+        "key": "Độ phân giải màn hình",
+        "data": "2868 x 1320 pixels"
+      },
+      {
+        "key": "Tính năng màn hình",
+        "data": "Dynamic Island Màn hình Luôn Bật Công nghệ ProMotion với tốc độ làm mới thích ứng lên đến 120Hz Màn hình HDR True Tone Dải màu rộng (P3) Haptic Touch Tỷ lệ tương phản 2.000.000:1"
+      },
+      {
+        "key": "Camera sau",
+        "data": "Camera chính: 48MP, f/1.78, 24mm, 2µm, chống rung quang học dịch chuyển cảm biến thế hệ thứ hai, Focus Pixels 100% Telephoto 2x 12MP: 52 mm, ƒ/1.6 Camera góc siêu rộng: 48MP, 13 mm,ƒ/2.2 và trường ảnh 120°, Hybrid Focus Pixels, ảnh có độ phân giải"
+      },
+      {
+        "key": "Camera trước",
+        "data": "12MP, ƒ/1.9, Tự động lấy nét theo pha Focus Pixels"
+      },
+      {
+        "key": "Hỗ trợ mạng",
+        "data": "5G"
+      },
+      {
+        "key": "Thẻ SIM",
+        "data": "Sim kép (nano-Sim và e-Sim) - Hỗ trợ 2 e-Sim"
+      },
+      {
+        "key": "Công nghệ NFC",
+        "data": "Có"
+      },
+      {
+        "key": "Thời điểm ra mắt",
+        "data": "09/2024"
+      }
+    ],
+    "variants": [
+      {
+        "name": "Điện thoại iPhone 16 Pro Max 256GB",
+        "sale_price": 30990000.0,
+        "price": 35640000.0
+      }
+    ]
+  },
+  {
+    "product_name": "Samsung Galaxy S24 8GB 256GB",
+    "category_name": "Điện thoại",
+    "category_sku": "cat-phone",
+    "specifications": [
+      {
+        "key": "Kích thước màn hình",
+        "data": "6.2 inches"
+      },
+      {
+        "key": "Công nghệ màn hình",
+        "data": "Dynamic AMOLED 2X"
+      },
+      {
+        "key": "Camera sau",
+        "data": "Camera chính 50 MP, f/1.8 Camera tele: 10 MP, f/2.4, PDAF, OIS, zoom quang học 3x Camera góc siêu rộng: 12 MP, f/2.2, 120˚"
+      },
+      {
+        "key": "Camera trước",
+        "data": "12 MP, f/2.2"
+      },
+      {
+        "key": "Chipset",
+        "data": "Exynos 2400"
+      },
+      {
+        "key": "Công nghệ NFC",
+        "data": "Có"
+      },
+      {
+        "key": "Dung lượng RAM",
+        "data": "8 GB"
+      },
+      {
+        "key": "Bộ nhớ trong",
+        "data": "256 GB"
+      },
+      {
+        "key": "Pin",
+        "data": "4000 mAh"
+      },
+      {
+        "key": "Thẻ SIM",
+        "data": "SIM 1 + SIM 2 / SIM 1 + eSIM / 2 eSIM"
+      },
+      {
+        "key": "Hệ điều hành",
+        "data": "Android 14, One UI 6.1"
+      },
+      {
+        "key": "Độ phân giải màn hình",
+        "data": "1080 x 2340 pixels (FullHD+)"
+      },
+      {
+        "key": "Tính năng màn hình",
+        "data": "120Hz, Độ sáng tối đa 2600 nits, Corning® Gorilla® Glass Victus® 2, 16 triệu màu"
+      },
+      {
+        "key": "Loại CPU",
+        "data": "1 nhân 3.3 GHz, 5 nhân 3.2 GHz & 2 nhân 2.3 GHz"
+      },
+      {
+        "key": "Tương thích",
+        "data": "IP68"
+      }
+    ],
+    "variants": [
+      {
+        "name": "Samsung Galaxy S24 8GB 512GB",
+        "sale_price": 17190000.0,
+        "price": 19770000.0
+      },
+      {
+        "name": "Samsung Galaxy S24 8GB 256GB",
+        "sale_price": 16790000.0,
+        "price": 19310000.0
+      }
+    ]
+  },
+  {
+    "product_name": "Máy chơi game ASUS ROG Ally Z1 Extreme",
+    "category_name": "Thiết bị chơi game",
+    "category_sku": "cat-gaming",
+    "specifications": [
+      {
+        "key": "Kích thước màn hình",
+        "data": "7.0 inches"
+      },
+      {
+        "key": "Công nghệ màn hình",
+        "data": "IPS LCD"
+      },
+      {
+        "key": "Chipset",
+        "data": "AMD Ryzen™ Z1 Extreme Processor APU Power: 9-30W"
+      },
+      {
+        "key": "Dung lượng RAM",
+        "data": "16 GB"
+      },
+      {
+        "key": "Bộ nhớ trong",
+        "data": "512 GB"
+      },
+      {
+        "key": "Hệ điều hành",
+        "data": "Windows 11 Home"
+      },
+      {
+        "key": "Độ phân giải màn hình",
+        "data": "1080 x 1920 pixels (FullHD)"
+      },
+      {
+        "key": "Tính năng màn hình",
+        "data": "500 nits, tần số quét 120 Hz, sRGB:100%, Gorilla® Glass DXC, Gorilla® Glass Victus™ , hỗ trợ AMD FreeSync™ Premium, Màn hình cảm ứng 10-point multi-touch Độ phản hồi màn hình (G2G) 7ms"
+      },
+      {
+        "key": "Loại CPU",
+        "data": "Zen 4 architecture with 4nm process, 8-core /16-threads, 24MB total cache ,up to 5.10 Ghz boost"
+      },
+      {
+        "key": "Tương thích",
+        "data": "Các phím điều khiến: 4 phím A B X Y D-pad L & R Hall Effect analog triggers L & R bumpers Nút View Nút Menu Nút Command Center Nút Armoury Crate 2 x assignable grip buttons Cần điều khiển: 2 x cần analog kích thước đầy đủ"
+      }
+    ],
+    "variants": [
+      {
+        "name": "Máy chơi game ASUS ROG Ally Z1 Extreme",
+        "sale_price": 12990000.0,
+        "price": 14940000.0
+      }
+    ]
+  }
+]

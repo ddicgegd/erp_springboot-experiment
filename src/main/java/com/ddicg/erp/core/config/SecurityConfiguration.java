@@ -49,7 +49,9 @@ public class SecurityConfiguration {
                 "/api/auth/validate-reset-token**",
                 "/api/auth/reset-password**",
                 "/api/auth/change-username",
-                "/api/merchandise/**",
+                "/api/merchandise/search-Product",
+                "/api/merchandise/search-Category",
+                "/api/merchandise/search-Attributes",
                 "/api/images/**",
                 "/api/payment/result**",
                 "/api/delivery/**",
@@ -101,10 +103,9 @@ public class SecurityConfiguration {
         public CorsFilter corsFilter() {
                 CorsConfiguration corsConfiguration = new CorsConfiguration();
                 corsConfiguration.setAllowedOriginPatterns(List.of(
-                        "http://localhost:*",
-                        "https://*.run.app",
-                        "https://*.google.com",
-                        "https://*.aistudio.google.com"
+                        "http://localhost:3881",
+                        "http://localhost:3000"
+
                 ));
                 corsConfiguration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
                 corsConfiguration.setAllowedHeaders(List.of("*"));

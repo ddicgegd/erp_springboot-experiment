@@ -18,7 +18,6 @@ import java.util.concurrent.TimeUnit;
 @RequiredArgsConstructor
 @Slf4j
 public class InventoryService {
-    private static final Logger log = LoggerFactory.getLogger(InventoryService.class);
 
     
     private final ProductInventoryRepository inventoryRepository;

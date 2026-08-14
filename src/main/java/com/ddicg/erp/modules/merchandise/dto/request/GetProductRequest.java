@@ -7,14 +7,11 @@ import java.util.List;
 
 public class GetProductRequest {
     private String keyword;
-    private String categoryId;
     @JsonAlias({ "category_sku", "categorySku" })
     private String categorySku;
     private String createdBy;
-    private List<String> productIds;
     private List<String> skus;
     private List<String> statuses;
-    private List<String> categoryIds;
     @JsonAlias({ "category_skus", "categorySkus" })
     private List<String> categorySkus;
     private Integer minSoldQuantity;
@@ -34,20 +31,14 @@ public class GetProductRequest {
 
     public String getKeyword() { return keyword; }
     public void setKeyword(String keyword) { this.keyword = keyword; }
-    public String getCategoryId() { return categoryId; }
-    public void setCategoryId(String categoryId) { this.categoryId = categoryId; }
     public String getCategorySku() { return categorySku; }
     public void setCategorySku(String categorySku) { this.categorySku = categorySku; }
     public String getCreatedBy() { return createdBy; }
     public void setCreatedBy(String createdBy) { this.createdBy = createdBy; }
-    public List<String> getProductIds() { return productIds; }
-    public void setProductIds(List<String> productIds) { this.productIds = productIds; }
     public List<String> getSkus() { return skus; }
     public void setSkus(List<String> skus) { this.skus = skus; }
     public List<String> getStatuses() { return statuses; }
     public void setStatuses(List<String> statuses) { this.statuses = statuses; }
-    public List<String> getCategoryIds() { return categoryIds; }
-    public void setCategoryIds(List<String> categoryIds) { this.categoryIds = categoryIds; }
     public List<String> getCategorySkus() { return categorySkus; }
     public void setCategorySkus(List<String> categorySkus) { this.categorySkus = categorySkus; }
     public Integer getMinSoldQuantity() { return minSoldQuantity; }
@@ -78,4 +69,13 @@ public class GetProductRequest {
     public void setUpdatedTo(LocalDateTime updatedTo) { this.updatedTo = updatedTo; }
     public PagingRequest getPaging() { return paging; }
     public void setPaging(PagingRequest paging) { this.paging = paging; }
+    public void setPage(Integer page) { ensurePaging().setPage(page); }
+    public void setSize(Integer size) { ensurePaging().setSize(size); }
+
+    private PagingRequest ensurePaging() {
+        if (paging == null) {
+            paging = new PagingRequest();
+        }
+        return paging;
+    }
 }

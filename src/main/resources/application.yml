@@ -107,6 +107,20 @@ springdoc:
   default-produces-media-type: application/json
 
 logging:
+  level:
+    root: INFO
+    com:
+      ddicg:
+        erp: INFO
+    org:
+      springframework: INFO
+      apache:
+        kafka: WARN
+      hibernate:
+        tool:
+          schema:
+            internal:
+              ExceptionHandlerLoggedImpl: ERROR
   pattern:
     console: "%boldYellow(%d{HH:mm:ss.SSS}) %boldCyan(%d{yyyy-MM-dd}) %green([%thread]) %highlight(%-5level) %cyan(%logger{36}) %magenta([%file:%line]) %yellow(-) %msg%n%clr(%wEx){red}"
 

@@ -1,15 +1,12 @@
 package com.ddicg.erp.modules.iam.service;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 
 import com.ddicg.erp.core.common.model.embedded.DeviceInfo;
 import com.ddicg.erp.modules.iam.model.User;
 import com.ddicg.erp.modules.iam.dto.response.DeviceInfoResponse;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
@@ -19,17 +16,26 @@ import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class RefreshTokenService {
-    private static final Logger log = LoggerFactory.getLogger(RefreshTokenService.class);
-
 
     private final com.ddicg.erp.core.common.service.RedisService redisService;
     private final JwtService jwtService;
     private final ObjectMapper objectMapper;
 
-    private static final long REFRESH_TOKEN_EXPIRATION_DAYS = 30;
-    private static final long ACCESS_TOKEN_EXPIRATION_MINUTES = 60;
+    @Value("${application.security.jwt.access-token-expiration-minutes:1440}")
+    private long accessTokenExpirationMinutes;
+
+    @Value("${application.security.jwt.refresh-token-expiration-days:90}")
+    private long refreshTokenExpirationDays;
+
+    public RefreshTokenService(
+            com.ddicg.erp.core.common.service.RedisService redisService,
+            JwtService jwtService,
+            ObjectMapper objectMapper) {
+        this.redisService = redisService;
+        this.jwtService = jwtService;
+        this.objectMapper = objectMapper;
+    }
 
     /**
      * Xử lý kiểm tra và tạo Token khi Đăng nhập thành công.
@@ -74,42 +80,42 @@ public class RefreshTokenService {
         // 3. Nếu đã tồn tại hết -> thực hiện refresh theo refreshToken (kèm check hạn)
         if (accessTokenExists && refreshTokenExists) {
             log.info("Session và Refresh Token hợp lệ đã tồn tại cho user: {}, thiết bị: {}. Thực hiện xoay vòng token.", user.getUsername(), deviceId);
-            long accessTokenExpiryMs = TimeUnit.MINUTES.toMillis(ACCESS_TOKEN_EXPIRATION_MINUTES);
+            long accessTokenExpiryMs = TimeUnit.MINUTES.toMillis(accessTokenExpirationMinutes);
             finalAccessToken = jwtService.generateToken(userDetails, accessTokenExpiryMs);
 
-            long refreshTokenExpiryMs = TimeUnit.DAYS.toMillis(REFRESH_TOKEN_EXPIRATION_DAYS);
+            long refreshTokenExpiryMs = TimeUnit.DAYS.toMillis(refreshTokenExpirationDays);
             finalRefreshToken = jwtService.generateToken(userDetails, refreshTokenExpiryMs);
 
             // Cập nhật profile
             redisService.hSet(profileKey, "accessToken", finalAccessToken);
-            redisService.expire(profileKey, ACCESS_TOKEN_EXPIRATION_MINUTES, TimeUnit.MINUTES);
+            redisService.expire(profileKey, accessTokenExpirationMinutes, TimeUnit.MINUTES);
 
             // Cập nhật refresh token
             Map<String, Object> refreshTokenData = new HashMap<>();
             refreshTokenData.put("token", finalRefreshToken);
             refreshTokenData.put("deviceInfo", deviceInfo);
             redisService.hSet(refreshTokenKey, deviceId, refreshTokenData);
-            redisService.expire(refreshTokenKey, REFRESH_TOKEN_EXPIRATION_DAYS, TimeUnit.DAYS);
+            redisService.expire(refreshTokenKey, refreshTokenExpirationDays, TimeUnit.DAYS);
             finalMessage = "Đăng nhập thành công (Đã làm mới phiên hoạt động).";
         } else {
             // 4. Nếu chưa tồn tại đầy đủ -> tạo mới cả 2
             log.info("Chưa tồn tại đủ session/refresh token cho user: {}, thiết bị: {}. Tạo mới toàn bộ.", user.getUsername(), deviceId);
-            long accessTokenExpiryMs = TimeUnit.MINUTES.toMillis(ACCESS_TOKEN_EXPIRATION_MINUTES);
+            long accessTokenExpiryMs = TimeUnit.MINUTES.toMillis(accessTokenExpirationMinutes);
             finalAccessToken = jwtService.generateToken(userDetails, accessTokenExpiryMs);
 
-            long refreshTokenExpiryMs = TimeUnit.DAYS.toMillis(REFRESH_TOKEN_EXPIRATION_DAYS);
+            long refreshTokenExpiryMs = TimeUnit.DAYS.toMillis(refreshTokenExpirationDays);
             finalRefreshToken = jwtService.generateToken(userDetails, refreshTokenExpiryMs);
 
             // Lưu profile
             redisService.hSet(profileKey, "accessToken", finalAccessToken);
-            redisService.expire(profileKey, ACCESS_TOKEN_EXPIRATION_MINUTES, TimeUnit.MINUTES);
+            redisService.expire(profileKey, accessTokenExpirationMinutes, TimeUnit.MINUTES);
 
             // Lưu refresh token
             Map<String, Object> refreshTokenData = new HashMap<>();
             refreshTokenData.put("token", finalRefreshToken);
             refreshTokenData.put("deviceInfo", deviceInfo);
             redisService.hSet(refreshTokenKey, deviceId, refreshTokenData);
-            redisService.expire(refreshTokenKey, REFRESH_TOKEN_EXPIRATION_DAYS, TimeUnit.DAYS);
+            redisService.expire(refreshTokenKey, refreshTokenExpirationDays, TimeUnit.DAYS);
             finalMessage = "Đăng nhập thành công.";
         }
 
@@ -127,10 +133,10 @@ public class RefreshTokenService {
         String profileKey = "user:" + user.getId() + ":profile";
         String refreshTokenKey = "user:refresh_tokens:" + user.getId();
 
-        long accessTokenExpiryMs = TimeUnit.MINUTES.toMillis(ACCESS_TOKEN_EXPIRATION_MINUTES);
+        long accessTokenExpiryMs = TimeUnit.MINUTES.toMillis(accessTokenExpirationMinutes);
         String finalAccessToken = jwtService.generateToken(userDetails, accessTokenExpiryMs);
 
-        long refreshTokenExpiryMs = TimeUnit.DAYS.toMillis(REFRESH_TOKEN_EXPIRATION_DAYS);
+        long refreshTokenExpiryMs = TimeUnit.DAYS.toMillis(refreshTokenExpirationDays);
         String finalRefreshToken = jwtService.generateToken(userDetails, refreshTokenExpiryMs);
 
         // Thu hồi token cũ của thiết bị cũ nếu thiết bị thay đổi (rotate)
@@ -141,14 +147,14 @@ public class RefreshTokenService {
 
         // Cập nhật profile (accessToken)
         redisService.hSet(profileKey, "accessToken", finalAccessToken);
-        redisService.expire(profileKey, ACCESS_TOKEN_EXPIRATION_MINUTES, TimeUnit.MINUTES);
+        redisService.expire(profileKey, accessTokenExpirationMinutes, TimeUnit.MINUTES);
 
         // Cập nhật refresh token cho thiết bị mới
         Map<String, Object> refreshTokenData = new HashMap<>();
         refreshTokenData.put("token", finalRefreshToken);
         refreshTokenData.put("deviceInfo", deviceInfo);
         redisService.hSet(refreshTokenKey, newDeviceId, refreshTokenData);
-        redisService.expire(refreshTokenKey, REFRESH_TOKEN_EXPIRATION_DAYS, TimeUnit.DAYS);
+        redisService.expire(refreshTokenKey, refreshTokenExpirationDays, TimeUnit.DAYS);
 
         return DeviceInfoResponse.builder()
                 .accessToken(finalAccessToken)

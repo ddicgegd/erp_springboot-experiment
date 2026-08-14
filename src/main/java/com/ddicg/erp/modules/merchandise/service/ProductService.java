@@ -44,7 +44,6 @@ import java.util.stream.Stream;
 @Service
 @RequiredArgsConstructor
 public class ProductService implements iProduct {
-    private static final Logger log = LoggerFactory.getLogger(ProductService.class);
 
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
@@ -87,16 +86,16 @@ public class ProductService implements iProduct {
     @Override
     @Transactional
     public Response<?> updateProduct(UpdateProductRequest request) {
-        if (!StringUtils.hasText(request.getId())) {
+        if (!StringUtils.hasText(request.getSku())) {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Sản phẩm không không được để trống.");
         }
 
-        final var product = productRepository.findById(Long.valueOf(request.getId()))
+        final var product = productRepository.findProductBySkuInfo_Sku(request.getSku())
                 .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND, "Sản phẩm không tồn tại."));
 
-        if (StringUtils.hasText(request.getCategoryId())) {
+        if (StringUtils.hasText(request.getCategorySku())) {
             Category category = categoryRepository
-                    .findCategoryById(Long.valueOf(request.getCategoryId()))
+                    .findCategoryBySkuInfo_Sku(request.getCategorySku())
                     .orElseThrow(() -> new BusinessException(ErrorCode.CATEGORY_NOT_FOUND, "Danh mục không tồn tại."));
             product.setCategory(category);
         }
@@ -119,11 +118,16 @@ public class ProductService implements iProduct {
 
     @Override
     @CacheEvict(value = "productDetails", allEntries = true)
-    public Response<?> deleteProduct(@NonNull final List<Long> ids) {
-        // Xóa mềm danh sách sản phẩm
-        productRepository.softDeleteAllByIds(ids, securityUtil.getCurrentUsername());
-        // Hook: Gửi yêu cầu xóa cache bất đồng bộ qua Redis Stream
-        ids.forEach(id -> redisProducerService.sendEvictMessage(id.toString()));
+    public Response<?> delete(@NonNull final List<String> skus) {
+        if (skus.isEmpty()) return Response.noContent();
+        
+        List<Object[]> rows = productRepository.findIdsAndSkusBySkus(skus);
+        List<Long> ids = rows.stream().map(row -> (Long) row[0]).toList();
+        
+        if (!ids.isEmpty()) {
+            productRepository.softDeleteAllByIds(ids, securityUtil.getCurrentUsername());
+            ids.forEach(id -> redisProducerService.sendEvictMessage(id.toString()));
+        }
         return Response.noContent();
     }
 
@@ -172,22 +176,24 @@ public class ProductService implements iProduct {
     }
 
     @Override
-    public void viewCount(String productId) {
-        productRepository.updateViewCount(Long.valueOf(productId));
+    public void viewCount(String sku) {
+        Long id = productRepository.findIdBySku(sku)
+                .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND, "Sản phẩm không tồn tại."));
+        productRepository.updateViewCount(id);
     }
 
     @Override
-    public void totalSoldQuantity(String productId) {
-        productRepository.updateTotalSoldQuantity(
-                Long.valueOf(productId),
-                1);
+    public void totalSoldQuantity(String sku) {
+        Long id = productRepository.findIdBySku(sku)
+                .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND, "Sản phẩm không tồn tại."));
+        productRepository.updateTotalSoldQuantity(id, 1);
     }
 
     @Override
-    public void totalRevenue(String productId, double price) {
-        productRepository.updateTotalRevenue(
-                Long.valueOf(productId),
-                BigDecimal.valueOf(price));
+    public void totalRevenue(String sku, double price) {
+        Long id = productRepository.findIdBySku(sku)
+                .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND, "Sản phẩm không tồn tại."));
+        productRepository.updateTotalRevenue(id, BigDecimal.valueOf(price));
     }
 
     @Override

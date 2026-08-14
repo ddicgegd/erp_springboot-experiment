@@ -23,7 +23,6 @@ import java.util.UUID;
 @Slf4j
 @RequiredArgsConstructor
 public class MinioService {
-    private static final Logger log = LoggerFactory.getLogger(MinioService.class);
 
 
     private final MinioClient minioClient;

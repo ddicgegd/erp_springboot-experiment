@@ -20,7 +20,6 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class AccountRecoveryService {
-    private static final Logger log = LoggerFactory.getLogger(AccountRecoveryService.class);
 
 
   private static final Duration RECOVERY_TOKEN_TTL = Duration.ofHours(24);

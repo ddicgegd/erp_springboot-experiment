@@ -17,7 +17,6 @@ import java.util.concurrent.CompletableFuture;
 @Service
 @RequiredArgsConstructor
 public class ActiveLogProducer {
-    private static final Logger log = LoggerFactory.getLogger(ActiveLogProducer.class);
 
     private final KafkaTemplate<String, Object> kafkaTemplate;
 

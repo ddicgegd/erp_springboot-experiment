@@ -21,7 +21,6 @@ import java.util.function.Function;
 @Service
 @Slf4j
 public class JwtService {
-    private static final Logger log = LoggerFactory.getLogger(JwtService.class);
 
 
     @Value("${application.security.jwt.secret-key}")
@@ -68,7 +67,6 @@ public class JwtService {
 
     private SecretKey getSignInKey() {
         byte[] keyBytes = Decoders.BASE64.decode(secretKey);
-        log.info(this.getClass().getName());
         return Keys.hmacShaKeyFor(keyBytes);
     }
 }

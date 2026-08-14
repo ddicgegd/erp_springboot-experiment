@@ -2,7 +2,6 @@ package com.ddicg.erp.modules.merchandise.dto;
 
 import com.ddicg.erp.core.common.model.enums.ActiveStatus;
 import java.io.Serializable;
-import java.time.LocalDateTime;
 import java.util.List;
 
 public class ProductDto implements Serializable {
@@ -15,9 +14,6 @@ public class ProductDto implements Serializable {
     private Integer viewCount;
     private Integer totalSoldQuantity;
     private java.math.BigDecimal totalRevenue;
-    private Double discountPercent;
-    private LocalDateTime discountStartDate;
-    private LocalDateTime discountEndDate;
     private String categoryName;
 
     public ProductDto() {}
@@ -45,9 +41,6 @@ public class ProductDto implements Serializable {
 
     public java.math.BigDecimal getTotalRevenue() { return totalRevenue; }
     public void setTotalRevenue(java.math.BigDecimal totalRevenue) { this.totalRevenue = totalRevenue; }
-
-    public Double getDiscountPercent() { return discountPercent != null ? discountPercent : 0.0; }
-    public void setDiscountPercent(Double discountPercent) { this.discountPercent = discountPercent; }
 
     public String getCategoryName() { return categoryName; }
     public void setCategoryName(String categoryName) { this.categoryName = categoryName; }

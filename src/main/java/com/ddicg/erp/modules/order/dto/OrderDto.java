@@ -28,13 +28,15 @@ public class OrderDto {
     String currentStatusDescription;
 
     // Customer info
-    Long customerId;
+    String customerId;
 
     String customerName;
 
     String customerEmail;
 
     String customerPhone;
+
+    String shippingAddress;
 
     // Order items
     List<OrderItemDto> orderItems;

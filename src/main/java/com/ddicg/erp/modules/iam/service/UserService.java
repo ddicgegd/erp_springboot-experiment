@@ -62,7 +62,6 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class UserService implements iUser {
-    private static final Logger log = LoggerFactory.getLogger(UserService.class);
 
 
   private final UserRepository userRepository;

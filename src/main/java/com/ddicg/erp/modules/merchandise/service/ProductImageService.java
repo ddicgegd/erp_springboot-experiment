@@ -27,7 +27,6 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class ProductImageService implements iProductImage {
-    private static final Logger log = LoggerFactory.getLogger(ProductImageService.class);
 
 
     private final ProductRepository productRepository;

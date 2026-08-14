@@ -16,7 +16,6 @@ import java.util.Map;
 @Component
 @RequiredArgsConstructor
 public class ProductEventProducer {
-    private static final Logger log = LoggerFactory.getLogger(ProductEventProducer.class);
 
 
     private final KafkaTemplate<String, Object> kafkaTemplate;

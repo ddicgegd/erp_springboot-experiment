@@ -19,8 +19,16 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     show-sql: ${JPA_SHOW_SQL:false}
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 0
+    locations: classpath:db/migration
+    out-of-order: false
+    repair-on-migrate: true
 
   data:
     redis:
@@ -58,6 +66,8 @@ application:
   security:
     jwt:
       secret-key: ${JWT_SECRET:local-dev-secret-key-change-me}
+      access-token-expiration-minutes: ${JWT_ACCESS_EXPIRATION_MINUTES:1440}
+      refresh-token-expiration-days: ${JWT_REFRESH_EXPIRATION_DAYS:90}
 
 fineract:
   base-url: ${FINERACT_BASE_URL:https://localhost:8443/fineract-provider/api/v1}
@@ -77,17 +87,10 @@ logging:
   level:
     root: INFO
     com:
-      anno:
-        ERP_SpringBoot_Experiment:
-          service: DEBUG
-          modules: DEBUG
+      ddicg:
+        erp: INFO
     org:
-      springframework:
-        data:
-          repository:
-            config:
-              RepositoryConfigurationExtensionSupport: WARN
-        kafka: INFO
+      springframework: INFO
       apache:
         kafka: WARN
       hibernate:
@@ -95,4 +98,3 @@ logging:
           schema:
             internal:
               ExceptionHandlerLoggedImpl: ERROR
-    org.hibernate: WARN

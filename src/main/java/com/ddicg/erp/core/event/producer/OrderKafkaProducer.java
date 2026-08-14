@@ -14,7 +14,6 @@ import org.springframework.stereotype.Service;
 @Service
 @RequiredArgsConstructor
 public class OrderKafkaProducer {
-    private static final Logger log = LoggerFactory.getLogger(OrderKafkaProducer.class);
 
 
     private final KafkaTemplate<String, Object> kafkaTemplate;

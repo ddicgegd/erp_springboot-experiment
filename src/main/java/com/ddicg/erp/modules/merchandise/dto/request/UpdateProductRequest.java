@@ -6,7 +6,6 @@ import jakarta.validation.constraints.NotNull;
 import lombok.AccessLevel;
 import lombok.Data;
 import lombok.experimental.FieldDefaults;
-import java.time.LocalDateTime;
 
 /**
  * Request DTO để cập nhật thông tin Product.
@@ -15,13 +14,8 @@ import java.time.LocalDateTime;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class UpdateProductRequest {
 
-    /**
-     * ID của Product cần cập nhật (bắt buộc).
-     * Được normalize tự động: uppercase + remove dashes.
-     */
-    @NormalizedId
-    @NotNull(message = "ID sản phẩm không được để trống")
-    String id;
+    @NotNull(message = "SKU sản phẩm không được để trống")
+    String sku;
 
     /**
      * Tên mới của sản phẩm (optional).
@@ -29,28 +23,19 @@ public class UpdateProductRequest {
     String name;
 
     /**
-     * Id của Category mới (optional).
+     * SKU của Category mới (optional).
      */
     @NormalizedId
-    String categoryId;
+    String categorySku;
 
     /**
      * Trạng thái active của sản phẩm (optional).
      */
     ActiveStatus status;
 
-    /** Phần trăm giảm giá mới (optional) */
-    Double discountPercent;
-
-    /** Ngày bắt đầu giảm giá mới (optional) */
-    LocalDateTime discountStartDate;
-
-    /** Ngày kết thúc giảm giá mới (optional) */
-    LocalDateTime discountEndDate;
-
-    public String getId() { return id; }
-    public void setId(String id) { this.id = id; }
-    public String getCategoryId() { return categoryId; }
-    public void setCategoryId(String categoryId) { this.categoryId = categoryId; }
+    public String getSku() { return sku; }
+    public void setSku(String sku) { this.sku = sku; }
+    public String getCategorySku() { return categorySku; }
+    public void setCategorySku(String categorySku) { this.categorySku = categorySku; }
 
 }

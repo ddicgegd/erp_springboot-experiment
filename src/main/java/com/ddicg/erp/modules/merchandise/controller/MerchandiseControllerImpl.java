@@ -61,17 +61,9 @@ public class MerchandiseControllerImpl implements MerchandiseController {
     }
 
     @Override
-    @Operation(summary = "Xóa sản phẩm", description = "Xóa một hoặc nhiều sản phẩm theo danh sách IDs")
-    public Response<?> deleteProduct(@RequestParam List<String> ids) {
-        List<Long> longList = ids.stream()
-                .map(id -> {
-                    try {
-                        return Long.valueOf(id.trim());
-                    } catch (NumberFormatException e) {
-                        throw new IllegalArgumentException("ID phải là một số nguyên hợp lệ.");
-                    }
-                }).collect(Collectors.toList());
-        return productService.deleteProduct(longList);
+    @Operation(summary = "Xóa sản phẩm", description = "Đánh dấu xóa (soft delete) một hoặc nhiều sản phẩm dựa trên danh sách SKUs")
+    public Response<?> deleteProduct(@RequestBody DeleteBySkusRequest request) {
+        return productService.delete(request.getSkus());
     }
 
       @Override
@@ -81,48 +73,42 @@ public class MerchandiseControllerImpl implements MerchandiseController {
           return Response.ok(PagingResponse.from(products));
       }
 
-      @Override
-      @Operation(summary = "Lấy danh sách sản phẩm theo IDs", description = "Lấy chi tiết các sản phẩm từ cache hoặc DB dựa trên danh sách IDs")
-      public Response<List<ProductDto>> getProductsByIds(@RequestParam List<Long> ids) {
-          return productService.getProductsByIds(ids);
-      }
+
 
       @Override
-      @Operation(summary = "Lấy danh sách sản phẩm theo SKUs", description = "Lấy chi tiết danh sách sản phẩm dựa trên danh sách mã SKUs")
-      public Response<List<ProductDto>> getProductsBySkus(@RequestParam List<String> skus) {
-          return productService.getProductsBySkus(skus);
-      }
+    @Operation(summary = "Lấy danh sách sản phẩm theo SKUs", description = "Lấy chi tiết danh sách sản phẩm dựa trên danh sách mã SKUs")
+    public Response<List<ProductDto>> getProductsBySkus(@RequestBody GetBySkusRequest request) {
+        return productService.getProductsBySkus(request.getSkus());
+    }
 
-      @Override
-      @Operation(summary = "Lấy danh sách sản phẩm theo SKU danh mục", description = "Resolve SKU danh mục sang ID danh mục trước khi lấy sản phẩm")
-      public Response<List<ProductDto>> getProductsByCategorySkus(@RequestParam List<String> categorySkus) {
-          return productService.getProductsByCategorySkus(categorySkus);
-      }
+    @Override
+    @Operation(summary = "Lấy danh sách sản phẩm theo SKU danh mục", description = "Resolve SKU danh mục sang ID danh mục trước khi lấy sản phẩm")
+    public Response<List<ProductDto>> getProductsByCategorySkus(@RequestBody GetBySkusRequest request) {
+        return productService.getProductsByCategorySkus(request.getSkus());
+    }
 
     /************* Product Images Management *****************/
 
     @Override
     @Operation(summary = "Thêm hình ảnh sản phẩm", description = "Thêm một hoặc nhiều hình ảnh cho sản phẩm")
     public Response<?> addProductImages(
-            @PathVariable String productId,
+            @PathVariable String sku,
             @RequestParam("images") List<MultipartFile> images) {
-        return productImageService.addProductImages(productId, images);
+        return productImageService.addProductImages(sku, images);
     }
 
     @Override
     @Operation(summary = "Xóa hình ảnh sản phẩm", description = "Xóa một hình ảnh cụ thể của sản phẩm")
-    public Response<?> deleteProductImage(
-            @PathVariable String productId,
-            @RequestParam String imageKey) {
-        return productImageService.deleteProductImage(productId, imageKey);
+    public Response<?> deleteProductImage(@RequestBody DeleteProductImageRequest request) {
+        return productImageService.deleteProductImage(request.getSku(), request.getImageKey());
     }
 
     @Override
     @Operation(summary = "Thay thế hình ảnh sản phẩm", description = "Thay thế toàn bộ hình ảnh hiện tại của sản phẩm bằng hình ảnh mới")
     public Response<?> replaceProductImages(
-            @PathVariable String productId,
+            @PathVariable String sku,
             @RequestParam("images") List<MultipartFile> images) {
-        return productImageService.replaceProductImages(productId, images);
+        return productImageService.replaceProductImages(sku, images);
     }
 
     @Override
@@ -132,14 +118,14 @@ public class MerchandiseControllerImpl implements MerchandiseController {
     }
 
     @Override
-    public ProductIsExiting checkProduct(String name) {
-        return productService.isExiting(name);
+    public ProductIsExiting checkProduct(@RequestBody CheckNameRequest request) {
+        return productService.isExiting(request.getName());
     }
 
     @Override
     @Operation(summary = "Tăng lượt xem sản phẩm", description = "Tăng lượt xem khi người dùng truy cập chi tiết sản phẩm")
-    public Response<?> incrementViewCount(@PathVariable String productId) {
-        productService.viewCount(productId);
+    public Response<?> incrementViewCount(@PathVariable String sku) {
+        productService.viewCount(sku);
         return Response.ok("Đã tăng lượt xem");
     }
 
@@ -147,20 +133,20 @@ public class MerchandiseControllerImpl implements MerchandiseController {
 
     @Override
     @Operation(summary = "Tạo danh mục mới", description = "Tạo một danh mục sản phẩm mới")
-    public Response<?> addCategory(@RequestParam String name) {
-        return categoryService.create(name);
+    public Response<?> addCategory(@RequestBody CreateCategoryRequest request) {
+        return categoryService.create(request.getName());
     }
 
     @Override
     @Operation(summary = "Cập nhật danh mục", description = "Cập nhật thông tin của một danh mục đã tồn tại")
-    public Response<?> updateCategory(@RequestBody UpdateCategoryRequest categoryDto) {
-        return categoryService.update(categoryDto);
+    public Response<?> updateCategory(@RequestBody UpdateCategoryRequest request) {
+        return categoryService.update(request);
     }
 
     @Override
-    @Operation(summary = "Xóa danh mục", description = "Xóa một hoặc nhiều danh mục theo danh sách IDs")
-    public Response<?> deleteCategory(@RequestParam List<String> ids) {
-        return categoryService.delete(ids);
+    @Operation(summary = "Xóa danh mục", description = "Xóa một hoặc nhiều danh mục theo danh sách SKUs")
+    public Response<?> deleteCategory(@RequestBody DeleteBySkusRequest request) {
+        return categoryService.delete(request.getSkus());
     }
 
     @Override
@@ -175,22 +161,16 @@ public class MerchandiseControllerImpl implements MerchandiseController {
     }
 
     @Override
-    @Operation(summary = "Lấy danh sách danh mục theo IDs", description = "Lấy chi tiết các danh mục từ cache hoặc DB dựa trên danh sách IDs")
-    public Response<List<CategoryDto>> getCategoriesByIds(@RequestParam List<Long> ids) {
-        return categoryService.getCategoriesByIds(ids);
-    }
-
-    @Override
     @Operation(summary = "Lấy danh sách danh mục theo SKUs", description = "Lấy chi tiết danh sách danh mục dựa trên danh sách mã SKUs")
-    public Response<List<CategoryDto>> getCategoriesBySkus(@RequestParam List<String> skus) {
-        return categoryService.getCategoriesBySkus(skus);
+    public Response<List<CategoryDto>> getCategoriesBySkus(@RequestBody GetBySkusRequest request) {
+        return categoryService.getCategoriesBySkus(request.getSkus());
     }
 
 
 
     @Override
-    public CategoryExitingResponse check(String name) {
-        return categoryService.isExiting(name);
+    public CategoryExitingResponse check(@RequestBody CheckNameRequest request) {
+        return categoryService.isExiting(request.getName());
     }
 
     /************* Attributes Management *****************/

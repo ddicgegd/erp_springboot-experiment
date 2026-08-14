@@ -38,7 +38,6 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class CategoryService implements iCategory {
-    private static final Logger log = LoggerFactory.getLogger(CategoryService.class);
 
 
     private final CategoryRepository categoryRepository;
@@ -72,7 +71,7 @@ public class CategoryService implements iCategory {
     @CacheEvict(value = "categoryDetails", allEntries = true)
     public Response<?> update(final UpdateCategoryRequest request) {
         Optional<Category> optionalCategory = categoryRepository
-                .findCategoryById(Long.valueOf(request.getId()));
+                .findCategoryBySkuInfo_Sku(request.getSku());
         Category category = optionalCategory
                 .orElseThrow(() -> new BusinessException(ErrorCode.CATEGORY_NOT_FOUND, "Danh mục không tồn tại."));
         category.setName(request.getName());
@@ -84,11 +83,15 @@ public class CategoryService implements iCategory {
 
     @Override
     @CacheEvict(value = "categoryDetails", allEntries = true)
-    public Response<?> delete(@NonNull final List<String> ids) {
-        List<Long> idList = ids.stream()
-                .map(Long::valueOf)
-                .collect(Collectors.toList());
-        categoryRepository.softDeleteAllByIds(idList, securityUtil.getCurrentUsername());
+    public Response<?> delete(@NonNull final List<String> skus) {
+        if (skus.isEmpty()) return Response.noContent();
+        
+        List<Object[]> rows = categoryRepository.findIdsAndSkusBySkus(skus);
+        List<Long> idList = rows.stream().map(row -> (Long) row[0]).collect(Collectors.toList());
+        
+        if (!idList.isEmpty()) {
+            categoryRepository.softDeleteAllByIds(idList, securityUtil.getCurrentUsername());
+        }
         // phần get Category sẽ check và tự động xóa nếu quá 30 ngày có yêu cầu xóa
         return Response.noContent();
     }

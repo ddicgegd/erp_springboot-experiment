@@ -28,7 +28,7 @@ public class SkuInfo {
         SkuInfoBuilder() {}
         public SkuInfoBuilder sku(String sku) { this.sku = sku; return this; }
         public SkuInfoBuilder barcode(String barcode) { this.barcode = barcode; return this; }
-        public SkuInfo build() { SkuInfo s = new SkuInfo(); return s; }
+        public SkuInfo build() { return new SkuInfo(this.sku); }
     }
 
 }

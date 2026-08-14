@@ -15,12 +15,12 @@ import java.util.List;
 public interface iProduct {
     Response<?> addProduct(CreateProductRequest request);
     Response<?> updateProduct(UpdateProductRequest request);
-    Response<?> deleteProduct(@NonNull final List<Long> ids);
+    Response<?> delete(List<String> skus);
     Page<ProductDto> searchProducts(@NonNull final GetProductRequest request);
     ProductIsExiting isExiting(String name);
-    void viewCount(String productId);
-    void totalSoldQuantity(String productId);
-    void totalRevenue(String productId, double price);
+    void viewCount(String sku);
+    void totalSoldQuantity(String sku);
+    void totalRevenue(String sku, double price);
 
     Response<List<ProductDto>> getProductsByIds(List<Long> ids);
     Response<List<ProductDto>> getProductsBySkus(List<String> skus);

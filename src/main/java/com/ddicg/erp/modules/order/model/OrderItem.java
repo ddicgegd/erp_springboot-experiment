@@ -30,17 +30,11 @@ public class OrderItem extends IdentityOnly<Long> {
     @OnDelete(action = OnDeleteAction.CASCADE)
     Order order;
 
-    @Column(name = "product_name", nullable = false, length = 500)
-    String productName;
-
-    @Column(name = "product_sku", length = 100)
-    String productSku;
+    @Column(name = "attributes_id")
+    Long attributesId;
 
     @Column(name = "attributes_sku", nullable = false, length = 100)
     String attributesSku;
-
-    @Column(name = "attributes_name", length = 500)
-    String attributesName;
 
     @Convert(converter = com.ddicg.erp.core.config.converter.VariantOptionListConverter.class)
     @Column(name = "variant_options", columnDefinition = "CLOB")
@@ -78,4 +72,3 @@ public class OrderItem extends IdentityOnly<Long> {
     @Column(name = "image_url", length = 500)
     String imageUrl;
 }
-

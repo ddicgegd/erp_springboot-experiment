@@ -1,29 +1,74 @@
 package com.ddicg.erp.core.common.model.embedded;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.experimental.FieldDefaults;
 
 @Embeddable
+@Data
+@Builder
+@AllArgsConstructor
+@NoArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE)
 public class DeviceInfo {
-    private String deviceType;
-    private String deviceName;
-    private String osName;
-    private String ipAddress;
+    @Column(name = "device_type")
+    String deviceType;
 
-    public DeviceInfo() {}
+    @Column(name = "device_name")
+    String deviceName;
 
-    public DeviceInfo(String deviceType, String deviceName, String osName, String ipAddress) {
-        this.deviceType = deviceType;
-        this.deviceName = deviceName;
-        this.osName = osName;
-        this.ipAddress = ipAddress;
+    @Column(name = "os_name")
+    String osName;
+
+    @Column(name = "os_version")
+    String osVersion;
+
+    @Column(name = "browser_name")
+    String browserName;
+
+    @Column(name = "browser_version")
+    String browserVersion;
+
+    @Column(name = "screen_width")
+    Integer screenWidth;
+
+    @Column(name = "screen_height")
+    Integer screenHeight;
+
+    @Column(name = "user_agent")
+    String userAgent;
+
+    @Column(name = "ip_address")
+    String ipAddress;
+
+    String language;
+
+    @Column(name = "time_zone")
+    String timeZone;
+
+    @Column(name = "device_id")
+    String deviceId;
+
+    public DeviceInfo(DeviceInfo other) {
+        if (other != null) {
+            this.deviceType = other.deviceType;
+            this.deviceName = other.deviceName;
+            this.osName = other.osName;
+            this.osVersion = other.osVersion;
+            this.browserName = other.browserName;
+            this.browserVersion = other.browserVersion;
+            this.screenWidth = other.screenWidth;
+            this.screenHeight = other.screenHeight;
+            this.userAgent = other.userAgent;
+            this.ipAddress = other.ipAddress;
+            this.language = other.language;
+            this.timeZone = other.timeZone;
+            this.deviceId = other.deviceId;
+        }
     }
-
-    public String getDeviceType() { return deviceType; }
-    public void setDeviceType(String deviceType) { this.deviceType = deviceType; }
-    public String getDeviceName() { return deviceName; }
-    public void setDeviceName(String deviceName) { this.deviceName = deviceName; }
-    public String getOsName() { return osName; }
-    public void setOsName(String osName) { this.osName = osName; }
-    public String getIpAddress() { return ipAddress; }
-    public void setIpAddress(String ipAddress) { this.ipAddress = ipAddress; }
 }

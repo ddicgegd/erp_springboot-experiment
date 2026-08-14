@@ -19,7 +19,6 @@ import org.springframework.transaction.event.TransactionalEventListener;
 @Slf4j
 @Component
 public class AccountRecoveryListener extends BaseEventListener {
-    private static final Logger log = LoggerFactory.getLogger(AccountRecoveryListener.class);
 
 
     private final String frontendUrl;

@@ -1,8 +1,5 @@
 package com.ddicg.erp.modules.order.model;
 
-import com.ddicg.erp.modules.iam.model.User;
-import com.ddicg.erp.modules.iam.model.Address;
-
 import com.ddicg.erp.core.config.converter.OrderStatusListConverter;
 import com.ddicg.erp.core.common.model.base.IdentityOnly;
 import com.ddicg.erp.core.common.model.embedded.AuditInfo;
@@ -68,43 +65,13 @@ public class Order extends IdentityOnly<Long> {
   String trackingNumber;
 
   /*
-   * ============================ 👤 Customer Information
+   * ============================ 👤 Customer Information (Embedded Static)
    * ============================
    */
 
-  /**
-   * Khách hàng
-   * 
-   * @en Customer
-   */
-  @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "customer_id", nullable = false, foreignKey = @ForeignKey(name = "FK_order_customer"))
-  @ToString.Exclude
-  User customer;
-
-  /**
-   * Tên khách hàng (Lưu tại thời điểm đặt hàng)
-   * 
-   * @en Customer name (Saved at the time of ordering)
-   */
-  @Column(name = "customer_name", nullable = false, length = 200)
-  String customerName;
-
-  /**
-   * Email khách hàng
-   * 
-   * @en Customer email
-   */
-  @Column(name = "customer_email", length = 200)
-  String customerEmail;
-
-  /**
-   * Số điện thoại khách hàng
-   * 
-   * @en Customer phone
-   */
-  @Column(name = "customer_phone", length = 20)
-  String customerPhone;
+  @Embedded
+  @Builder.Default
+  CustomerInfo customerInfo = new CustomerInfo();
 
   /* ============================ 📦 Order Items ============================ */
 
@@ -178,21 +145,7 @@ public class Order extends IdentityOnly<Long> {
   /* ======================= 🚚 Shipping Information ======================= */
 
   /**
-   * Thông tin vận chuyển
-   * 
-   * @en Shipping info
-   */
-  @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "shipping_address_id", foreignKey = @ForeignKey(name = "FK_order_shipping_address"))
-  Address shippingInfo;
-
-  /*
-   * ============================ 💳 Payment Information
-   * ============================
-   */
-
-  /**
-   * Phung thức vận chuyển
+   * Phương thức vận chuyển
    * 
    * @en Shipping method
    */
@@ -314,57 +267,4 @@ public class Order extends IdentityOnly<Long> {
   @Embedded
   @Builder.Default
   AuditInfo auditInfo = new AuditInfo();
-
-
-    public List<OrderStatus> getStatus() { return status; }
-    public OrderStatus getCurrentStatus() { return currentStatus; }
-    public void setCurrentStatus(OrderStatus status) { this.currentStatus = status; }
-
-
-    public void setOrderNumber(String orderNumber) { this.orderNumber = orderNumber; }
-
-    public void setCustomer(com.ddicg.erp.modules.iam.model.User customer) { this.customer = customer; }
-    public void setCustomerName(String customerName) { this.customerName = customerName; }
-    public void setCustomerEmail(String customerEmail) { this.customerEmail = customerEmail; }
-    public void setCustomerPhone(String customerPhone) { this.customerPhone = customerPhone; }
-    public void setShippingMethod(String shippingMethod) { this.shippingMethod = shippingMethod; }
-    public void setCustomerNotes(String customerNotes) { this.customerNotes = customerNotes; }
-    public void setDiscountCode(String discountCode) { this.discountCode = discountCode; }
-    public void setShippingFee(Double shippingFee) { this.shippingFee = shippingFee; }
-    public void setAuditInfo(com.ddicg.erp.core.common.model.embedded.AuditInfo auditInfo) { this.auditInfo = auditInfo; }
-
-
-    public void setStatus(java.util.List<com.ddicg.erp.core.common.model.enums.OrderStatus> status) { this.status = status; }
-    public void setOrderItems(java.util.List<OrderItem> orderItems) { this.orderItems = orderItems; }
-    public com.ddicg.erp.core.common.model.embedded.AuditInfo getAuditInfo() { return auditInfo; }
-
-
-    public String getOrderNumber() { return orderNumber; }
-    public void setAdminNotes(String adminNotes) {}
-    public void setConfirmedAt(java.time.LocalDateTime confirmedAt) {}
-
-
-    public java.util.List<OrderItem> getOrderItems() { return orderItems; }
-    public void setEstimatedDeliveryDate(java.time.LocalDateTime date) {}
-    public void setActualDeliveryDate(java.time.LocalDateTime date) {}
-    public void setConfirmedBy(String confirmedBy) {}
-    public void setCancellationReason(String reason) {}
-    public void setCancelledAt(java.time.LocalDateTime date) {}
-    public void setCancelledBy(String cancelledBy) {}
-    public void setCompletedAt(java.time.LocalDateTime date) {}
-    public void setShipperId(String shipperId) {}
-    public void setShipperName(String shipperName) {}
-    public void setShipperPhone(String shipperPhone) {}
-
-
-    public void setDeliveryToken(String token) {}
-    public Double getSubtotal() { return 0.0; }
-    public void setSubtotal(Double subtotal) {}
-    public Double getDiscountAmount() { return 0.0; }
-    public void setDiscountAmount(Double discountAmount) {}
-    public Double getShippingFee() { return shippingFee != null ? shippingFee : 0.0; }
-    public Double getTotalAmount() { return 0.0; }
-    public void setTotalAmount(Double totalAmount) {}
-    public com.ddicg.erp.modules.iam.model.User getCustomer() { return customer; }
-
 }

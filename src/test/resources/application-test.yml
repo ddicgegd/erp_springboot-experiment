@@ -3,6 +3,9 @@ spring:
     allow-bean-definition-overriding: true
     lazy-initialization: false
 
+  flyway:
+    enabled: false
+
   autoconfigure:
     exclude:
       - org.springframework.boot.autoconfigure.mail.MailSenderAutoConfiguration
@@ -55,8 +58,10 @@ spring:
 
   data:
     redis:
-      host: localhost
-      port: 6379
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      username: ${REDIS_USERNAME:app_admin}
+      password: ${REDIS_PASSWORD:admin789}
 
   # Tắt cache cho test
   cache:
@@ -83,10 +88,10 @@ springdoc:
 
 logging:
   level:
-    org.hibernate.SQL: WARN
-    org.hibernate.orm.jdbc.bind: WARN
-    org.springframework.test: INFO
-    com.ddicg.erp: INFO
+    root: WARN
+    org.hibernate: WARN
+    org.springframework: WARN
+    com.ddicg.erp: WARN
 
 server:
   url: http://localhost:8080

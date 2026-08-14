@@ -25,7 +25,6 @@ import java.util.stream.Collectors;
 @Slf4j
 @RequiredArgsConstructor
 public class Helper {
-    private static final Logger log = LoggerFactory.getLogger(Helper.class);
 
 
     private final AttributesRepository attributesRepository;

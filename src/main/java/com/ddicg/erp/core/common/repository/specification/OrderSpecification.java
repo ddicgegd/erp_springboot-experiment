@@ -21,28 +21,22 @@ public class OrderSpecification {
             }
 
             if (StringUtils.hasText(request.getCustomerId())) {
-                try {
-                    Long customerId = Long.parseLong(request.getCustomerId());
-                    predicates.add(cb.equal(root.get("customer").get("id"), customerId));
-                } catch (NumberFormatException e) {
-                    // Ignore or handle invalid customer ID
-                }
+                predicates.add(cb.equal(root.get("customerInfo").get("customerId"), request.getCustomerId()));
             }
 
             if (StringUtils.hasText(request.getCustomerName())) {
-                predicates.add(cb.like(cb.lower(root.get("customerName")), "%" + request.getCustomerName().toLowerCase() + "%"));
+                predicates.add(cb.like(cb.lower(root.get("customerInfo").get("customerName")), "%" + request.getCustomerName().toLowerCase() + "%"));
             }
 
             if (StringUtils.hasText(request.getCustomerEmail())) {
-                predicates.add(cb.like(cb.lower(root.get("customerEmail")), "%" + request.getCustomerEmail().toLowerCase() + "%"));
+                predicates.add(cb.like(cb.lower(root.get("customerInfo").get("customerEmail")), "%" + request.getCustomerEmail().toLowerCase() + "%"));
             }
 
             if (StringUtils.hasText(request.getCustomerPhone())) {
-                predicates.add(cb.equal(root.get("customerPhone"), request.getCustomerPhone()));
+                predicates.add(cb.equal(root.get("customerInfo").get("customerPhone"), request.getCustomerPhone()));
             }
 
             if (request.getOrderStatus() != null) {
-                // Sử dụng cột currentStatus mới được thêm vào để query cực nhanh thay vì CLOB JSON
                 predicates.add(cb.equal(root.get("currentStatus"), request.getOrderStatus()));
             }
 
@@ -62,12 +56,10 @@ public class OrderSpecification {
                 predicates.add(cb.lessThanOrEqualTo(root.get("totalAmount"), request.getMaxAmount()));
             }
 
-            // Tối ưu hóa N+1 query (chỉ fetch nếu không phải query Count)
             if (Long.class != query.getResultType() && long.class != query.getResultType()) {
                 root.fetch("orderItems", JoinType.LEFT);
             }
 
-            // Tránh duplicate record khi Join
             query.distinct(true);
 
             return cb.and(predicates.toArray(new Predicate[0]));

@@ -5,7 +5,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 public class CategorySearchRequest {
-    private List<String> ids;
     private List<String> skus;
     private List<String> names;
 
@@ -18,8 +17,6 @@ public class CategorySearchRequest {
 
     private PagingRequest paging = new PagingRequest();
 
-    public List<String> getIds() { return ids; }
-    public void setIds(List<String> ids) { this.ids = ids; }
     public List<String> getSkus() { return skus; }
     public void setSkus(List<String> skus) { this.skus = skus; }
     public List<String> getNames() { return names; }
@@ -38,4 +35,13 @@ public class CategorySearchRequest {
     public void setUpdatedTo(LocalDateTime updatedTo) { this.updatedTo = updatedTo; }
     public PagingRequest getPaging() { return paging; }
     public void setPaging(PagingRequest paging) { this.paging = paging; }
+    public void setPage(Integer page) { ensurePaging().setPage(page); }
+    public void setSize(Integer size) { ensurePaging().setSize(size); }
+
+    private PagingRequest ensurePaging() {
+        if (paging == null) {
+            paging = new PagingRequest();
+        }
+        return paging;
+    }
 }

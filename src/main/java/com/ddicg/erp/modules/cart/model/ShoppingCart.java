@@ -18,7 +18,13 @@ public class ShoppingCart extends BaseEntity<Long> {
     @OneToMany(mappedBy = "cart", cascade = CascadeType.ALL, orphanRemoval = true)
     List<CartItem> items = new ArrayList<>();
 
+    @Column(name = "last_activity_at")
+    java.time.LocalDateTime lastActivityAt;
+
     public ShoppingCart() {}
+
+    public java.time.LocalDateTime getLastActivityAt() { return lastActivityAt; }
+    public void setLastActivityAt(java.time.LocalDateTime lastActivityAt) { this.lastActivityAt = lastActivityAt; }
 
     public ShoppingCart(User user) {
         this.user = user;
