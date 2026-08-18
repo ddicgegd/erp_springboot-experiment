@@ -78,17 +78,27 @@ public class AddressResolutionService {
         // TẦNG 1: Bóc tách cấu trúc địa giới hành chính (Province -> District -> Ward -> Street -> HouseNumber)
         ParsedHierarchy hierarchy = parseHierarchy(normalizedAddress);
 
-        // Trường hợp 1: Không nhận diện được Tỉnh/Thành phố nào hợp lệ tại Việt Nam
+        // Bắt buộc 1: Phải nhận diện được Tỉnh/Thành phố hợp lệ tại Việt Nam
         if (hierarchy.province == null) {
             log.warn("No valid Vietnam province/city recognized for address: [{}]", normalizedAddress);
             return ResolvedAddress.builder()
                     .success(false)
                     .rawAddress(rawAddress)
-                    .error("Location not found")
+                    .error("Không nhận diện được Tỉnh/Thành phố hợp lệ tại Việt Nam.")
                     .build();
         }
 
-        // TẦNG 2: Nếu có thông tin đường/phố cụ thể, ưu tiên tìm tọa độ cấp Tuyến đường / Số nhà
+        // Bắt buộc 2: Phải nhận diện được Quận/Huyện/Thị xã hợp lệ
+        if (hierarchy.district == null) {
+            log.warn("No valid Vietnam district recognized for address: [{}]", normalizedAddress);
+            return ResolvedAddress.builder()
+                    .success(false)
+                    .rawAddress(rawAddress)
+                    .error("Địa chỉ thiếu hoặc không nhận diện được Quận/Huyện/Thị xã hợp lệ.")
+                    .build();
+        }
+
+        // TẦNG 2: Nếu có thông tin đường/phố/ngõ/làng cụ thể, ưu tiên tìm tọa độ cấp Tuyến đường / Số nhà
         if (hierarchy.hasSpecificStreet()) {
             ResolvedAddress exactStreetAddress = resolveExactStreetLevel(hierarchy, rawAddress);
             if (exactStreetAddress != null && exactStreetAddress.isSuccess()) {
@@ -96,26 +106,25 @@ public class AddressResolutionService {
             }
         }
 
-        // Trường hợp 2: Thôn/Xã/Đường bị sai hoặc ảo, tự động lùi về tâm Quận/Huyện hợp lệ
-        if (hierarchy.district != null) {
-            log.info("Fallback to District level: [{} - {}]", hierarchy.district.name, hierarchy.province.name);
+        // Bắt buộc 3: Phải có ít nhất cấp Phường/Xã/Thị trấn HOẶC Tuyến đường/Ngõ/Thôn/Làng
+        if (hierarchy.ward != null || hierarchy.hasSpecificStreet()) {
+            log.info("Resolved at District/Ward level: [ward={}, street={}, district={}, province={}]",
+                    hierarchy.ward, hierarchy.street, hierarchy.district.name, hierarchy.province.name);
             return ResolvedAddress.builder()
                     .success(true)
                     .rawAddress(rawAddress)
                     .latitude(hierarchy.district.latitude)
                     .longitude(hierarchy.district.longitude)
-                    .formattedAddress(synthesizeCleanAddress(null, null, null, hierarchy.district.name, hierarchy.province.name))
+                    .formattedAddress(synthesizeCleanAddress(hierarchy.houseNumber, hierarchy.street, hierarchy.ward, hierarchy.district.name, hierarchy.province.name))
                     .build();
         }
 
-        // Trường hợp 3: Cả Đường, Xã và Huyện đều sai, tự động lùi về tâm Tỉnh/Thành phố hợp lệ
-        log.info("Fallback to Province level: [{}]", hierarchy.province.name);
+        // Từ chối nếu chỉ có Tỉnh + Huyện mà thiếu hoàn toàn cấp Xã/Phường/Đường/Ngõ/Làng
+        log.warn("Address lacks ward, street, alley or village level: [{}]", normalizedAddress);
         return ResolvedAddress.builder()
-                .success(true)
+                .success(false)
                 .rawAddress(rawAddress)
-                .latitude(hierarchy.province.latitude)
-                .longitude(hierarchy.province.longitude)
-                .formattedAddress(hierarchy.province.name + ", Việt Nam")
+                .error("Địa chỉ chưa đủ chi tiết (yêu cầu tối thiểu có Phường/Xã/Thị trấn hoặc Tuyến đường/Ngõ/Làng).")
                 .build();
     }
 
@@ -367,32 +376,64 @@ public class AddressResolutionService {
             }
         }
 
+        // Nếu District không nằm trong cache tĩnh nhưng có tiền tố Quận/Huyện/Thị xã rõ ràng
+        if (foundDistrict == null) {
+            for (int i = maxScanIndex; i >= 0; i--) {
+                String seg = segments.get(i).trim();
+                Matcher districtMatcher = Pattern.compile("(?i)^(?:Quận|Huyện|Thị\\s*xã|TP\\.|Thành\\s*phố)\\s+([A-Za-zÀ-ỹ\\s\\d]+)$").matcher(seg);
+                if (districtMatcher.matches()) {
+                    String rawDistrictName = districtMatcher.group(1).trim();
+                    String key = cleanKey(rawDistrictName);
+                    // Lọc bỏ từ khóa rác rõ ràng như 'ảo', 'test'
+                    if (!key.isBlank() && !key.equals("ao") && !key.equals("test") && !key.contains("khong ton tai") && !key.contains("khong co that")) {
+                        foundDistrict = new AdminNode(
+                                seg,
+                                foundProvince.latitude,
+                                foundProvince.longitude,
+                                foundProvince.minLat,
+                                foundProvince.maxLat,
+                                foundProvince.minLon,
+                                foundProvince.maxLon,
+                                foundProvince.name
+                        );
+                        districtIndexInSeg = i;
+                        break;
+                    }
+                }
+            }
+        }
+
         // Bóc tách Số nhà, Tên đường và Phường/Xã
         String houseNumber = null;
         String street = null;
         String ward = null;
 
         if (!segments.isEmpty()) {
-            String candidateStreet = segments.get(0);
-            if ((foundDistrict == null || !cleanKey(candidateStreet).equals(cleanKey(foundDistrict.name)))
-                    && !cleanKey(candidateStreet).equals(cleanKey(foundProvince.name))) {
+            String firstSeg = segments.get(0);
+            if (firstSeg.matches("(?i)^\\s*(Phường|Xã|Thị\\s*trấn|Thôn|Làng|Ấp|Bản|Xóm)\\s+.*")) {
+                ward = firstSeg.replaceAll("(?i)^\\s*(Phường|Xã|Thị\\s*trấn|Thôn|Làng|Ấp|Bản|Xóm)\\s*", "").trim();
+            } else if ((foundDistrict == null || !cleanKey(firstSeg).equals(cleanKey(foundDistrict.name)))
+                    && !cleanKey(firstSeg).equals(cleanKey(foundProvince.name))) {
 
-                // Trích xuất số nhà
-                Pattern numPattern = Pattern.compile("(?i)(?:Số\\s+)?(\\d+[a-zA-Z]?(?:/\\d+[a-zA-Z]?)?)");
-                Matcher m = numPattern.matcher(candidateStreet);
+                Pattern numPattern = Pattern.compile("(?i)(?:Số\\s+|Ngõ\\s+|Ngách\\s+|Hẻm\\s+)?(\\d+[a-zA-Z]?(?:/\\d+[a-zA-Z]?)?)");
+                Matcher m = numPattern.matcher(firstSeg);
                 if (m.find()) {
                     houseNumber = m.group(1);
                 }
 
-                street = extractCleanStreetName(candidateStreet);
+                street = extractCleanStreetName(firstSeg);
             }
 
-            // Kiểm tra phân đoạn 1 xem có phải Phường/Xã không
-            if (segments.size() > 1 && (districtIndexInSeg < 0 || districtIndexInSeg > 1)) {
-                String candidateWard = segments.get(1);
-                if (candidateWard.matches("(?i).*(Phường|Xã|Thị trấn).*")
-                        || (foundDistrict != null && !cleanKey(candidateWard).equals(cleanKey(foundDistrict.name)))) {
-                    ward = candidateWard.replaceAll("(?i)\\b(Phường|Xã|Thị trấn)\\s*", "").trim();
+            // Kiểm tra các phân đoạn tiếp theo nếu chưa có ward
+            if (ward == null) {
+                for (int i = 1; i < segments.size(); i++) {
+                    if (i == districtIndexInSeg || i == provinceIndexInSeg) continue;
+                    String candidateWard = segments.get(i);
+                    if (candidateWard.matches("(?i).*(Phường|Xã|Thị\\s*trấn|Thôn|Làng|Ấp|Bản|Xóm).*")
+                            || (foundDistrict != null && !cleanKey(candidateWard).equals(cleanKey(foundDistrict.name)))) {
+                        ward = candidateWard.replaceAll("(?i)^\\s*(Phường|Xã|Thị\\s*trấn|Thôn|Làng|Ấp|Bản|Xóm)\\s*", "").trim();
+                        break;
+                    }
                 }
             }
         }
@@ -406,8 +447,8 @@ public class AddressResolutionService {
             return null;
         }
         String cleaned = rawStreet
-                .replaceAll("(?i)\\b(Số\\s+\\d+[a-zA-Z]?|Đường\\s+|Phố\\s+|Ngõ\\s+\\d+[a-zA-Z]?|Hẻm\\s+\\d+[a-zA-Z]?|\\d+[a-zA-Z]?)\\s*", "")
-                .replaceAll("(?i)\\b(Phường|Xã|Thị trấn|Quận|Huyện|TP\\.|TP|Q\\.)\\s+.*$", "")
+                .replaceAll("(?i)^(Số\\s+\\d+[a-zA-Z]?|Đường\\s+|Phố\\s+|Ngõ\\s+\\d+[a-zA-Z]?|Hẻm\\s+\\d+[a-zA-Z]?|\\d+[a-zA-Z]?)\\s*", "")
+                .replaceAll("(?i)\\s+(Phường|Xã|Thị\\s*trấn|Quận|Huyện|TP\\.|TP|Q\\.)\\s+.*$", "")
                 .trim();
         return cleaned.isBlank() ? null : cleaned;
     }
@@ -502,14 +543,43 @@ public class AddressResolutionService {
         addDistrict("Đông Anh", 21.1444, 105.8394, 21.10, 21.22, 105.75, 105.95, "Hà Nội", "dong anh", "h dong anh", "huyen dong anh");
         addDistrict("Cầu Giấy", 21.0313, 105.7938, 21.01, 21.05, 105.77, 105.82, "Hà Nội", "cau giay", "q cau giay", "quan cau giay");
         addDistrict("Đống Đa", 21.0181, 105.8272, 21.00, 21.04, 105.80, 105.85, "Hà Nội", "dong da", "q dong da", "quan dong da");
+        addDistrict("Gia Lâm", 21.0183, 105.9525, 20.95, 21.08, 105.88, 106.02, "Hà Nội", "gia lam", "h gia lam", "huyen gia lam");
+        addDistrict("Hai Bà Trưng", 21.0069, 105.8553, 20.98, 21.02, 105.83, 105.88, "Hà Nội", "hai ba trung", "q hai ba trung", "quan hai ba trung");
+        addDistrict("Thanh Xuân", 20.9980, 105.8119, 20.97, 21.02, 105.78, 105.84, "Hà Nội", "thanh xuan", "q thanh xuan", "quan thanh xuan");
+        addDistrict("Hà Đông", 20.9712, 105.7744, 20.92, 21.00, 105.72, 105.82, "Hà Nội", "ha dong", "q ha dong", "quan ha dong");
+        addDistrict("Hoàng Mai", 20.9760, 105.8488, 20.94, 21.01, 105.81, 105.90, "Hà Nội", "hoang mai", "q hoang mai", "quan hoang mai");
+        addDistrict("Long Biên", 21.0366, 105.8920, 21.00, 21.08, 105.84, 105.95, "Hà Nội", "long bien", "q long bien", "quan long bien");
+        addDistrict("Tây Hồ", 21.0664, 105.8214, 21.04, 21.09, 105.79, 105.85, "Hà Nội", "tay ho", "q tay ho", "quan tay ho");
+        addDistrict("Nam Từ Liêm", 21.0134, 105.7674, 20.98, 21.05, 105.72, 105.80, "Hà Nội", "nam tu liem", "q nam tu liem", "quan nam tu liem");
+        addDistrict("Bắc Từ Liêm", 21.0673, 105.7592, 21.03, 21.10, 105.71, 105.79, "Hà Nội", "bac tu liem", "q bac tu liem", "quan bac tu liem");
+        addDistrict("Thanh Trì", 20.9482, 105.8466, 20.90, 20.98, 105.80, 105.90, "Hà Nội", "thanh tri", "h thanh tri", "huyen thanh tri");
+        addDistrict("Sóc Sơn", 21.2825, 105.8480, 21.20, 21.36, 105.75, 105.95, "Hà Nội", "soc son", "h soc son", "huyen soc son");
 
         addDistrict("Quận 1", 10.7756, 106.7004, 10.75, 10.80, 106.68, 106.72, "Hồ Chí Minh", "quan 1", "q1", "q.1", "1");
         addDistrict("Quận 3", 10.7844, 106.6844, 10.76, 10.80, 106.66, 106.70, "Hồ Chí Minh", "quan 3", "q3", "q.3", "3");
+        addDistrict("Quận 4", 10.7578, 106.7013, 10.74, 10.78, 106.68, 106.72, "Hồ Chí Minh", "quan 4", "q4", "q.4", "4");
+        addDistrict("Quận 5", 10.7540, 106.6634, 10.73, 10.77, 106.64, 106.68, "Hồ Chí Minh", "quan 5", "q5", "q.5", "5");
+        addDistrict("Quận 6", 10.7470, 106.6350, 10.72, 10.76, 106.61, 106.66, "Hồ Chí Minh", "quan 6", "q6", "q.6", "6");
         addDistrict("Quận 7", 10.7340, 106.7219, 10.71, 10.76, 106.70, 106.76, "Hồ Chí Minh", "quan 7", "q7", "q.7", "7");
+        addDistrict("Quận 8", 10.7241, 106.6286, 10.70, 10.75, 106.60, 106.68, "Hồ Chí Minh", "quan 8", "q8", "q.8", "8");
+        addDistrict("Quận 10", 10.7715, 106.6678, 10.75, 10.79, 106.65, 106.69, "Hồ Chí Minh", "quan 10", "q10", "q.10", "10");
+        addDistrict("Quận 11", 10.7629, 106.6503, 10.74, 10.78, 106.63, 106.67, "Hồ Chí Minh", "quan 11", "q11", "q.11", "11");
+        addDistrict("Quận 12", 10.8672, 106.6414, 10.82, 10.91, 106.58, 106.71, "Hồ Chí Minh", "quan 12", "q12", "q.12", "12");
         addDistrict("Thủ Đức", 10.8494, 106.7537, 10.78, 10.90, 106.70, 106.85, "Hồ Chí Minh", "thu duc", "tp thu duc", "tp. thu duc", "thanh pho thu duc");
         addDistrict("Bình Thạnh", 10.8106, 106.7091, 10.78, 10.84, 106.68, 106.74, "Hồ Chí Minh", "binh thanh", "q binh thanh", "quan binh thanh");
+        addDistrict("Tân Bình", 10.8014, 106.6526, 10.77, 10.83, 106.63, 106.68, "Hồ Chí Minh", "tan binh", "q tan binh", "quan tan binh");
+        addDistrict("Gò Vấp", 10.8387, 106.6653, 10.81, 10.87, 106.64, 106.70, "Hồ Chí Minh", "go vap", "q go vap", "quan go vap");
+        addDistrict("Phú Nhuận", 10.7992, 106.6803, 10.78, 10.82, 106.66, 106.70, "Hồ Chí Minh", "phu nhuan", "q phu nhuan", "quan phu nhuan");
+        addDistrict("Tân Phú", 10.7900, 106.6285, 10.76, 10.82, 106.60, 106.65, "Hồ Chí Minh", "tan phu", "q tan phu", "quan tan phu");
+        addDistrict("Bình Tân", 10.7653, 106.6038, 10.72, 10.81, 106.57, 106.63, "Hồ Chí Minh", "binh tan", "q binh tan", "quan binh tan");
 
         addDistrict("Hải Châu", 16.0594, 108.2208, 16.02, 16.09, 108.20, 108.25, "Đà Nẵng", "hai chau", "q hai chau", "quan hai chau");
+        addDistrict("Thanh Khê", 16.0645, 108.1884, 16.04, 16.09, 108.16, 108.21, "Đà Nẵng", "thanh khe", "q thanh khe", "quan thanh khe");
+        addDistrict("Sơn Trà", 16.0907, 108.2586, 16.05, 16.14, 108.22, 108.30, "Đà Nẵng", "son tra", "q son tra", "quan son tra");
+        addDistrict("Ngũ Hành Sơn", 16.0028, 108.2550, 15.96, 16.04, 108.23, 108.28, "Đà Nẵng", "ngu hanh son", "q ngu hanh son", "quan ngu hanh son");
+        addDistrict("Liên Chiểu", 16.1040, 108.1448, 16.05, 16.15, 108.08, 108.18, "Đà Nẵng", "lien chieu", "q lien chieu", "quan lien chieu");
+        addDistrict("Cẩm Lệ", 15.9989, 108.1963, 15.97, 16.03, 108.16, 108.23, "Đà Nẵng", "cam le", "q cam le", "quan cam le");
+
         addDistrict("Từ Sơn", 21.1186, 105.9647, 21.08, 21.16, 105.92, 106.02, "Bắc Ninh", "tu son", "tx tu son", "tp tu son");
         addDistrict("Yên Phong", 21.2058, 105.9861, 21.15, 21.25, 105.92, 106.05, "Bắc Ninh", "yen phong", "h yen phong", "huyen yen phong");
     }

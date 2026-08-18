@@ -33,28 +33,34 @@ public class AddressService {
     SecurityUtil securityUtil;
     AddressResolutionService addressResolutionService;
 
-    @Transactional
-    public Response<AddressResponse> createAddress(CreateAddressRequest request) {
-        User currentUser = getCurrentAuthenticatedUser();
+    private record ValidatedGeoLocation(String formattedAddress, Double latitude, Double longitude) {}
 
-        Double latitude = request.getLatitude();
-        Double longitude = request.getLongitude();
-        String finalAddress = request.getAddress();
+    private ValidatedGeoLocation checkAndResolveAddress(String rawAddress, Double latitude, Double longitude) {
+        if (rawAddress == null || rawAddress.isBlank()) {
+            throw new BusinessException(ErrorCode.INVALID_REQUEST, "Địa chỉ không được để trống.");
+        }
 
-        // Nếu người dùng truyền sẵn tọa độ -> Xác thực bắt buộc phải thuộc lãnh thổ Việt Nam
         if (latitude != null && longitude != null) {
             if (!addressResolutionService.isInsideVietnam(latitude, longitude)) {
                 throw new BusinessException(ErrorCode.INVALID_REQUEST, "Tọa độ nằm ngoài lãnh thổ Việt Nam.");
             }
-        } else {
-            // Tự động phân giải địa chỉ ngầm (Auto-Geocoding)
-            ResolvedAddress resolved = addressResolutionService.resolve(request.getAddress());
-            if (resolved.isSuccess() && resolved.getLatitude() != null && resolved.getLongitude() != null) {
-                latitude = resolved.getLatitude();
-                longitude = resolved.getLongitude();
-                finalAddress = resolved.getFormattedAddress();
-            }
+            return new ValidatedGeoLocation(rawAddress.trim(), latitude, longitude);
         }
+
+        ResolvedAddress resolved = addressResolutionService.resolve(rawAddress);
+        if (!resolved.isSuccess() || resolved.getLatitude() == null || resolved.getLongitude() == null) {
+            String errorMsg = resolved.getError() != null ? resolved.getError() : "Địa chỉ không hợp lệ hoặc không xác định được tại Việt Nam.";
+            throw new BusinessException(ErrorCode.INVALID_REQUEST, errorMsg);
+        }
+
+        return new ValidatedGeoLocation(resolved.getFormattedAddress(), resolved.getLatitude(), resolved.getLongitude());
+    }
+
+    @Transactional
+    public Response<AddressResponse> createAddress(CreateAddressRequest request) {
+        User currentUser = getCurrentAuthenticatedUser();
+
+        ValidatedGeoLocation geo = checkAndResolveAddress(request.getAddress(), request.getLatitude(), request.getLongitude());
 
         List<Address> userAddresses = addressRepository.findByUserId(currentUser.getId());
         boolean makeDefault = Boolean.TRUE.equals(request.getIsDefault()) || userAddresses.isEmpty();
@@ -64,9 +70,9 @@ public class AddressService {
         }
 
         Address address = Address.builder()
-                .address(finalAddress)
-                .latitude(latitude)
-                .longitude(longitude)
+                .address(geo.formattedAddress())
+                .latitude(geo.latitude())
+                .longitude(geo.longitude())
                 .phoneNumber(request.getPhoneNumber())
                 .recipientName(request.getRecipientName())
                 .isDefault(makeDefault)
@@ -93,20 +99,11 @@ public class AddressService {
         }
 
         if (request.getAddress() != null && !request.getAddress().isBlank()) {
-            address.setAddress(request.getAddress());
-
-            // Nếu không cung cấp tọa độ mới -> Tự động tính toán lại theo địa chỉ mới
-            if (request.getLatitude() == null || request.getLongitude() == null) {
-                ResolvedAddress resolved = addressResolutionService.resolve(request.getAddress());
-                if (resolved.isSuccess() && resolved.getLatitude() != null && resolved.getLongitude() != null) {
-                    address.setLatitude(resolved.getLatitude());
-                    address.setLongitude(resolved.getLongitude());
-                    address.setAddress(resolved.getFormattedAddress());
-                }
-            }
-        }
-
-        if (request.getLatitude() != null && request.getLongitude() != null) {
+            ValidatedGeoLocation geo = checkAndResolveAddress(request.getAddress(), request.getLatitude(), request.getLongitude());
+            address.setAddress(geo.formattedAddress());
+            address.setLatitude(geo.latitude());
+            address.setLongitude(geo.longitude());
+        } else if (request.getLatitude() != null && request.getLongitude() != null) {
             if (!addressResolutionService.isInsideVietnam(request.getLatitude(), request.getLongitude())) {
                 throw new BusinessException(ErrorCode.INVALID_REQUEST, "Tọa độ nằm ngoài lãnh thổ Việt Nam.");
             }
