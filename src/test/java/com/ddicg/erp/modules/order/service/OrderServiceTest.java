@@ -78,7 +78,7 @@ class OrderServiceTest {
     @DisplayName("Tạo đơn hàng thành công, tự động lấy CustomerInfo từ Token và Address")
     void testCreateOrder_Success() {
         CreateOrderRequest request = CreateOrderRequest.builder()
-                .addressId("1")
+                .addressSku("ADDR-1001")
                 .paymentMethod(PaymentMethod.COD)
                 .items(List.of(
                         CreateOrderRequest.OrderItemRequest.builder()
@@ -95,9 +95,10 @@ class OrderServiceTest {
 
         com.ddicg.erp.modules.iam.model.Address mockAddress = new com.ddicg.erp.modules.iam.model.Address();
         mockAddress.setAddress("123 Ha Noi");
+        mockAddress.setSku("ADDR-1001");
 
         when(securityUtil.getCurrentUser()).thenReturn(Optional.of(mockUser));
-        when(addressRepository.findById(1L)).thenReturn(Optional.of(mockAddress));
+        when(addressRepository.findBySku("ADDR-1001")).thenReturn(Optional.of(mockAddress));
 
         when(attributesRepository.findAllBySku_skuIn(List.of("SKU-1001"))).thenReturn(List.of(sampleAttr));
         when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> {
@@ -128,10 +129,10 @@ class OrderServiceTest {
     }
 
     @Test
-    @DisplayName("Tạo đơn hàng thất bại khi addressId bị để trống")
-    void testCreateOrder_MissingAddressId_ThrowsException() {
+    @DisplayName("Tạo đơn hàng thất bại khi addressSku bị để trống")
+    void testCreateOrder_MissingAddressSku_ThrowsException() {
         CreateOrderRequest request = CreateOrderRequest.builder()
-                .addressId(null)
+                .addressSku(null)
                 .paymentMethod(PaymentMethod.COD)
                 .items(List.of(
                         CreateOrderRequest.OrderItemRequest.builder()
@@ -145,10 +146,10 @@ class OrderServiceTest {
     }
 
     @Test
-    @DisplayName("Tạo đơn hàng thất bại khi addressId không tồn tại trong DB")
+    @DisplayName("Tạo đơn hàng thất bại khi addressSku không tồn tại trong DB")
     void testCreateOrder_AddressNotFound_ThrowsException() {
         CreateOrderRequest request = CreateOrderRequest.builder()
-                .addressId("999")
+                .addressSku("ADDR-NOT-FOUND")
                 .paymentMethod(PaymentMethod.COD)
                 .items(List.of(
                         CreateOrderRequest.OrderItemRequest.builder()
@@ -158,7 +159,7 @@ class OrderServiceTest {
                 ))
                 .build();
 
-        when(addressRepository.findById(999L)).thenReturn(Optional.empty());
+        when(addressRepository.findBySku("ADDR-NOT-FOUND")).thenReturn(Optional.empty());
 
         assertThrows(BusinessException.class, () -> orderService.createOrder(request));
     }
@@ -167,7 +168,7 @@ class OrderServiceTest {
     @DisplayName("Tạo đơn hàng thất bại khi SKU không tồn tại trong DB")
     void testCreateOrder_MissingSku_ThrowsException() {
         CreateOrderRequest request = CreateOrderRequest.builder()
-                .addressId("1")
+                .addressSku("ADDR-1001")
                 .paymentMethod(PaymentMethod.COD)
                 .items(List.of(
                         CreateOrderRequest.OrderItemRequest.builder()
@@ -178,7 +179,8 @@ class OrderServiceTest {
                 .build();
 
         com.ddicg.erp.modules.iam.model.Address mockAddress = new com.ddicg.erp.modules.iam.model.Address();
-        when(addressRepository.findById(1L)).thenReturn(Optional.of(mockAddress));
+        mockAddress.setSku("ADDR-1001");
+        when(addressRepository.findBySku("ADDR-1001")).thenReturn(Optional.of(mockAddress));
         when(attributesRepository.findAllBySku_skuIn(List.of("SKU-9999"))).thenReturn(List.of());
 
         assertThrows(BusinessException.class, () -> orderService.createOrder(request));
@@ -188,7 +190,7 @@ class OrderServiceTest {
     @DisplayName("Tạo đơn hàng thất bại khi số lượng <= 0")
     void testCreateOrder_InvalidQuantity_ThrowsException() {
         CreateOrderRequest request = CreateOrderRequest.builder()
-                .addressId("1")
+                .addressSku("ADDR-1001")
                 .paymentMethod(PaymentMethod.COD)
                 .items(List.of(
                         CreateOrderRequest.OrderItemRequest.builder()
@@ -199,7 +201,8 @@ class OrderServiceTest {
                 .build();
 
         com.ddicg.erp.modules.iam.model.Address mockAddress = new com.ddicg.erp.modules.iam.model.Address();
-        when(addressRepository.findById(1L)).thenReturn(Optional.of(mockAddress));
+        mockAddress.setSku("ADDR-1001");
+        when(addressRepository.findBySku("ADDR-1001")).thenReturn(Optional.of(mockAddress));
 
         assertThrows(BusinessException.class, () -> orderService.createOrder(request));
     }
@@ -213,7 +216,7 @@ class OrderServiceTest {
                 .build();
 
         CreateOrderRequest request = CreateOrderRequest.builder()
-                .addressId("1")
+                .addressSku("ADDR-1001")
                 .paymentMethod(PaymentMethod.COD)
                 .items(List.of(
                         CreateOrderRequest.OrderItemRequest.builder()
@@ -224,7 +227,8 @@ class OrderServiceTest {
                 .build();
 
         com.ddicg.erp.modules.iam.model.Address mockAddress = new com.ddicg.erp.modules.iam.model.Address();
-        when(addressRepository.findById(1L)).thenReturn(Optional.of(mockAddress));
+        mockAddress.setSku("ADDR-1001");
+        when(addressRepository.findBySku("ADDR-1001")).thenReturn(Optional.of(mockAddress));
         when(attributesRepository.findAllBySku_skuIn(List.of("SKU-OUT"))).thenReturn(List.of(outOfStockAttr));
 
         assertThrows(BusinessException.class, () -> orderService.createOrder(request));
@@ -234,7 +238,7 @@ class OrderServiceTest {
     @DisplayName("Tạo đơn hàng thành công với OrderNumber dạng UUIDv7")
     void testCreateOrder_UUIDv7Generated() {
         CreateOrderRequest request = CreateOrderRequest.builder()
-                .addressId("1")
+                .addressSku("ADDR-1001")
                 .paymentMethod(PaymentMethod.COD)
                 .items(List.of(
                         CreateOrderRequest.OrderItemRequest.builder()
@@ -245,7 +249,8 @@ class OrderServiceTest {
                 .build();
 
         com.ddicg.erp.modules.iam.model.Address mockAddress = new com.ddicg.erp.modules.iam.model.Address();
-        when(addressRepository.findById(1L)).thenReturn(Optional.of(mockAddress));
+        mockAddress.setSku("ADDR-1001");
+        when(addressRepository.findBySku("ADDR-1001")).thenReturn(Optional.of(mockAddress));
         when(attributesRepository.findAllBySku_skuIn(List.of("SKU-1001"))).thenReturn(List.of(sampleAttr));
         when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(orderMapper.toDto(any(Order.class))).thenAnswer(invocation -> {

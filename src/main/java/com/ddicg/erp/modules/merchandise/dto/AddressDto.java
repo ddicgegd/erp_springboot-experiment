@@ -3,18 +3,21 @@ package com.ddicg.erp.modules.merchandise.dto;
 import com.ddicg.erp.modules.iam.model.Address;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
-
 
 /**
  * DTO for {@link Address}
  */
 @AllArgsConstructor
+@NoArgsConstructor(force = true)
+@Builder
 @Getter
 public class AddressDto implements Serializable {
-    private final Long id;
+    private final String sku;
     private final String name;
     private final String address;
     private final String phoneNumber;
@@ -27,6 +30,7 @@ public class AddressDto implements Serializable {
      */
     public Address toEntity() {
         return Address.builder()
+                .sku(this.sku)
                 .address(this.address)
                 .phoneNumber(this.phoneNumber)
                 .recipientName(this.recipientName)

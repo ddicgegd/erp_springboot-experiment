@@ -94,6 +94,11 @@ mcp:
     frontend:
       enabled: true
 
+geocoding:
+  nominatim:
+    url: ${GEOCODING_NOMINATIM_URL}
+  user-agent: ${GEOCODING_USER_AGENT}
+
 springdoc:
   api-docs:
     path: /v3/api-docs

@@ -353,18 +353,11 @@ public class OrderService implements iOrder {
     }
 
     private void populateCustomerDetails(Order order, CreateOrderRequest request) {
-        if (!org.springframework.util.StringUtils.hasText(request.getAddressId())) {
-            throw new BusinessException(ErrorCode.INVALID_REQUEST, "Mã địa chỉ giao hàng không được để trống");
+        if (!org.springframework.util.StringUtils.hasText(request.getAddressSku())) {
+            throw new BusinessException(ErrorCode.INVALID_REQUEST, "Mã SKU địa chỉ giao hàng không được để trống");
         }
 
-        Long addrId;
-        try {
-            addrId = Long.parseLong(request.getAddressId());
-        } catch (NumberFormatException e) {
-            throw new BusinessException(ErrorCode.INVALID_REQUEST, "Mã địa chỉ giao hàng không hợp lệ");
-        }
-
-        Address selectedAddress = addressRepository.findById(addrId)
+        Address selectedAddress = addressRepository.findBySku(request.getAddressSku())
                 .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_REQUEST, "Địa chỉ giao hàng không tồn tại"));
 
         Optional<User> currentUserOpt = securityUtil.getCurrentUser();

@@ -25,8 +25,8 @@ public class CreateOrderRequest {
 
     boolean isFromCart;
 
-    @NotBlank(message = "Mã địa chỉ giao hàng không được để trống")
-    String addressId;
+    @NotBlank(message = "Mã SKU địa chỉ giao hàng không được để trống")
+    String addressSku;
     String discountCode;
     String customerNotes;
     String shippingMethod;
