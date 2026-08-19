@@ -108,12 +108,14 @@ public class Order extends IdentityOnly<Long> {
   Double discountAmount = 0.0;
 
   /**
-   * Mã giảm giá
+   * Danh sách mã giảm giá
    * 
-   * @en Discount code
+   * @en Discount codes list
    */
-  @Column(name = "discount_code", length = 100)
-  String discountCode;
+  @Convert(converter = com.ddicg.erp.core.config.converter.StringListConverter.class)
+  @Column(name = "discount_codes", length = 500)
+  @Builder.Default
+  List<String> discountCodes = new ArrayList<>();
 
   /**
    * Số tiền thuế

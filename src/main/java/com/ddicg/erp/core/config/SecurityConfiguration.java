@@ -55,6 +55,10 @@ public class SecurityConfiguration {
                 "/api/images/**",
                 "/api/payment/result**",
                 "/api/delivery/**",
+                "/api/addresses/resolve",
+                "/api/shipping/**",
+                "/api/vouchers/active",
+                "/api/vouchers/check/**",
         };
 
         private static final String[] FINERACT_PERMIT_ALL = {

@@ -60,6 +60,9 @@ public class OrderService implements iOrder {
     private final OrderStatusHandler orderStatusHandler;
     private final OutboxOrderHelper outboxOrderHelper;
     private final OrderInventoryService orderInventoryService;
+    private final com.ddicg.erp.core.common.service.ShippingCalculationService shippingCalculationService;
+    private final com.ddicg.erp.modules.order.service.discount.OrderDiscountProcessor orderDiscountProcessor;
+    private final com.ddicg.erp.modules.order.service.discount.VoucherReservationService voucherReservationService;
 
     @Override @Transactional
     public Response<OrderDto> createOrder(CreateOrderRequest request) {
@@ -69,25 +72,51 @@ public class OrderService implements iOrder {
         Order order = new Order();
         order.setOrderNumber(UUIDv7Generator.generate().toString());
 
-        populateCustomerDetails(order, request);
+        // 2. Xác định phương thức nhận hàng (PICKUP vs DELIVERY)
+        com.ddicg.erp.core.common.model.enums.ShippingMethod shippingMethod =
+                com.ddicg.erp.core.common.model.enums.ShippingMethod.fromString(request.getShippingMethod());
+        order.setShippingMethod(shippingMethod.name());
+
+        Address selectedAddress = populateCustomerDetails(order, request, shippingMethod);
         populateAuditInfo(order);
 
         List<OrderStatus> initialStatus = determineInitialStatuses(request.getPaymentMethod());
         order.setStatus(initialStatus);
         order.setCurrentStatus(initialStatus.get(initialStatus.size() - 1));
 
-        order.setShippingMethod(request.getShippingMethod());
         order.setCustomerNotes(request.getCustomerNotes());
-        order.setDiscountCode(request.getDiscountCode());
-        order.setShippingFee(30000.0); // fake
 
-        // 2. Khởi tạo danh sách OrderItem dạng thông tin tĩnh
+        // 3. Tính cước phí vận chuyển ban đầu (PICKUP = 0đ, DELIVERY = tính theo khoảng cách)
+        Double rawShippingFee = 0.0;
+        if (shippingMethod == com.ddicg.erp.core.common.model.enums.ShippingMethod.DELIVERY && selectedAddress != null) {
+            rawShippingFee = shippingCalculationService.calculateShippingFee(
+                    selectedAddress.getLatitude(),
+                    selectedAddress.getLongitude(),
+                    selectedAddress.getAddress()
+            );
+        }
+
+        // 4. Khởi tạo danh sách OrderItem dạng thông tin tĩnh
         List<OrderItem> items = buildOrderItemsFromAttributes(request.getItems(), attributesList, order);
         order.setOrderItems(items);
 
-        calcTotal(order);
+        // 5. Tạm giữ Voucher (Soft Reservation) trong Redis với TTL 3 phút chống race condition
+        if (request.getDiscountCodes() != null && !request.getDiscountCodes().isEmpty()) {
+            double initialSubtotal = items.stream().mapToDouble(i -> i.getSubtotal() != null ? i.getSubtotal() : 0.0).sum();
+            voucherReservationService.reserveVouchers(request.getDiscountCodes(), order.getOrderNumber(), initialSubtotal);
+        }
+
+        // 6. Tính toán tổng tiền và ủy quyền xử lý chiết khấu cho SPI độc lập
+        calcTotal(order, rawShippingFee, request.getDiscountCodes(), request.getItems(), attributesList);
+
+        // Nếu là đơn COD -> Commit voucher ngay lập tức vào DB
+        if (request.getPaymentMethod() == PaymentMethod.COD && request.getDiscountCodes() != null) {
+            voucherReservationService.commitVouchers(request.getDiscountCodes(), order.getOrderNumber());
+        }
+
         Order saved = orderRepository.save(order);
-        log.info("✅ ORDER_CREATED: {}", saved.getOrderNumber());
+        log.info("✅ ORDER_CREATED: {} | Method: {} | ShippingFee: {} | Total: {}",
+                saved.getOrderNumber(), order.getShippingMethod(), order.getShippingFee(), order.getTotalAmount());
 
         outboxOrderHelper.saveOrderCreatedEvent(saved, request);
         publishAutoTransitionOutboxEvents(saved, request.getPaymentMethod());
@@ -345,28 +374,70 @@ public class OrderService implements iOrder {
         orderRepository.save(o);
     }
 
-    private void calcTotal(Order order) {
-        double sub = order.getOrderItems().stream().mapToDouble(i -> i.getSubtotal()!=null?i.getSubtotal():0).sum();
-        order.setSubtotal(sub);
-        order.setTotalAmount(Math.max(0, sub - (order.getDiscountAmount()!=null?order.getDiscountAmount():0)
-                + (order.getShippingFee()!=null?order.getShippingFee():0)));
-    }
+    private void calcTotal(Order order, Double rawShippingFee, List<String> discountCodes, List<CreateOrderRequest.OrderItemRequest> items, List<Attributes> attributesList) {
+        // Ủy quyền xử lý chiết khấu / voucher cho SPI độc lập
+        com.ddicg.erp.modules.order.service.discount.OrderDiscountContext context =
+                com.ddicg.erp.modules.order.service.discount.OrderDiscountContext.builder()
+                        .subtotal(order.getOrderItems().stream().mapToDouble(i -> (i.getUnitPrice() != null ? i.getUnitPrice() : i.getSalePrice()) * i.getQuantity()).sum())
+                        .rawShippingFee(rawShippingFee)
+                        .discountCodes(discountCodes)
+                        .customerId(order.getCustomerInfo() != null ? order.getCustomerInfo().getCustomerId() : null)
+                        .shippingMethod(order.getShippingMethod())
+                        .items(items)
+                        .attributesList(attributesList)
+                        .build();
 
-    private void populateCustomerDetails(Order order, CreateOrderRequest request) {
-        if (!org.springframework.util.StringUtils.hasText(request.getAddressSku())) {
-            throw new BusinessException(ErrorCode.INVALID_REQUEST, "Mã SKU địa chỉ giao hàng không được để trống");
+        com.ddicg.erp.modules.order.service.discount.DiscountEvaluationResult discountResult =
+                orderDiscountProcessor.evaluateDiscount(context);
+
+        // Cập nhật chiết khấu cho từng OrderItem
+        if (order.getOrderItems() != null && discountResult.getItemDiscounts() != null) {
+            for (OrderItem item : order.getOrderItems()) {
+                String sku = item.getAttributesSku();
+                Double itemDiscount = discountResult.getItemDiscounts().getOrDefault(sku, 0.0);
+                Double itemDiscountPercent = discountResult.getItemDiscountPercentages().getOrDefault(sku, 0.0);
+
+                double lineOriginal = item.getUnitPrice() * item.getQuantity();
+                item.setDiscountAmount(itemDiscount);
+                item.setDiscountPercentage(itemDiscountPercent);
+                item.setSubtotal(Math.max(0.0, lineOriginal - itemDiscount));
+            }
         }
 
-        Address selectedAddress = addressRepository.findBySku(request.getAddressSku())
-                .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_REQUEST, "Địa chỉ giao hàng không tồn tại"));
+        double finalSubtotal = order.getOrderItems().stream()
+                .mapToDouble(i -> i.getSubtotal() != null ? i.getSubtotal() : 0.0)
+                .sum();
+        order.setSubtotal(finalSubtotal);
+
+        double finalShippingFee = Math.max(0.0, rawShippingFee - (discountResult.getShippingDiscountAmount() != null ? discountResult.getShippingDiscountAmount() : 0.0));
+        order.setShippingFee(finalShippingFee);
+
+        double productDiscount = (discountResult.getProductDiscountAmount() != null ? discountResult.getProductDiscountAmount() : 0.0);
+        double shippingDiscount = (discountResult.getShippingDiscountAmount() != null ? discountResult.getShippingDiscountAmount() : 0.0);
+        order.setDiscountAmount(productDiscount + shippingDiscount);
+        order.setDiscountCodes(discountResult.getAppliedDiscountCodes());
+
+        double finalTotal = Math.max(0.0, finalSubtotal + finalShippingFee);
+        order.setTotalAmount(finalTotal);
+    }
+
+    private Address populateCustomerDetails(Order order, CreateOrderRequest request, com.ddicg.erp.core.common.model.enums.ShippingMethod shippingMethod) {
+        Address selectedAddress = null;
+        if (org.springframework.util.StringUtils.hasText(request.getAddressSku())) {
+            selectedAddress = addressRepository.findBySku(request.getAddressSku()).orElse(null);
+        }
+
+        if (shippingMethod == com.ddicg.erp.core.common.model.enums.ShippingMethod.DELIVERY && selectedAddress == null) {
+            throw new BusinessException(ErrorCode.INVALID_REQUEST, "Phương thức giao hàng tận nơi yêu cầu mã SKU địa chỉ hợp lệ");
+        }
 
         Optional<User> currentUserOpt = securityUtil.getCurrentUser();
 
         String customerId = null;
-        String customerName = selectedAddress.getRecipientName();
+        String customerName = (selectedAddress != null) ? selectedAddress.getRecipientName() : null;
         String customerEmail = null;
-        String customerPhone = selectedAddress.getPhoneNumber();
-        String shippingAddress = selectedAddress.getAddress();
+        String customerPhone = (selectedAddress != null) ? selectedAddress.getPhoneNumber() : null;
+        String shippingAddress = (selectedAddress != null) ? selectedAddress.getAddress() : "Nhận tại Kho Tổng: Xã Định Hòa, Huyện Yên Định, Tỉnh Thanh Hóa";
 
         if (currentUserOpt.isPresent()) {
             User user = currentUserOpt.get();
@@ -388,6 +459,7 @@ public class OrderService implements iOrder {
                 .shippingAddress(shippingAddress)
                 .build();
         order.setCustomerInfo(customerInfo);
+        return selectedAddress;
     }
 
     private void populateAuditInfo(Order order) {

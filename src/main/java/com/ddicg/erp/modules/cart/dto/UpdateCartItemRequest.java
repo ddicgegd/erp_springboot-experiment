@@ -1,7 +1,6 @@
 package com.ddicg.erp.modules.cart.dto;
 
 import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
@@ -12,11 +11,8 @@ import lombok.experimental.FieldDefaults;
 @NoArgsConstructor
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class CartItemRequest {
-    @NotBlank(message = "SKU không được để trống")
-    String sku;
-
+public class UpdateCartItemRequest {
     @NotNull(message = "Số lượng không được để trống")
-    @Min(value = 1, message = "Số lượng phải lớn hơn hoặc bằng 1")
+    @Min(value = 0, message = "Số lượng không được âm")
     Integer quantity;
 }

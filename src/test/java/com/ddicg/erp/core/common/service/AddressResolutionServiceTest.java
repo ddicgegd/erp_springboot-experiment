@@ -76,4 +76,56 @@ class AddressResolutionServiceTest {
         assertTrue(result.getFormattedAddress().contains("Gia Lâm"));
         assertTrue(result.getFormattedAddress().contains("Hà Nội"));
     }
+
+    @Test
+    @DisplayName("Địa chỉ thực tế Thanh Hóa viết dính ('02 ngõ nghè, lành nhì, định hòa, yên định thanh hóa') -> Thành công (success = true)")
+    void resolve_realWorldThanhHoaAddress_shouldSucceed() {
+        ResolvedAddress result = addressResolutionService.resolve("02 ngõ nghè, lành nhì, định hòa, yên định thanh hóa");
+        assertNotNull(result);
+        assertTrue(result.isSuccess(), "Địa chỉ thực tế Thanh Hóa phải phân giải thành công");
+        assertNotNull(result.getLatitude());
+        assertNotNull(result.getLongitude());
+        assertTrue(result.getFormattedAddress().contains("Yên Định"));
+        assertTrue(result.getFormattedAddress().contains("Thanh Hóa"));
+    }
+
+    @Test
+    @DisplayName("Địa chỉ KCN ('Lô CN-01 KCN Quế Võ, Phường Nam Sơn, TP Bắc Ninh, Bắc Ninh') -> Thành công (success = true)")
+    void resolve_industrialZoneAddress_shouldSucceed() {
+        ResolvedAddress result = addressResolutionService.resolve("Lô CN-01 KCN Quế Võ, Phường Nam Sơn, TP Bắc Ninh, Bắc Ninh");
+        assertNotNull(result);
+        assertTrue(result.isSuccess());
+        assertTrue(result.getFormattedAddress().contains("Bắc Ninh"));
+    }
+
+    @Test
+    @DisplayName("Huyện đảo Côn Đảo đặc thù không có cấp Xã ('Đường Tôn Đức Thắng, Huyện Côn Đảo, Bà Rịa - Vũng Tàu') -> Thành công (success = true)")
+    void resolve_islandSpecialDistrictWithoutWard_shouldSucceed() {
+        ResolvedAddress result = addressResolutionService.resolve("Đường Tôn Đức Thắng, Huyện Côn Đảo, Bà Rịa - Vũng Tàu");
+        assertNotNull(result);
+        assertTrue(result.isSuccess(), "Huyện đảo Côn Đảo phải được chấp nhận");
+        assertTrue(result.getFormattedAddress().contains("Côn Đảo"));
+    }
+
+    @Test
+    @DisplayName("Địa chỉ Nông thôn Tây Nguyên ('Thôn 2, Xã Cư M'gar, Huyện Cư M'gar, Đắk Lắk') -> Thành công (success = true)")
+    void resolve_daklakRuralAddress_shouldSucceed() {
+        ResolvedAddress result = addressResolutionService.resolve("Thôn 2, Xã Cư M'gar, Huyện Cư M'gar, Đắk Lắk");
+        assertNotNull(result);
+        assertTrue(result.isSuccess());
+        assertTrue(result.getFormattedAddress().contains("Cư M'gar") || result.getFormattedAddress().contains("Đắk Lắk"));
+    }
+
+    @Test
+    @DisplayName("Địa chỉ viết liền không dấu phẩy có đủ Xã, Huyện, Tỉnh ('02 ngõ nghè xã định hòa huyện yên định tỉnh thanh hóa') -> Nhận diện đầy đủ cấp Xã")
+    void resolve_unpunctuatedContinuousThanhHoaAddress_shouldExtractWard() {
+        ResolvedAddress result = addressResolutionService.resolve("02 ngõ nghè xã định hòa huyện yên định tỉnh thanh hóa");
+        assertNotNull(result);
+        assertTrue(result.isSuccess(), "Phải phân giải thành công địa chỉ viết liền");
+        assertNotNull(result.getLatitude());
+        assertNotNull(result.getLongitude());
+        assertTrue(result.getFormattedAddress().contains("Định Hòa"), "Phải nhận diện và có Xã Định Hòa trong địa chỉ chuẩn hóa");
+        assertTrue(result.getFormattedAddress().contains("Yên Định"), "Phải có Huyện Yên Định");
+        assertTrue(result.getFormattedAddress().contains("Thanh Hóa"), "Phải có Tỉnh Thanh Hóa");
+    }
 }

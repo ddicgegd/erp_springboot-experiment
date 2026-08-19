@@ -57,6 +57,12 @@ class OrderServiceTest {
     private OutboxOrderHelper outboxOrderHelper;
     @Mock
     private OrderInventoryService orderInventoryService;
+    @Mock
+    private com.ddicg.erp.core.common.service.ShippingCalculationService shippingCalculationService;
+    @Mock
+    private com.ddicg.erp.modules.order.service.discount.OrderDiscountProcessor orderDiscountProcessor;
+    @Mock
+    private com.ddicg.erp.modules.order.service.discount.VoucherReservationService voucherReservationService;
 
     @InjectMocks
     private OrderService orderService;
@@ -72,6 +78,26 @@ class OrderServiceTest {
                 .salePrice(180000.0)
                 .costPrice(100000.0)
                 .build();
+
+        lenient().when(orderDiscountProcessor.evaluateDiscount(any())).thenAnswer(inv -> {
+            com.ddicg.erp.modules.order.service.discount.OrderDiscountContext ctx = inv.getArgument(0);
+            double prodDiscount = 0.0;
+            java.util.Map<String, Double> discounts = new java.util.HashMap<>();
+            if (ctx.getItems() != null) {
+                for (var item : ctx.getItems()) {
+                    if ("SKU-1001".equals(item.getAttributesSku())) {
+                        double disc = (200000.0 - 180000.0) * item.getQuantity();
+                        discounts.put("SKU-1001", disc);
+                        prodDiscount += disc;
+                    }
+                }
+            }
+            return com.ddicg.erp.modules.order.service.discount.DiscountEvaluationResult.builder()
+                    .productDiscountAmount(prodDiscount)
+                    .shippingDiscountAmount(0.0)
+                    .itemDiscounts(discounts)
+                    .build();
+        });
     }
 
     @Test
@@ -79,6 +105,7 @@ class OrderServiceTest {
     void testCreateOrder_Success() {
         CreateOrderRequest request = CreateOrderRequest.builder()
                 .addressSku("ADDR-1001")
+                .shippingMethod("DELIVERY")
                 .paymentMethod(PaymentMethod.COD)
                 .items(List.of(
                         CreateOrderRequest.OrderItemRequest.builder()
@@ -99,6 +126,7 @@ class OrderServiceTest {
 
         when(securityUtil.getCurrentUser()).thenReturn(Optional.of(mockUser));
         when(addressRepository.findBySku("ADDR-1001")).thenReturn(Optional.of(mockAddress));
+        when(shippingCalculationService.calculateShippingFee(any(), any(), any())).thenReturn(26000.0);
 
         when(attributesRepository.findAllBySku_skuIn(List.of("SKU-1001"))).thenReturn(List.of(sampleAttr));
         when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> {
@@ -113,6 +141,7 @@ class OrderServiceTest {
                     .orderNumber(o.getOrderNumber())
                     .customerName(o.getCustomerInfo().getCustomerName())
                     .customerEmail(o.getCustomerInfo().getCustomerEmail())
+                    .shippingFee(o.getShippingFee())
                     .totalAmount(o.getTotalAmount())
                     .build();
         });
@@ -123,16 +152,59 @@ class OrderServiceTest {
         assertNotNull(response.getData());
         assertEquals("Nguyen Van A", response.getData().getCustomerName());
         assertEquals("a@example.com", response.getData().getCustomerEmail());
+        assertEquals(26000.0, response.getData().getShippingFee());
 
         verify(orderRepository).save(any(Order.class));
         verify(outboxOrderHelper).saveOrderCreatedEvent(any(Order.class), eq(request));
     }
 
     @Test
-    @DisplayName("Tạo đơn hàng thất bại khi addressSku bị để trống")
+    @DisplayName("Tạo đơn hàng PICKUP tại kho -> Phí ship luôn bằng 0đ và không bắt buộc addressSku")
+    void testCreateOrder_PickupAtWarehouse_ZeroShippingFee() {
+        CreateOrderRequest request = CreateOrderRequest.builder()
+                .shippingMethod("PICKUP")
+                .paymentMethod(PaymentMethod.COD)
+                .items(List.of(
+                        CreateOrderRequest.OrderItemRequest.builder()
+                                .attributesSku("SKU-1001")
+                                .quantity(1)
+                                .build()
+                ))
+                .build();
+
+        com.ddicg.erp.modules.iam.model.User mockUser = new com.ddicg.erp.modules.iam.model.User();
+        mockUser.setId(101L);
+        mockUser.setFullName("Nguyen Van A");
+
+        when(securityUtil.getCurrentUser()).thenReturn(Optional.of(mockUser));
+        when(attributesRepository.findAllBySku_skuIn(List.of("SKU-1001"))).thenReturn(List.of(sampleAttr));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> {
+            Order o = invocation.getArgument(0);
+            o.setId(2L);
+            return o;
+        });
+        when(orderMapper.toDto(any(Order.class))).thenAnswer(invocation -> {
+            Order o = invocation.getArgument(0);
+            return OrderDto.builder()
+                    .id(o.getId())
+                    .shippingFee(o.getShippingFee())
+                    .totalAmount(o.getTotalAmount())
+                    .build();
+        });
+
+        Response<OrderDto> response = orderService.createOrder(request);
+
+        assertNotNull(response);
+        assertEquals(0.0, response.getData().getShippingFee());
+        assertEquals(180000.0, response.getData().getTotalAmount()); // 1 item giá 180k
+    }
+
+    @Test
+    @DisplayName("Tạo đơn hàng DELIVERY thất bại khi addressSku bị để trống")
     void testCreateOrder_MissingAddressSku_ThrowsException() {
         CreateOrderRequest request = CreateOrderRequest.builder()
                 .addressSku(null)
+                .shippingMethod("DELIVERY")
                 .paymentMethod(PaymentMethod.COD)
                 .items(List.of(
                         CreateOrderRequest.OrderItemRequest.builder()

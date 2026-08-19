@@ -5,57 +5,49 @@ import com.ddicg.erp.core.common.dto.response.Response;
 import com.ddicg.erp.modules.iam.dto.request.CreateAddressRequest;
 import com.ddicg.erp.modules.iam.dto.request.UpdateAddressRequest;
 import com.ddicg.erp.modules.iam.dto.response.AddressResponse;
-import com.ddicg.erp.modules.iam.service.AddressService;
 import jakarta.validation.Valid;
-import lombok.AccessLevel;
-import lombok.RequiredArgsConstructor;
-import lombok.experimental.FieldDefaults;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-@RestController
 @RequestMapping("/api/addresses")
-@RequiredArgsConstructor
-@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public class AddressController {
-
-    AddressService addressService;
+public interface AddressController {
 
     @PostMapping
-    public Response<AddressResponse> createAddress(@Valid @RequestBody CreateAddressRequest request) {
-        return addressService.createAddress(request);
-    }
+    @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("isAuthenticated()")
+    Response<AddressResponse> createAddress(@Valid @RequestBody CreateAddressRequest request);
 
     @PutMapping("/{sku}")
-    public Response<AddressResponse> updateAddress(
+    @ResponseStatus(HttpStatus.OK)
+    @PreAuthorize("isAuthenticated()")
+    Response<AddressResponse> updateAddress(
             @PathVariable String sku,
-            @Valid @RequestBody UpdateAddressRequest request) {
-        return addressService.updateAddress(sku, request);
-    }
+            @Valid @RequestBody UpdateAddressRequest request);
 
     @GetMapping("/me")
-    public Response<List<AddressResponse>> getMyAddresses() {
-        return addressService.getMyAddresses();
-    }
+    @ResponseStatus(HttpStatus.OK)
+    @PreAuthorize("isAuthenticated()")
+    Response<List<AddressResponse>> getMyAddresses();
 
     @GetMapping("/me/default")
-    public Response<AddressResponse> getDefaultAddress() {
-        return addressService.getDefaultAddress();
-    }
+    @ResponseStatus(HttpStatus.OK)
+    @PreAuthorize("isAuthenticated()")
+    Response<AddressResponse> getDefaultAddress();
 
     @PatchMapping("/{sku}/default")
-    public Response<String> setDefaultAddress(@PathVariable String sku) {
-        return addressService.setDefaultAddress(sku);
-    }
+    @ResponseStatus(HttpStatus.OK)
+    @PreAuthorize("isAuthenticated()")
+    Response<String> setDefaultAddress(@PathVariable String sku);
 
     @DeleteMapping("/{sku}")
-    public Response<String> deleteAddress(@PathVariable String sku) {
-        return addressService.deleteAddress(sku);
-    }
+    @ResponseStatus(HttpStatus.OK)
+    @PreAuthorize("isAuthenticated()")
+    Response<String> deleteAddress(@PathVariable String sku);
 
     @GetMapping("/resolve")
-    public Response<ResolvedAddress> previewResolve(@RequestParam("address") String address) {
-        return addressService.resolvePreview(address);
-    }
+    @ResponseStatus(HttpStatus.OK)
+    Response<ResolvedAddress> previewResolve(@RequestParam("address") String address);
 }

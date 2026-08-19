@@ -46,7 +46,7 @@ public class OrderDto {
 
     Double discountAmount;
 
-    String discountCode;
+    List<String> discountCodes;
 
     Double taxAmount;
 
