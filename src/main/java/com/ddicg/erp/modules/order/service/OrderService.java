@@ -7,6 +7,7 @@ import com.ddicg.erp.core.common.dto.response.Response;
 import com.ddicg.erp.core.common.model.embedded.AuditInfo;
 import com.ddicg.erp.core.common.model.enums.OrderStatus;
 import com.ddicg.erp.core.common.model.enums.PaymentMethod;
+import com.ddicg.erp.core.common.model.enums.ShippingMethod;
 import com.ddicg.erp.core.common.model.enums.StockStatus;
 import com.ddicg.erp.core.common.model.enums.SearchOperation;
 import com.ddicg.erp.core.common.repository.specification.SearchCriteria;
@@ -63,19 +64,22 @@ public class OrderService implements iOrder {
     private final com.ddicg.erp.core.common.service.ShippingCalculationService shippingCalculationService;
     private final com.ddicg.erp.modules.order.service.discount.OrderDiscountProcessor orderDiscountProcessor;
     private final com.ddicg.erp.modules.order.service.discount.VoucherReservationService voucherReservationService;
+    private final com.ddicg.erp.modules.cart.service.ShoppingCartService shoppingCartService;
 
     @Override @Transactional
     public Response<OrderDto> createOrder(CreateOrderRequest request) {
+        // 0. Bắt buộc kiểm tra phương thức nhận hàng (Chỉ chấp nhận DELIVERY hoặc PICKUP)
+        ShippingMethod shippingMethod = request.getShippingMethod();
+        if (shippingMethod == null) {
+            throw new com.ddicg.erp.core.exception.BusinessException("Phương thức nhận hàng (shippingMethod) không được để trống. Vui lòng chọn 'DELIVERY' hoặc 'PICKUP'");
+        }
+
         // 1. Query xác thực Attributes(skus) xem có hợp lệ không (không gộp) -> Trả ra là List
         List<Attributes> attributesList = fetchAndValidateAttributes(request.getItems());
 
         Order order = new Order();
         order.setOrderNumber(UUIDv7Generator.generate().toString());
-
-        // 2. Xác định phương thức nhận hàng (PICKUP vs DELIVERY)
-        com.ddicg.erp.core.common.model.enums.ShippingMethod shippingMethod =
-                com.ddicg.erp.core.common.model.enums.ShippingMethod.fromString(request.getShippingMethod());
-        order.setShippingMethod(shippingMethod.name());
+        order.setShippingMethod(shippingMethod);
 
         Address selectedAddress = populateCustomerDetails(order, request, shippingMethod);
         populateAuditInfo(order);
@@ -88,7 +92,7 @@ public class OrderService implements iOrder {
 
         // 3. Tính cước phí vận chuyển ban đầu (PICKUP = 0đ, DELIVERY = tính theo khoảng cách)
         Double rawShippingFee = 0.0;
-        if (shippingMethod == com.ddicg.erp.core.common.model.enums.ShippingMethod.DELIVERY && selectedAddress != null) {
+        if (shippingMethod == ShippingMethod.DELIVERY && selectedAddress != null) {
             rawShippingFee = shippingCalculationService.calculateShippingFee(
                     selectedAddress.getLatitude(),
                     selectedAddress.getLongitude(),
@@ -117,6 +121,20 @@ public class OrderService implements iOrder {
         Order saved = orderRepository.save(order);
         log.info("✅ ORDER_CREATED: {} | Method: {} | ShippingFee: {} | Total: {}",
                 saved.getOrderNumber(), order.getShippingMethod(), order.getShippingFee(), order.getTotalAmount());
+
+        // 7. Xử lý cờ isFromCart: Xóa các món vừa mua khỏi Giỏ hàng của khách
+        if (request.isFromCart()) {
+            try {
+                List<String> orderedSkus = request.getItems().stream()
+                        .map(CreateOrderRequest.OrderItemRequest::getAttributesSku)
+                        .toList();
+                shoppingCartService.removeItems(orderedSkus);
+                String custId = order.getCustomerInfo() != null ? order.getCustomerInfo().getCustomerId() : "anonymous";
+                log.info("🛒 CART_CLEANED_AFTER_ORDER: User: {} | Cleaned SKUs: {}", custId, orderedSkus);
+            } catch (Exception e) {
+                log.warn("⚠️ Không thể dọn giỏ hàng sau khi đặt: {}", e.getMessage());
+            }
+        }
 
         outboxOrderHelper.saveOrderCreatedEvent(saved, request);
         publishAutoTransitionOutboxEvents(saved, request.getPaymentMethod());
@@ -421,13 +439,13 @@ public class OrderService implements iOrder {
         order.setTotalAmount(finalTotal);
     }
 
-    private Address populateCustomerDetails(Order order, CreateOrderRequest request, com.ddicg.erp.core.common.model.enums.ShippingMethod shippingMethod) {
+    private Address populateCustomerDetails(Order order, CreateOrderRequest request, ShippingMethod shippingMethod) {
         Address selectedAddress = null;
         if (org.springframework.util.StringUtils.hasText(request.getAddressSku())) {
             selectedAddress = addressRepository.findBySku(request.getAddressSku()).orElse(null);
         }
 
-        if (shippingMethod == com.ddicg.erp.core.common.model.enums.ShippingMethod.DELIVERY && selectedAddress == null) {
+        if (shippingMethod == ShippingMethod.DELIVERY && selectedAddress == null) {
             throw new BusinessException(ErrorCode.INVALID_REQUEST, "Phương thức giao hàng tận nơi yêu cầu mã SKU địa chỉ hợp lệ");
         }
 

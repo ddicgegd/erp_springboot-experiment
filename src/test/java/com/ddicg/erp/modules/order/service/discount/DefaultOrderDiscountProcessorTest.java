@@ -3,6 +3,7 @@ package com.ddicg.erp.modules.order.service.discount;
 import com.ddicg.erp.core.common.model.embedded.Promotion;
 import com.ddicg.erp.core.common.model.embedded.SkuInfo;
 import com.ddicg.erp.core.common.model.enums.DiscountType;
+import com.ddicg.erp.core.common.model.enums.ShippingMethod;
 import com.ddicg.erp.core.common.model.enums.VoucherType;
 import com.ddicg.erp.modules.merchandise.model.Attributes;
 import com.ddicg.erp.modules.order.dto.request.CreateOrderRequest;
@@ -69,7 +70,7 @@ class DefaultOrderDiscountProcessorTest {
                 .subtotal(500000.0)
                 .rawShippingFee(35000.0)
                 .discountCodes(List.of("FREESHIP"))
-                .shippingMethod("DELIVERY")
+                .shippingMethod(ShippingMethod.DELIVERY)
                 .items(List.of(
                         CreateOrderRequest.OrderItemRequest.builder().attributesSku("SKU-B").quantity(1).build()
                 ))
@@ -93,7 +94,7 @@ class DefaultOrderDiscountProcessorTest {
                 .subtotal(500000.0)
                 .rawShippingFee(35000.0)
                 .discountCodes(Collections.emptyList())
-                .shippingMethod("DELIVERY")
+                .shippingMethod(ShippingMethod.DELIVERY)
                 .items(List.of(
                         CreateOrderRequest.OrderItemRequest.builder().attributesSku("SKU-A").quantity(1).build(),
                         CreateOrderRequest.OrderItemRequest.builder().attributesSku("SKU-B").quantity(1).build()
@@ -135,7 +136,7 @@ class DefaultOrderDiscountProcessorTest {
                 .subtotal(500000.0)
                 .rawShippingFee(35000.0)
                 .discountCodes(List.of("V_SHIP", "V_PROD"))
-                .shippingMethod("DELIVERY")
+                .shippingMethod(ShippingMethod.DELIVERY)
                 .items(List.of(
                         CreateOrderRequest.OrderItemRequest.builder().attributesSku("SKU-A").quantity(1).build(),
                         CreateOrderRequest.OrderItemRequest.builder().attributesSku("SKU-B").quantity(1).build()

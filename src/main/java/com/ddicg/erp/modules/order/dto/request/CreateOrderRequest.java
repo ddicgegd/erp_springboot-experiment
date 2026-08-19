@@ -1,6 +1,7 @@
 package com.ddicg.erp.modules.order.dto.request;
 
 import com.ddicg.erp.core.common.model.enums.PaymentMethod;
+import com.ddicg.erp.core.common.model.enums.ShippingMethod;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -28,7 +29,9 @@ public class CreateOrderRequest {
     String addressSku;
     List<String> discountCodes;
     String customerNotes;
-    String shippingMethod;
+
+    @NotNull(message = "Phương thức nhận hàng (shippingMethod) không được để trống. Vui lòng chọn 'DELIVERY' hoặc 'PICKUP'")
+    ShippingMethod shippingMethod;
 
     @NotNull(message = "Phương thức thanh toán không được rỗng")
     PaymentMethod paymentMethod;

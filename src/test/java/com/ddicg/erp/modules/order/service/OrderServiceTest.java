@@ -3,6 +3,7 @@ package com.ddicg.erp.modules.order.service;
 import com.ddicg.erp.core.common.dto.response.Response;
 import com.ddicg.erp.core.common.model.embedded.SkuInfo;
 import com.ddicg.erp.core.common.model.enums.PaymentMethod;
+import com.ddicg.erp.core.common.model.enums.ShippingMethod;
 import com.ddicg.erp.core.exception.BusinessException;
 import com.ddicg.erp.core.security.SecurityUtil;
 import com.ddicg.erp.modules.merchandise.mapper.OrderMapper;
@@ -105,7 +106,7 @@ class OrderServiceTest {
     void testCreateOrder_Success() {
         CreateOrderRequest request = CreateOrderRequest.builder()
                 .addressSku("ADDR-1001")
-                .shippingMethod("DELIVERY")
+                .shippingMethod(ShippingMethod.DELIVERY)
                 .paymentMethod(PaymentMethod.COD)
                 .items(List.of(
                         CreateOrderRequest.OrderItemRequest.builder()
@@ -162,7 +163,7 @@ class OrderServiceTest {
     @DisplayName("Tạo đơn hàng PICKUP tại kho -> Phí ship luôn bằng 0đ và không bắt buộc addressSku")
     void testCreateOrder_PickupAtWarehouse_ZeroShippingFee() {
         CreateOrderRequest request = CreateOrderRequest.builder()
-                .shippingMethod("PICKUP")
+                .shippingMethod(ShippingMethod.PICKUP)
                 .paymentMethod(PaymentMethod.COD)
                 .items(List.of(
                         CreateOrderRequest.OrderItemRequest.builder()
@@ -204,7 +205,7 @@ class OrderServiceTest {
     void testCreateOrder_MissingAddressSku_ThrowsException() {
         CreateOrderRequest request = CreateOrderRequest.builder()
                 .addressSku(null)
-                .shippingMethod("DELIVERY")
+                .shippingMethod(ShippingMethod.DELIVERY)
                 .paymentMethod(PaymentMethod.COD)
                 .items(List.of(
                         CreateOrderRequest.OrderItemRequest.builder()
@@ -312,6 +313,7 @@ class OrderServiceTest {
         CreateOrderRequest request = CreateOrderRequest.builder()
                 .addressSku("ADDR-1001")
                 .paymentMethod(PaymentMethod.COD)
+                .shippingMethod(com.ddicg.erp.core.common.model.enums.ShippingMethod.DELIVERY)
                 .items(List.of(
                         CreateOrderRequest.OrderItemRequest.builder()
                                 .attributesSku("SKU-1001")

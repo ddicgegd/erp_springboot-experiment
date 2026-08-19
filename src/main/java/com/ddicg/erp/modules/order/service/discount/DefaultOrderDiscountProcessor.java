@@ -34,7 +34,7 @@ public class DefaultOrderDiscountProcessor implements OrderDiscountProcessor {
         List<Attributes> attributesList = context.getAttributesList() != null ? context.getAttributesList() : Collections.emptyList();
         List<CreateOrderRequest.OrderItemRequest> items = context.getItems() != null ? context.getItems() : Collections.emptyList();
         Double rawShippingFee = context.getRawShippingFee() != null ? context.getRawShippingFee() : 0.0;
-        String shippingMethod = context.getShippingMethod();
+        ShippingMethod shippingMethod = context.getShippingMethod();
 
         Map<String, Attributes> attrMap = new HashMap<>();
         for (Attributes attr : attributesList) {
@@ -54,7 +54,7 @@ public class DefaultOrderDiscountProcessor implements OrderDiscountProcessor {
         // 1. NHÁNH PHÍ GIAO HÀNG (SHIPPING FEE DISCOUNT) - TOÀN ĐƠN (ALL)
         // =========================================================================
         double shippingDiscountAmount = 0.0;
-        if (ShippingMethod.PICKUP.name().equalsIgnoreCase(shippingMethod)) {
+        if (ShippingMethod.PICKUP == shippingMethod) {
             shippingDiscountAmount = rawShippingFee; // Nhận tại kho Định Hòa -> Free ship 100%
         } else {
             // Kiểm tra các mã FreeShip trong request

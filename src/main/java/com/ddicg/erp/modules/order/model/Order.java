@@ -4,6 +4,7 @@ import com.ddicg.erp.core.config.converter.OrderStatusListConverter;
 import com.ddicg.erp.core.common.model.base.IdentityOnly;
 import com.ddicg.erp.core.common.model.embedded.AuditInfo;
 import com.ddicg.erp.core.common.model.enums.OrderStatus;
+import com.ddicg.erp.core.common.model.enums.ShippingMethod;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
@@ -151,8 +152,9 @@ public class Order extends IdentityOnly<Long> {
    * 
    * @en Shipping method
    */
-  @Column(name = "shipping_method", length = 100)
-  String shippingMethod;
+  @Enumerated(EnumType.STRING)
+  @Column(name = "shipping_method", length = 50)
+  ShippingMethod shippingMethod;
 
   /* ============================ 🚛 Delivery ============================ */
 
