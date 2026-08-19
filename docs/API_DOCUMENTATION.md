@@ -2,7 +2,7 @@
 
 Tài liệu được cập nhật tự động bởi **`api-documentation-generator`** kết hợp **`improve-codebase-architecture`**.
 * **Dự án**: `ERP_SpringBoot-Experiment`
-* **Phiên bản**: `1.2.0 (August 2026 Release)`
+* **Phiên bản**: `1.2.1 (August 2026 Release)`
 * **Base URL**: `http://localhost:8080`
 * **Xác thực**: JWT Bearer Token (`Authorization: Bearer <TOKEN>`)
 
@@ -83,7 +83,7 @@ Mọi response trả về từ hệ thống đều được bọc trong đối t
 
 ### 2.3. Quản lý Địa chỉ Giao hàng Phân cấp (`/api/address`)
 * `GET /api/address`: Lấy danh sách địa chỉ đã lưu của tài khoản.
-* `POST /api/address`: Thêm mới địa chỉ phân cấp (Tỉnh/Thành phố $\rightarrow$ Quận/Huyện $\rightarrow$ Phường/Xã $\rightarrow$ Số nhà/Thôn xóm).
+* `POST /api/address`: Thêm mới địa chỉ phân cấp (Tỉnh/Thành phố -> Quận/Huyện -> Phường/Xã -> Số nhà/Thôn xóm).
 * `PUT /api/address/{id}`: Cập nhật địa chỉ.
 * `PUT /api/address/{id}/default`: Đặt làm địa chỉ mặc định.
 * `DELETE /api/address/{id}`: Xóa địa chỉ.
@@ -192,7 +192,7 @@ Quản lý khuyến mãi với cơ chế **Redis Natural TTL (`endDate - now`)**
 ```
 
 ### 5.2. Khách hàng kiểm tra nhanh mã voucher (`GET /api/vouchers/check/{code}`)
-* **Quyền hạn**: `Public` (Truy vấn Redis RAM `< 0.2ms`)
+* **Quyền hạn**: `Public` (Truy vấn Redis RAM < 0.2ms)
 * **Response 200 OK**:
 ```json
 {
@@ -263,12 +263,15 @@ Quản lý khuyến mãi với cơ chế **Redis Natural TTL (`endDate - now`)**
 ```
 
 ### 6.2. Tạo Đơn Hàng Mới (`POST /api/orders`)
-Hệ thống tự động bóc tách giảm giá từng món và cước vận chuyển:
+Hệ thống tự động bóc tách giảm giá từng món và cước vận chuyển.
+
 * **Request Body**:
 ```json
 {
   "shippingAddress": "Số 1 Hoàng Diệu, Phường Điện Biên, Quận Ba Đình, Hà Nội",
+  "shippingMethod": "DELIVERY",
   "paymentMethod": "COD",
+  "isFromCart": true,
   "discountCodes": ["FREESHIP_MAX", "SONY_ANC_500K"],
   "items": [
     { "attributesSku": "ATTR-SWHXM6-BLACK", "quantity": 1 },
@@ -276,11 +279,20 @@ Hệ thống tự động bóc tách giảm giá từng món và cước vận c
   ]
 }
 ```
-* **Cơ chế tính toán**:
-  - `ATTR-SWHXM6-BLACK` (9tr): Giảm 500k từ `SONY_ANC_500K` $\rightarrow$ Còn **8.500.000đ**.
-  - `ATTR-AIRPODMAX-BLUE` (15tr): Không khớp mã $\rightarrow$ Giữ nguyên **15.000.000đ**.
-  - Tiền ship (35k): Giảm 35k từ `FREESHIP_MAX` $\rightarrow$ **0đ**.
-  - **Tổng thanh toán**: $\mathbf{23.500.000đ}$.
+
+* **Đặc tả quy tắc bắt buộc**:
+  - `shippingMethod`: **Bắt buộc (`@NotNull`)**. Chỉ chấp nhận đúng 1 trong 2 giá trị:
+    * `"DELIVERY"`: Giao hàng tận nơi (Tính cước khoảng cách từ Kho Định Hòa).
+    * `"PICKUP"`: Khách đến lấy tại Kho Tổng (Cước ship = **0.0đ**).
+    * *Nếu truyền chuỗi không hợp lệ (ví dụ `"string"`, `"INVALID"`) hoặc để trống $\rightarrow$ Server trả về lỗi **HTTP 400 Bad Request** ngay lập tức, không có cơ chế fallback ngầm.*
+  - `isFromCart`: Cờ boolean.
+    * `true`: Mua từ giỏ hàng $\rightarrow$ Sau khi tạo đơn thành công, hệ thống tự động xóa các SKU vừa đặt ra khỏi giỏ hàng của khách.
+    * `false`: Mua ngay (Buy Now) $\rightarrow$ Giữ nguyên giỏ hàng hiện tại của khách.
+  - **Cơ chế tính toán bóc tách**:
+    * `ATTR-SWHXM6-BLACK` (9tr): Giảm 500k từ `SONY_ANC_500K` -> Còn **8.500.000đ**.
+    * `ATTR-AIRPODMAX-BLUE` (15tr): Không khớp mã -> Giữ nguyên **15.000.000đ**.
+    * Tiền ship (35k): Giảm 35k từ `FREESHIP_MAX` -> **0đ**.
+    * **Tổng thanh toán**: **23.500.000đ**.
 
 ### 6.3. Vòng đời Trạng thái Đơn hàng & Quản trị Giao nhận:
 * `POST /api/orders/confirm`: Xác nhận đơn hàng.
