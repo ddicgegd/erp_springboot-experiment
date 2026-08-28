@@ -57,6 +57,10 @@ spring:
   jpa:
     open-in-view: false
 
+  data:
+    redis:
+      database: ${REDIS_DATABASE:0}
+
   output:
     ansi:
       enabled: ALWAYS
@@ -99,6 +103,10 @@ geocoding:
     url: ${GEOCODING_NOMINATIM_URL}
   user-agent: ${GEOCODING_USER_AGENT}
 
+app:
+  fineract:
+    enabled: false
+
 springdoc:
   api-docs:
     path: /v3/api-docs
@@ -113,19 +121,17 @@ springdoc:
 
 logging:
   level:
-    root: INFO
-    com:
-      ddicg:
-        erp: INFO
-    org:
-      springframework: INFO
-      apache:
-        kafka: WARN
-      hibernate:
-        tool:
-          schema:
-            internal:
-              ExceptionHandlerLoggedImpl: ERROR
+    root: WARN
+    com.ddicg.erp: WARN
+    org.springframework: WARN
+    org.apache.kafka: WARN
+    org.apache.catalina: WARN
+    org.apache.tomcat: WARN
+    org.hibernate: WARN
+    com.zaxxer.hikari: WARN
+    org.flywaydb: WARN
+    org.redisson: WARN
+    io.swagger: WARN
   pattern:
     console: "%boldYellow(%d{HH:mm:ss.SSS}) %boldCyan(%d{yyyy-MM-dd}) %green([%thread]) %highlight(%-5level) %cyan(%logger{36}) %magenta([%file:%line]) %yellow(-) %msg%n%clr(%wEx){red}"
 

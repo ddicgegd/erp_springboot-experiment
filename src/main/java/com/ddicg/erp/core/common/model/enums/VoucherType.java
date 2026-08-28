@@ -4,8 +4,9 @@ import lombok.Getter;
 
 @Getter
 public enum VoucherType {
-    SHIPPING("Giảm phí vận chuyển toàn đơn"),
-    PRODUCT("Giảm giá sản phẩm theo Attributes");
+    GLOBAL_ORDER("Giảm giá tiền hàng toàn bộ đơn hàng"),
+    PRODUCT_ITEM("Giảm giá tiền hàng theo từng sản phẩm (Attributes)"),
+    SHIPPING("Giảm phí vận chuyển đơn hàng");
 
     private final String description;
 
@@ -13,3 +14,4 @@ public enum VoucherType {
         this.description = description;
     }
 }
+

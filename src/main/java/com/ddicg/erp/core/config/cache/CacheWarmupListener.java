@@ -31,10 +31,8 @@ public class CacheWarmupListener {
 
     @EventListener(ApplicationReadyEvent.class)
     public void warmupCaches() {
-        log.info("=== Bắt đầu Warm-up Cache (Category + Product) ===");
         warmupCategories();
         warmupProducts();
-        log.info("=== Warm-up Cache hoàn tất ===");
     }
 
     // Nạp toàn bộ danh mục vào RAM (tối đa 200 bản ghi).
@@ -47,7 +45,7 @@ public class CacheWarmupListener {
             request.setPaging(paging);
 
             long count = categoryService.search(request).getTotalElements();
-            log.info("Warm-up Category thành công: {} danh mục đã nạp vào RAM.", count);
+            log.debug("Warm-up Category thành công: {} danh mục đã nạp vào RAM.", count);
         } catch (Exception e) {
             log.error("Warm-up Category thất bại: {}", e.getMessage(), e);
         }
@@ -64,7 +62,7 @@ public class CacheWarmupListener {
             request.setPaging(paging);
 
             long count = productService.searchProducts(request).getTotalElements();
-            log.info("Warm-up Product thành công: {} sản phẩm đã nạp vào RAM.", count);
+            log.debug("Warm-up Product thành công: {} sản phẩm đã nạp vào RAM.", count);
         } catch (Exception e) {
             log.error("Warm-up Product thất bại: {}", e.getMessage(), e);
         }

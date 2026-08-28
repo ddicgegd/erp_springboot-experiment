@@ -30,6 +30,9 @@ public class RedissonConfig {
     @Value("${spring.data.redis.username:}")
     private String redisUsername;
 
+    @Value("${spring.data.redis.database:0}")
+    private int database;
+
     @Bean(destroyMethod = "shutdown")
     public RedissonClient redissonClient() {
         var config = new Config();
@@ -39,6 +42,7 @@ public class RedissonConfig {
 
         var singleServerConfig = config.useSingleServer()
                 .setAddress(address)
+                .setDatabase(database)
                 .setConnectionMinimumIdleSize(2)
                 .setConnectionPoolSize(4)
                 .setRetryAttempts(3)

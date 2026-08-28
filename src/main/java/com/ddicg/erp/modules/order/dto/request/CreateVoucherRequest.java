@@ -26,7 +26,7 @@ public class CreateVoucherRequest {
 
     String description;
 
-    @NotNull(message = "Loại voucher không được để trống (SHIPPING hoặc PRODUCT)")
+    @NotNull(message = "Loại voucher không được để trống (GLOBAL_ORDER, PRODUCT_ITEM hoặc SHIPPING)")
     VoucherType voucherType;
 
     @NotNull(message = "Kiểu giảm giá không được để trống (PERCENTAGE hoặc FIXED_AMOUNT)")

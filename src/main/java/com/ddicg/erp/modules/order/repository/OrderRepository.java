@@ -1,5 +1,6 @@
 package com.ddicg.erp.modules.order.repository;
 
+import com.ddicg.erp.core.common.model.enums.OrderStatus;
 import com.ddicg.erp.modules.order.model.Order;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -22,9 +23,21 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
 
     boolean existsByOrderNumber(String orderNumber);
 
+    @Query(value = "SELECT o FROM Order o " +
+                   "WHERE o.customerInfo.customerId = :customerId " +
+                   "AND o.currentStatus = :status",
+           countQuery = "SELECT COUNT(o) FROM Order o " +
+                        "WHERE o.customerInfo.customerId = :customerId " +
+                        "AND o.currentStatus = :status")
+    Page<Order> findMyOrdersByStatus(
+            @Param("customerId") Long customerId,
+            @Param("status") OrderStatus status,
+            Pageable pageable
+    );
+
     @Query(value = "SELECT DISTINCT o FROM Order o JOIN FETCH o.orderItems WHERE o.customerInfo.customerId = :customerId",
            countQuery = "SELECT COUNT(DISTINCT o) FROM Order o WHERE o.customerInfo.customerId = :customerId")
-    Page<Order> findByCustomerId(@Param("customerId") String customerId, Pageable pageable);
+    Page<Order> findByCustomerId(@Param("customerId") Long customerId, Pageable pageable);
 
     @Query(value = "SELECT DISTINCT o FROM Order o JOIN FETCH o.orderItems WHERE o.status LIKE %:status%",
            countQuery = "SELECT COUNT(DISTINCT o) FROM Order o WHERE o.status LIKE %:status%")
@@ -32,7 +45,7 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
 
     @Query(value = "SELECT DISTINCT o FROM Order o JOIN FETCH o.orderItems WHERE o.customerInfo.customerId = :customerId AND o.status LIKE %:status%",
            countQuery = "SELECT COUNT(DISTINCT o) FROM Order o WHERE o.customerInfo.customerId = :customerId AND o.status LIKE %:status%")
-    Page<Order> findByCustomerIdAndStatus(@Param("customerId") String customerId, @Param("status") String status, Pageable pageable);
+    Page<Order> findByCustomerIdAndStatus(@Param("customerId") Long customerId, @Param("status") String status, Pageable pageable);
 
     @Query(value = "SELECT DISTINCT o FROM Order o JOIN FETCH o.orderItems WHERE o.auditInfo.createdAt BETWEEN :startDate AND :endDate",
            countQuery = "SELECT COUNT(DISTINCT o) FROM Order o WHERE o.auditInfo.createdAt BETWEEN :startDate AND :endDate")
@@ -45,7 +58,7 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
     @Query(value = "SELECT DISTINCT o FROM Order o JOIN FETCH o.orderItems WHERE o.customerInfo.customerId = :customerId AND o.auditInfo.createdAt BETWEEN :startDate AND :endDate",
            countQuery = "SELECT COUNT(DISTINCT o) FROM Order o WHERE o.customerInfo.customerId = :customerId AND o.auditInfo.createdAt BETWEEN :startDate AND :endDate")
     Page<Order> findByCustomerIdAndCreatedAtBetween(
-            @Param("customerId") String customerId,
+            @Param("customerId") Long customerId,
             @Param("startDate") LocalDateTime startDate,
             @Param("endDate") LocalDateTime endDate,
             Pageable pageable
@@ -55,7 +68,7 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
     long countByStatus(@Param("status") String status);
 
     @Query("SELECT COUNT(o) FROM Order o WHERE o.customerInfo.customerId = :customerId")
-    long countByCustomerId(@Param("customerId") String customerId);
+    long countByCustomerId(@Param("customerId") Long customerId);
 
     @Query("SELECT SUM(o.totalAmount) FROM Order o WHERE o.status LIKE %:status%")
     Double sumTotalAmountByStatus(@Param("status") String status);

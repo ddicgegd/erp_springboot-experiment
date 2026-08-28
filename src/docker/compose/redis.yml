@@ -39,10 +39,12 @@ services:
       sh -c "
       mkdir -p /etc/redis &&
       echo 'user default on >'$${REDIS_DEFAULT_PASSWORD}' ~* +@all' > /etc/redis/users.acl &&
-      echo 'user app_admin on >'$${REDIS_ADMIN_PASSWORD}' ~* +@all' >> /etc/redis/users.acl &&
+      echo 'user app_admin on >'$${REDIS_ADMIN_PASSWORD}' ~* &* +@all' >> /etc/redis/users.acl &&
+      echo 'user app_erp on >'$${REDIS_ERP_PASSWORD}' ~* &* +@read +@write +@connection +@pubsub +@stream +select +eval +evalsha +script -@dangerous -flushall -config' >> /etc/redis/users.acl &&
       echo 'user app_cache on >'$${REDIS_CACHE_PASSWORD}' ~* +@read +@write +set +get +del +exists +expire +ttl +hset +hget +hdel +hexists +hgetall +hmget +hmset -@dangerous -@admin -@slow' >> /etc/redis/users.acl &&
-      echo 'user app_websocket on >'$${REDIS_WEBSOCKET_PASSWORD}' ~* &* +@read +@write +@pubsub +ping +info +client -@dangerous -@admin -@slow' >> /etc/redis/users.acl &&
-      echo 'user mcp-redis on >redisredis ~* &* -@all +@read +ping +info' >> /etc/redis/users.acl &&
+      echo 'user app_websocket on >'$${REDIS_WEBSOCKET_PASSWORD}' ~* &* +@read +@write +@pubsub +ping +info +client -@dangerous -@admin -@slow +set +get +del +expire +ttl +subscribe +psubscribe +unsubscribe +punsubscribe +publish +pubsub' >> /etc/redis/users.acl &&
+      echo 'user app_payment on >'$${REDIS_PAYMENT_PASSWORD}' ~* &* +@read +@write +@pubsub -@dangerous -@admin -@slow +set +get +del +expire +ttl +publish +pubsub +exists +keys +scan +info +ping +client +select' >> /etc/redis/users.acl &&
+      echo 'user mcp-redis on >'$${REDIS_MCP_PASSWORD}' ~* &* -@all +@read +ping +info +select' >> /etc/redis/users.acl &&
       exec redis-server --aclfile /etc/redis/users.acl --maxmemory 256mb --maxmemory-policy allkeys-lru --maxclients 100
       "
     logging:

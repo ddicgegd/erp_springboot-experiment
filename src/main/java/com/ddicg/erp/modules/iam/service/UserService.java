@@ -15,6 +15,7 @@ import com.ddicg.erp.modules.iam.repository.UserRepository;
 import com.ddicg.erp.core.event.service.ActiveLogService;
 import com.ddicg.erp.modules.iam.service.JwtService;
 import com.ddicg.erp.core.common.service.RedisService;
+import com.ddicg.erp.core.config.RedisConfiguration.RedisTable;
 import com.ddicg.erp.modules.iam.service.AccountRecoveryService;
 import com.ddicg.erp.modules.iam.dto.request.AccountVerificationRequest;
 import com.ddicg.erp.modules.iam.dto.request.ChangeUsernameRequest;
@@ -139,7 +140,7 @@ public class UserService implements iUser {
     }
 
     String code = UUID.randomUUID().toString();
-    redisService.setValueWithExpiry("verification:token:" + code, user.getEmail(), 5, TimeUnit.MINUTES);
+    redisService.setValueWithExpiry(RedisTable.AUTH_OTP_VERIFICATION, code, user.getEmail(), 5, TimeUnit.MINUTES);
 
     userRepository.save(user);
 
@@ -177,7 +178,7 @@ public class UserService implements iUser {
 
     if (user.getStatus().equals(ActiveStatus.INACTIVE)) { // check status
       String code = UUID.randomUUID().toString();
-      redisService.setValueWithExpiry("verification:token:" + code, user.getEmail(), 5, TimeUnit.MINUTES);
+      redisService.setValueWithExpiry(RedisTable.AUTH_OTP_VERIFICATION, code, user.getEmail(), 5, TimeUnit.MINUTES);
       log.info("Tạo và gửi lại token xác thực cho user chưa active: {}", user.getUsername());
 
       eventPublisher.publishEvent(VerificationEmailEvent.builder()
@@ -216,7 +217,7 @@ public class UserService implements iUser {
   @Override
   @Transactional
   public Response<String> verifyEmail(@NonNull final String code) {
-    String email = (String) redisService.getValue("verification:token:" + code);
+    String email = (String) redisService.getValue(RedisTable.AUTH_OTP_VERIFICATION, code);
     if (email == null) {
       throw new BusinessException(ErrorCode.INVALID_CREDENTIALS,
           "Mã xác thực email không hợp lệ hoặc đã hết hạn.");
@@ -229,7 +230,7 @@ public class UserService implements iUser {
     user.setStatus(ActiveStatus.ACTIVE);
     userRepository.save(user);
     
-    redisService.delete("verification:token:" + code);
+    redisService.delete(RedisTable.AUTH_OTP_VERIFICATION, code);
     log.info("Xác thực email thành công cho user: {}", user.getUsername());
 
     return Response.ok("Xác thực email thành công. Tài khoản của bạn đã được kích hoạt.");
@@ -309,8 +310,7 @@ public class UserService implements iUser {
           "Refresh token không hợp lệ hoặc đã hết hạn.");
     }
 
-    String refreshTokenKey = "user:refresh_tokens:" + user.getId();
-    Map<Object, Object> allDeviceTokens = redisService.hGetAll(refreshTokenKey);
+    Map<Object, Object> allDeviceTokens = redisService.hGetAll(RedisTable.AUTH_SESSION_DEVICE, user.getId());
 
     if (allDeviceTokens == null || allDeviceTokens.isEmpty()) {
       throw new BusinessException(ErrorCode.INVALID_CREDENTIALS,
@@ -513,8 +513,7 @@ public class UserService implements iUser {
     var authorization = credentialChangeAuthorization.resolveFromRecoveryTokenOrSession(request.getToken());
     User user = authorization.user();
 
-    String cooldownKey = "username:cooldown:" + user.getId();
-    if (redisService.hasKey(cooldownKey)) {
+    if (redisService.hasKey(RedisTable.AUTH_GUARD_COOLDOWN, user.getId())) {
       throw new BusinessException(ErrorCode.INVALID_CREDENTIALS,
           "Bạn chỉ được đổi tên đăng nhập tối đa 1 lần mỗi tháng. Vui lòng quay lại sau.");
     }
@@ -529,7 +528,7 @@ public class UserService implements iUser {
     userRepository.save(user);
 
     // Đặt cooldown 30 ngày trên Redis
-    redisService.setValueWithExpiry(cooldownKey, "true", 30, TimeUnit.DAYS);
+    redisService.setValueWithExpiry(RedisTable.AUTH_GUARD_COOLDOWN, user.getId(), "true", 30, TimeUnit.DAYS);
     credentialChangeAuthorization.consumeRecoveryToken(authorization);
     refreshTokenService.revokeAllUserTokens(user.getId());
     log.info("Người dùng ID {} đã đổi tên đăng nhập thành công sang {}", user.getId(), newUsername);

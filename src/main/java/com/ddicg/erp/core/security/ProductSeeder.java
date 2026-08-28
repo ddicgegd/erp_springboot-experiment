@@ -40,22 +40,21 @@ public class ProductSeeder implements CommandLineRunner {
     @Transactional
     public void run(String... args) throws Exception {
         if (productRepository.count() > 0) {
-            log.info("Products already exist in the database. Skipping ProductSeeder.");
+            log.debug("Products already exist in the database. Skipping ProductSeeder.");
             return;
         }
 
-        log.info("Checking for scraped_products.json to seed CellphoneS data...");
+        log.debug("Checking for scraped_products.json to seed CellphoneS data...");
 
         ClassPathResource resource = new ClassPathResource("scraped_products.json");
         if (!resource.exists()) {
-            log.warn("scraped_products.json was not found in classpath. Skipping seeding.");
             return;
         }
 
         try (InputStream is = resource.getInputStream()) {
             List<Map<String, Object>> productsData = objectMapper.readValue(is, new TypeReference<List<Map<String, Object>>>() {});
             
-            log.info("Found {} products in scraped_products.json. Seeding database...", productsData.size());
+            log.debug("Found {} products in scraped_products.json. Seeding database...", productsData.size());
 
             for (Map<String, Object> productData : productsData) {
                 String catName = (String) productData.get("category_name");

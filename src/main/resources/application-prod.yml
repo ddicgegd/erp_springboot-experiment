@@ -26,8 +26,9 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
-      username: ${REDIS_USERNAME:}
-      password: ${REDIS_PASSWORD:}
+      username: ${REDIS_USERNAME:app_erp}
+      password: ${REDIS_PASSWORD:${REDIS_ERP_PASSWORD:}}
+      database: ${REDIS_DATABASE:0}
 
   mail:
     host: ${MAIL_HOST:smtp.gmail.com}

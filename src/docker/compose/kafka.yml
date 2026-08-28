@@ -58,7 +58,8 @@ services:
         username="${KAFKA_USER}"
         password="${KAFKA_PASSWORD}"
         user_${KAFKA_USER}="${KAFKA_PASSWORD}"
-        user_${KAFKA_MCP_USER}="${KAFKA_MCP_PASSWORD}";
+        user_${KAFKA_MCP_USER}="${KAFKA_MCP_PASSWORD}"
+        user_${KAFKA_PAYMENT_USER}="${KAFKA_PAYMENT_PASSWORD}";
 
       # Data retention
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1

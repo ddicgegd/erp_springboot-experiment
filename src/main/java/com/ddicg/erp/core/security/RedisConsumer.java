@@ -1,14 +1,11 @@
 package com.ddicg.erp.core.security;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 
 import java.time.Duration;
 import java.util.List;
 
+import com.ddicg.erp.core.config.RedisConfiguration.RedisTable;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.context.annotation.Lazy;
@@ -22,13 +19,11 @@ import org.springframework.stereotype.Component;
 @Slf4j
 public class RedisConsumer implements StreamListener<String, MapRecord<String, String, String>> {
 
-
   @Autowired
   private StringRedisTemplate redisTemplate;
 
   @Autowired
   @Lazy
-  @Qualifier("RedisContainer")
   private StreamMessageListenerContainer<String, MapRecord<String, String, String>> redisContainer;
 
   @Autowired
@@ -38,7 +33,8 @@ public class RedisConsumer implements StreamListener<String, MapRecord<String, S
   public void onMessage(MapRecord<String, String, String> message) {
     try {
       log.info("Nhận tin nhắn xóa cache từ Stream: {}", message.getValue());
-      processMessageWithRetry(message, "lock:" + message.getValue().get("id"));
+      String id = message.getValue().get("id");
+      processMessageWithRetry(message, RedisTable.LOCK_CACHE_EVICT.key(id));
     } finally {
       log.info("Tạm dừng Container để chờ hệ thống ổn định hoặc xử lý xong.");
       redisContainer.stop();
@@ -57,66 +53,46 @@ public class RedisConsumer implements StreamListener<String, MapRecord<String, S
 
         // Xóa Key Lock và Message trong Stream
         redisTemplate.delete(List.of(lockKey));
-        redisTemplate.opsForStream().delete("redis-stream", msg.getId());
+        redisTemplate.opsForStream().delete(RedisTable.STREAM_CACHE_EVICT.getPrefix(), msg.getId());
         log.info("Đã xóa lock key và stream message thành công.");
         return;
       }
 
-      // Hệ thống quá tải: Dừng container ngay lập tức để không pull thêm tin nhắn mới
-      if (redisContainer.isRunning()) {
-        redisContainer.stop();
-        log.info("Đã dừng Container nhận tin nhắn do hệ thống chưa sẵn sàng.");
-      }
-
-      // Gia hạn lock 10 phút, ngủ 5s rồi lặp lại kiểm tra
-      log.warn("Hệ thống chưa sẵn sàng (lần {}/{}}). Gia hạn lock và thử lại sau 5 giây...", attempt, maxRetries);
-      redisTemplate.expire(lockKey, Duration.ofMinutes(10));
+      log.warn("Hệ thống đích chưa sẵn sàng (Lần thử {}/{}). Đợi 5 giây...", attempt, maxRetries);
       try {
-        Thread.sleep(5000);
+        Thread.sleep(Duration.ofSeconds(5).toMillis());
       } catch (InterruptedException e) {
         Thread.currentThread().interrupt();
+        log.error("Thread bị gián đoạn trong khi chờ retry: {}", e.getMessage());
         return;
       }
     }
 
-    // Hết số lần thử - xóa lock để cho phép message mới xử lý
-    log.error("Hệ thống không sẵn sàng sau {} lần thử. Bỏ qua message {}.", maxRetries, msg.getId());
-    redisTemplate.delete(List.of(lockKey));
+    log.error("Quá số lần retry tối đa ({}). Không thể xóa cache cho message: {}", maxRetries, msg.getValue());
+  }
+
+  private boolean checkTargetSystem() {
+    return true;
   }
 
   private void evictCache(MapRecord<String, String, String> msg) {
     try {
-      String idStr = msg.getValue().get("id");
-      if (idStr != null) {
-        Long productId = Long.valueOf(idStr);
-        
-        // 1. Xóa cache chi tiết sản phẩm
-        Cache productDetailsCache = cacheManager.getCache("productDetails");
-        if (productDetailsCache != null) {
-          productDetailsCache.evict(productId);
-          log.info("Đã xóa sản phẩm ID {} khỏi cache 'productDetails'.", productId);
-        }
-        
-        // 2. Clear cache danh sách sản phẩm
-        Cache productsCache = cacheManager.getCache("products");
-        if (productsCache != null) {
-          productsCache.clear();
-          log.info("Đã clear cache danh sách 'products'.");
-        }
+      String id = msg.getValue().get("id");
+      if (id != null) {
+        log.info("Đang xóa cache L1 (Caffeine) cho sản phẩm ID: {}", id);
 
-        // 3. Xóa cache thuộc tính sản phẩm (key là String productId)
-        Cache attributesCache = cacheManager.getCache("attributes");
-        if (attributesCache != null) {
-          attributesCache.evict(idStr);
-          log.info("Đã xóa thuộc tính sản phẩm ID {} khỏi cache 'attributes'.", idStr);
+        Cache productCache = cacheManager.getCache("products");
+        if (productCache != null) {
+          productCache.evict(id);
+          try {
+            Long numericId = Long.parseLong(id);
+            productCache.evict(numericId);
+          } catch (NumberFormatException ignored) {}
+          log.info("Đã xóa cache L1 thành công.");
         }
       }
     } catch (Exception e) {
-      log.error("Lỗi khi thực hiện xóa cache: {}", e.getMessage(), e);
+      log.error("Lỗi khi xóa cache: {}", e.getMessage(), e);
     }
-  }
-
-  private boolean checkTargetSystem() {
-    return true; // Logic check hệ thống
   }
 }

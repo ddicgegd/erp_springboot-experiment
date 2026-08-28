@@ -5,7 +5,8 @@ import com.ddicg.erp.modules.order.dto.OrderDto;
 import com.ddicg.erp.modules.iam.dto.request.*;
 import com.ddicg.erp.modules.merchandise.dto.request.*;
 import com.ddicg.erp.modules.order.dto.request.*;
-import com.ddicg.erp.core.common.dto.request.*;
+import com.ddicg.erp.modules.order.dto.response.MyOrderDetailResponse;
+import com.ddicg.erp.modules.order.dto.response.MyOrderListResponse;
 import com.ddicg.erp.core.common.dto.response.PagingResponse;
 import com.ddicg.erp.core.common.dto.response.Response;
 
@@ -13,9 +14,8 @@ import java.util.List;
 
 public interface iOrder {
     Response<OrderDto> createOrder(CreateOrderRequest request);
-    Response<OrderDto> getOrderById(String orderId);
-    Response<OrderDto> getOrderByOrderNumber(String orderNumber);
-    Response<PagingResponse<OrderDto>> getMyOrders(OrderSearchRequest request);
+    Response<PagingResponse<MyOrderListResponse>> getMyOrdersList(OrderStatus status, int page, int size, String sortBy, String sortDirection);
+    Response<MyOrderDetailResponse> getMyOrderDetail(String orderNumber);
     Response<PagingResponse<OrderDto>> searchOrders(OrderSearchRequest request);
     Response<List<OrderDto>> getPendingOrders();
     Response<List<OrderDto>> getInProgressOrders();

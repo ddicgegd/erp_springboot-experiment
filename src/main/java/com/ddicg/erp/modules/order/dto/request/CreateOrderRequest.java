@@ -7,6 +7,7 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
@@ -19,6 +20,9 @@ import java.util.List;
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class CreateOrderRequest {
+    @Size(max = 50, message = "Mã đơn hàng không được vượt quá 50 ký tự")
+    String orderNumber;
+
     @NotNull(message = "Danh sách sản phẩm không được rỗng")
     @NotEmpty(message = "Danh sách sản phẩm không được rỗng")
     @Valid
@@ -26,6 +30,7 @@ public class CreateOrderRequest {
 
     boolean isFromCart;
 
+    @NotBlank(message = "Mã SKU địa chỉ không được để trống")
     String addressSku;
     List<String> discountCodes;
     String customerNotes;

@@ -3,6 +3,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 
+import com.ddicg.erp.core.event.domainevent.OutboxEnvelopeEvent;
 import com.ddicg.erp.core.event.model.OutboxEvent;
 import com.ddicg.erp.core.event.repository.OutboxEventRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -10,25 +11,29 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Scheduled job xử lý Outbox pattern - poll và gửi events đến Kafka.
- * Chạy mỗi 5 giây để đảm bảo events được gửi nhanh nhất có thể.
+ * Scheduled job và Event listener xử lý Outbox pattern - publish events đến Kafka.
+ * 1. handleInstantPublish: Kích hoạt tức thì ngay khi DB transaction commit (độ trễ < 50ms).
+ * 2. publishPendingEvents: Chạy định kỳ làm lưới an toàn (Safety net / Backup) để retry hoặc gửi các events bị sót.
  * 
- * @en Outbox event publisher - scheduled job for transactional outbox pattern
+ * @en Outbox event publisher - transactional outbox pattern with instant AFTER_COMMIT and safety net polling
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class OutboxEventPublisher {
-
 
     private final OutboxEventRepository outboxEventRepository;
     private final KafkaTemplate<String, Object> kafkaTemplate;
@@ -38,21 +43,53 @@ public class OutboxEventPublisher {
     private static final int MAX_RETRY = 3;
 
     /**
-     * Poll và gửi events đang chờ đến Kafka.
-     * Chạy mỗi 30 giây (giảm tần suất để tránh query DB quá nhiều).
+     * Lắng nghe sự kiện OutboxEnvelopeEvent ngay sau khi DB transaction commit thành công.
+     * Publish tức thì lên Kafka để đạt độ trễ sub-second (< 50ms) cho người dùng.
+     * Chạy trong transaction REQUIRES_NEW độc lập để cập nhật trạng thái SENT/FAILED.
      * 
-     * @en Poll and publish pending events to Kafka
+     * @en Instant event listener triggered right after DB transaction commits
+     */
+    @Async
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void handleInstantPublish(OutboxEnvelopeEvent event) {
+        if (event == null || event.outboxEventId() == null) {
+            return;
+        }
+
+        outboxEventRepository.findById(event.outboxEventId()).ifPresent(outboxEvent -> {
+            if ("PENDING".equals(outboxEvent.getStatus())) {
+                try {
+                    publishEvent(outboxEvent);
+                    log.debug("⚡ Instant Outbox published: id={}, topic={}, type={}", 
+                            outboxEvent.getId(), outboxEvent.getTopic(), outboxEvent.getEventType());
+                } catch (Exception e) {
+                    log.error("Failed instant publish for event: id={}, type={}, will be retried by safety scheduler", 
+                            outboxEvent.getId(), outboxEvent.getEventType(), e);
+                    handlePublishFailure(outboxEvent, e.getMessage());
+                }
+            }
+        });
+    }
+
+    /**
+     * Quét và gửi events đang chờ đến Kafka (Safety Net / Backup).
+     * Chỉ quét các event PENDING bị sót (tạo cách đây hơn 5 giây) hoặc FAILED cần retry.
+     * 
+     * @en Poll and publish pending events to Kafka (Backup & Retry safety net)
      */
     @Scheduled(fixedDelay = 30000)
     @Transactional
     public void publishPendingEvents() {
-        List<OutboxEvent> events = outboxEventRepository.findEventsReadyToSend(LocalDateTime.now());
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime pendingThreshold = now.minusSeconds(5);
+        List<OutboxEvent> events = outboxEventRepository.findEventsReadyToSend(now, pendingThreshold);
         
         if (events.isEmpty()) {
             return;
         }
 
-        log.info("Processing {} outbox events...", events.size());
+        log.debug("Processing {} outbox backup/retry events...", events.size());
 
         int successCount = 0;
         int failCount = 0;
@@ -69,7 +106,7 @@ public class OutboxEventPublisher {
         }
 
         if (successCount > 0 || failCount > 0) {
-            log.info("Outbox publish completed: success={}, failed={}", successCount, failCount);
+            log.debug("Outbox publish completed: success={}, failed={}", successCount, failCount);
         }
     }
 
@@ -110,7 +147,7 @@ public class OutboxEventPublisher {
             event.markAsSent();
             outboxEventRepository.save(event);
             
-            log.info("Event published successfully: id={}, topic={}", event.getId(), event.getTopic());
+            log.debug("Event published successfully: id={}, topic={}", event.getId(), event.getTopic());
             
         } catch (Exception e) {
             throw new RuntimeException("Failed to send event to Kafka", e);
@@ -146,13 +183,13 @@ public class OutboxEventPublisher {
     @Scheduled(cron = "0 0 3 * * ?")
     @Transactional
     public void cleanupOldEvents() {
-        log.info("Starting outbox cleanup job...");
+        log.debug("Starting outbox cleanup job...");
         
         // Xóa events đã gửi thành công và cũ hơn 30 ngày
         LocalDateTime cutoffDate = LocalDateTime.now().minusDays(30);
         int deleted = outboxEventRepository.deleteOldSentEvents(cutoffDate);
         
-        log.info("Outbox cleanup completed. Deleted {} old sent events.", deleted);
+        log.debug("Outbox cleanup completed. Deleted {} old sent events.", deleted);
     }
 
     /**

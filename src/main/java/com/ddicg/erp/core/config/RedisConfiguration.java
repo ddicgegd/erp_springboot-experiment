@@ -1,11 +1,9 @@
 package com.ddicg.erp.core.config;
 
-import com.fasterxml.jackson.annotation.JsonTypeInfo;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.jsontype.impl.LaissezFaireSubTypeValidator;
+import lombok.Getter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.connection.stream.MapRecord;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -15,86 +13,84 @@ import org.springframework.data.redis.stream.StreamMessageListenerContainer;
 import org.springframework.data.redis.stream.StreamMessageListenerContainer.StreamMessageListenerContainerOptions;
 
 import java.time.Duration;
+import java.util.Optional;
 
 @Configuration
 public class RedisConfiguration {
 
-  /**
-   * ObjectMapper dùng cho Redis: hỗ trợ migration class name từ package cũ sang mới.
-   * GenericJackson2JsonRedisSerializer lưu full class name vào Redis —
-   * khi đổi package, data cũ sẽ fail nếu không có mapping này.
-   */
-  @Bean
-  public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory redisConnectionFactory) {
-    ObjectMapper objectMapper = new ObjectMapper();
+  @Getter
+  public enum RedisTable {
+    AUTH_OTP_VERIFICATION("auth:otp:verification:", true),
+    AUTH_RECOVERY_TOKEN("auth:action:recovery:token:", true),
+    AUTH_RECOVERY_EMAIL("auth:action:recovery:email:", true),
+    AUTH_GUARD_COOLDOWN("auth:guard:cooldown:", true),
+    LOCK_ORDER("lock:order:process:", true),
+    LOCK_INVENTORY("lock:inventory:sku:", true),
+    LOCK_VOUCHER("lock:voucher:apply:", true),
+    LOCK_CACHE_EVICT("lock:cache_evict:", true),
 
-    // Kích hoạt typing để Jackson biết deserialize đúng kiểu
-    objectMapper.activateDefaultTyping(
-        LaissezFaireSubTypeValidator.instance,
-        ObjectMapper.DefaultTyping.NON_FINAL,
-        JsonTypeInfo.As.PROPERTY
-    );
+    AUTH_SESSION_PROFILE("auth:session:profile:", false),
+    AUTH_SESSION_DEVICE("auth:session:device:", false),
+    CART_ITEMS("cart:items:", false),
+    CART_CHECKOUT_DRAFT("cart:checkout_draft:", false),
+    CATALOG_PRODUCT("catalog:product:detail:", false),
+    CATALOG_REC("catalog:product:rec:", false),
+    CATALOG_CATEGORY("catalog:category:tree", false),
+    VOUCHER_INFO("voucher:info:", false),
+    VOUCHER_QUOTA("voucher:quota:", false),
+    STREAM_CACHE_EVICT("stream:event:cache_evict", false),
+    RATELIMIT("ratelimit:", false);
 
-    // Không crash khi gặp property không biết
-    objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    private final String prefix;
+    private final boolean immutable;
 
-    // Remap class name cũ → mới khi deserialize từ Redis
-    objectMapper.addMixIn(Object.class, Object.class); // placeholder để trigger type resolution
-    java.util.Map<String, String> packageMappings = new java.util.LinkedHashMap<>();
-    packageMappings.put("com.ddicg.erp.model.", "com.ddicg.erp.core.common.model.");
-    packageMappings.put("com.anno.ERP_SpringBoot_Experiment.model.", "com.ddicg.erp.core.common.model.");
-    packageMappings.put("com.anno.ERP_SpringBoot_Experiment.", "com.ddicg.erp.");
+    RedisTable(String prefix, boolean immutable) {
+      this.prefix = prefix;
+      this.immutable = immutable;
+    }
 
-    objectMapper.addHandler(new com.fasterxml.jackson.databind.deser.DeserializationProblemHandler() {
-      @Override
-      public com.fasterxml.jackson.databind.JavaType handleUnknownTypeId(
-          com.fasterxml.jackson.databind.DeserializationContext ctxt,
-          com.fasterxml.jackson.databind.JavaType baseType,
-          String subTypeId,
-          com.fasterxml.jackson.databind.jsontype.TypeIdResolver idResolver,
-          String failureMsg) {
-        for (java.util.Map.Entry<String, String> entry : packageMappings.entrySet()) {
-          if (subTypeId.startsWith(entry.getKey())) {
-            String remapped = entry.getValue() + subTypeId.substring(entry.getKey().length());
-            try {
-              Class<?> cls = ctxt.findClass(remapped);
-              return ctxt.constructType(cls);
-            } catch (Exception ignored) {}
-          }
-        }
-        return null;
+    public String key(Object id) {
+      if (id == null) {
+        return this.prefix;
       }
-    });
+      return this.prefix + id;
+    }
 
-    objectMapper.setTypeFactory(
-        objectMapper.getTypeFactory().withClassLoader(
-            new PackageMigrationClassLoader(
-                Thread.currentThread().getContextClassLoader(),
-                packageMappings
-            )
-        )
-    );
+    public static Optional<RedisTable> fromKey(String key) {
+      if (key == null || key.isBlank()) {
+        return Optional.empty();
+      }
+      for (RedisTable table : values()) {
+        if (key.startsWith(table.getPrefix())) {
+          return Optional.of(table);
+        }
+      }
+      return Optional.empty();
+    }
+  }
 
-    GenericJackson2JsonRedisSerializer jsonRedisSerializer =
-        new GenericJackson2JsonRedisSerializer(objectMapper);
+  @Bean
+  @Primary
+  public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory connectionFactory) {
+    RedisTemplate<String, Object> template = new RedisTemplate<>();
+    template.setConnectionFactory(connectionFactory);
+    template.setKeySerializer(new StringRedisSerializer());
+    template.setHashKeySerializer(new StringRedisSerializer());
 
-    RedisTemplate<String, Object> redisTemplate = new RedisTemplate<>();
-    redisTemplate.setConnectionFactory(redisConnectionFactory);
-    redisTemplate.setKeySerializer(new StringRedisSerializer());
-    redisTemplate.setHashKeySerializer(new StringRedisSerializer());
-    redisTemplate.setValueSerializer(jsonRedisSerializer);
-    redisTemplate.setHashValueSerializer(jsonRedisSerializer);
-    redisTemplate.afterPropertiesSet();
-    return redisTemplate;
+    GenericJackson2JsonRedisSerializer jsonSerializer = new GenericJackson2JsonRedisSerializer();
+    template.setValueSerializer(jsonSerializer);
+    template.setHashValueSerializer(jsonSerializer);
+    template.afterPropertiesSet();
+    return template;
   }
 
   @Bean(name = "RedisContainer")
   public StreamMessageListenerContainer<String, MapRecord<String, String, String>> redisContainer(
-      RedisConnectionFactory redisConnectionFactory) {
+      RedisConnectionFactory connectionFactory) {
     StreamMessageListenerContainerOptions<String, MapRecord<String, String, String>> options =
         StreamMessageListenerContainerOptions.builder()
             .pollTimeout(Duration.ofSeconds(1))
             .build();
-    return StreamMessageListenerContainer.create(redisConnectionFactory, options);
+    return StreamMessageListenerContainer.create(connectionFactory, options);
   }
 }

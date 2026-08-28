@@ -24,7 +24,9 @@ public enum ErrorCode {
     INVALID_QUANTITY("Số lượng không hợp lệ", HttpStatus.BAD_REQUEST),
     INVALID_PRICE("Giá không hợp lệ", HttpStatus.BAD_REQUEST),
     PRODUCT_OUT_OF_STOCK("Sản phẩm hết hàng", HttpStatus.BAD_REQUEST),
-    REGISTRATION_INFO_MISMATCH("Thông tin đăng ký không khớp", HttpStatus.BAD_REQUEST);
+    REGISTRATION_INFO_MISMATCH("Thông tin đăng ký không khớp", HttpStatus.BAD_REQUEST),
+    PAYMENT_TIMEOUT("Quá thời gian chờ phản hồi thanh toán", HttpStatus.REQUEST_TIMEOUT),
+    PAYMENT_FAILED("Thanh toán thất bại", HttpStatus.BAD_REQUEST);
 
     private final String message;
     private final HttpStatus status;

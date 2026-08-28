@@ -21,7 +21,11 @@ public class OrderSpecification {
             }
 
             if (StringUtils.hasText(request.getCustomerId())) {
-                predicates.add(cb.equal(root.get("customerInfo").get("customerId"), request.getCustomerId()));
+                try {
+                    Long custId = Long.valueOf(request.getCustomerId().trim());
+                    predicates.add(cb.equal(root.get("customerInfo").get("customerId"), custId));
+                } catch (NumberFormatException ignored) {
+                }
             }
 
             if (StringUtils.hasText(request.getCustomerName())) {

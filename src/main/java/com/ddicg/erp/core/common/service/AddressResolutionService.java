@@ -234,7 +234,7 @@ public class AddressResolutionService {
                         Double lat = feature.geometry().coordinates().get(1);
 
                         if (isInsideValidBoundary(lat, lon, hierarchy)) {
-                            log.info("Resolved Street level via Photon: [query={}, lat={}, lon={}]", photonQuery, lat, lon);
+                            log.debug("Resolved Street level via Photon: [query={}, lat={}, lon={}]", photonQuery, lat, lon);
                             return ResolvedAddress.builder()
                                     .success(true)
                                     .rawAddress(rawAddress)
@@ -267,7 +267,7 @@ public class AddressResolutionService {
                 Double lon = Double.valueOf(place.lon());
 
                 if (isInsideValidBoundary(lat, lon, hierarchy)) {
-                    log.info("Resolved Street level via Nominatim: [query={}, lat={}, lon={}]", query, lat, lon);
+                    log.debug("Resolved Street level via Nominatim: [query={}, lat={}, lon={}]", query, lat, lon);
                     return ResolvedAddress.builder()
                             .success(true)
                             .rawAddress(rawAddress)

@@ -17,6 +17,12 @@ public class DiscountEvaluationResult implements Serializable {
     Double productDiscountAmount = 0.0;
 
     @Builder.Default
+    Double itemLevelDiscountAmount = 0.0;
+
+    @Builder.Default
+    Double globalDiscountAmount = 0.0;
+
+    @Builder.Default
     Double shippingDiscountAmount = 0.0;
 
     @Builder.Default

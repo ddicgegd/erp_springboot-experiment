@@ -9,21 +9,28 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public enum ShippingMethod {
     DELIVERY("Giao hàng tận nơi"),
-    PICKUP("Đến lấy tại kho / Cửa hàng");
+    PICKUP("Nhận tại cửa hàng");
 
     private final String description;
 
     @JsonCreator
     public static ShippingMethod fromString(String value) {
         if (value == null || value.isBlank()) {
-            throw new IllegalArgumentException("Phương thức nhận hàng (shippingMethod) không được để trống. Chỉ chấp nhận 'DELIVERY' hoặc 'PICKUP'");
+            return null;
         }
         for (ShippingMethod method : values()) {
-            if (method.name().equalsIgnoreCase(value.trim())) {
+            if (method.name().equalsIgnoreCase(value.trim()) || method.getDescription().equalsIgnoreCase(value.trim())) {
                 return method;
             }
         }
-        throw new IllegalArgumentException("Phương thức nhận hàng '" + value + "' không hợp lệ. Chỉ chấp nhận 'DELIVERY' hoặc 'PICKUP'");
+        String lower = value.toLowerCase();
+        if (lower.contains("giao") || lower.contains("tận nơi") || lower.contains("tiết kiệm") || lower.contains("hỏa tốc") || lower.contains("nhanh") || lower.contains("delivery")) {
+            return DELIVERY;
+        }
+        if (lower.contains("kho") || lower.contains("cửa hàng") || lower.contains("lấy") || lower.contains("pickup")) {
+            return PICKUP;
+        }
+        return DELIVERY;
     }
 
     @JsonValue

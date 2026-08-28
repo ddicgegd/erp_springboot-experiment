@@ -20,6 +20,7 @@ import java.net.UnknownHostException;
 @EnableCaching
 @EnableConfigurationProperties({ SecurityProperties.class, MinioProperties.class, CacheProperties.class })
 @org.springframework.scheduling.annotation.EnableScheduling
+@org.springframework.scheduling.annotation.EnableAsync
 public class ErpApplication {
 
     private static final Logger log = LoggerFactory.getLogger(ErpApplication.class);

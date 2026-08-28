@@ -13,8 +13,8 @@ import lombok.experimental.FieldDefaults;
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class CustomerInfo {
-    @Column(name = "customer_id", length = 100)
-    String customerId;
+    @Column(name = "customer_id")
+    Long customerId;
 
     @Column(name = "customer_name", length = 200)
     String customerName;

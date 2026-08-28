@@ -1,6 +1,9 @@
 package com.ddicg.erp.modules.order.controller;
 
+import com.ddicg.erp.core.common.model.enums.OrderStatus;
 import com.ddicg.erp.modules.order.dto.OrderDto;
+import com.ddicg.erp.modules.order.dto.response.MyOrderDetailResponse;
+import com.ddicg.erp.modules.order.dto.response.MyOrderListResponse;
 import com.ddicg.erp.modules.iam.dto.request.*;
 import com.ddicg.erp.modules.merchandise.dto.request.*;
 import com.ddicg.erp.modules.order.dto.request.*;
@@ -22,17 +25,19 @@ public interface OrderController {
     @ResponseStatus(HttpStatus.CREATED)
     Response<OrderDto> createOrder(@Valid @RequestBody CreateOrderRequest request);
 
-    @GetMapping("/{orderId}")
+    @GetMapping("/my-orders/list")
     @ResponseStatus(HttpStatus.OK)
-    Response<OrderDto> getOrderById(@PathVariable String orderId);
+    Response<PagingResponse<MyOrderListResponse>> getMyOrdersList(
+            @RequestParam(name = "status", required = true) OrderStatus status,
+            @RequestParam(name = "page", defaultValue = "1") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size,
+            @RequestParam(name = "sortBy", defaultValue = "auditInfo.createdAt") String sortBy,
+            @RequestParam(name = "sortDirection", defaultValue = "DESC") String sortDirection
+    );
 
-    @GetMapping("/number/{orderNumber}")
+    @GetMapping("/my-orders/{orderNumber}")
     @ResponseStatus(HttpStatus.OK)
-    Response<OrderDto> getOrderByOrderNumber(@PathVariable String orderNumber);
-
-    @PostMapping("/my-orders")
-    @ResponseStatus(HttpStatus.OK)
-    Response<PagingResponse<OrderDto>> getMyOrders(@RequestBody OrderSearchRequest request);
+    Response<MyOrderDetailResponse> getMyOrderDetail(@PathVariable String orderNumber);
 
     @PostMapping("/cancel")
     @ResponseStatus(HttpStatus.OK)

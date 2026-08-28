@@ -1,6 +1,8 @@
 package com.ddicg.erp.modules.iam.service;
 
 import com.ddicg.erp.core.common.model.embedded.DeviceInfo;
+import com.ddicg.erp.core.common.service.RedisService;
+import com.ddicg.erp.core.config.RedisConfiguration.RedisTable;
 import com.ddicg.erp.modules.iam.model.User;
 import com.ddicg.erp.modules.iam.dto.response.DeviceInfoResponse;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -18,7 +20,7 @@ import java.util.concurrent.TimeUnit;
 @Service
 public class RefreshTokenService {
 
-    private final com.ddicg.erp.core.common.service.RedisService redisService;
+    private final RedisService redisService;
     private final JwtService jwtService;
     private final ObjectMapper objectMapper;
 
@@ -29,7 +31,7 @@ public class RefreshTokenService {
     private long refreshTokenExpirationDays;
 
     public RefreshTokenService(
-            com.ddicg.erp.core.common.service.RedisService redisService,
+            RedisService redisService,
             JwtService jwtService,
             ObjectMapper objectMapper) {
         this.redisService = redisService;
@@ -41,11 +43,10 @@ public class RefreshTokenService {
      * Xử lý kiểm tra và tạo Token khi Đăng nhập thành công.
      */
     public DeviceInfoResponse handleLoginTokens(User user, UserDetails userDetails, DeviceInfo deviceInfo, String deviceId) {
-        String profileKey = "user:" + user.getId() + ":profile";
-        String refreshTokenKey = "user:refresh_tokens:" + user.getId();
+        Long userId = user.getId();
 
         // 1. Kiểm tra xem đã có accessToken trong profile chưa và có hợp lệ không
-        String existingAccessToken = (String) redisService.hGet(profileKey, "accessToken");
+        String existingAccessToken = (String) redisService.hGet(RedisTable.AUTH_SESSION_PROFILE, userId, "accessToken");
         boolean accessTokenExists = false;
         if (existingAccessToken != null) {
             try {
@@ -56,7 +57,7 @@ public class RefreshTokenService {
         }
 
         // 2. Kiểm tra xem đã có refreshToken cho thiết bị này chưa
-        Object existingTokenDataObj = redisService.hGet(refreshTokenKey, deviceId);
+        Object existingTokenDataObj = redisService.hGet(RedisTable.AUTH_SESSION_DEVICE, userId, deviceId);
         boolean refreshTokenExists = false;
         String existingRefreshToken = null;
         if (existingTokenDataObj != null) {
@@ -86,16 +87,16 @@ public class RefreshTokenService {
             long refreshTokenExpiryMs = TimeUnit.DAYS.toMillis(refreshTokenExpirationDays);
             finalRefreshToken = jwtService.generateToken(userDetails, refreshTokenExpiryMs);
 
-            // Cập nhật profile
-            redisService.hSet(profileKey, "accessToken", finalAccessToken);
-            redisService.expire(profileKey, accessTokenExpirationMinutes, TimeUnit.MINUTES);
+            // Cập nhật profile (Hash)
+            redisService.hSet(RedisTable.AUTH_SESSION_PROFILE, userId, "accessToken", finalAccessToken);
+            redisService.expire(RedisTable.AUTH_SESSION_PROFILE, userId, accessTokenExpirationMinutes, TimeUnit.MINUTES);
 
-            // Cập nhật refresh token
+            // Cập nhật refresh token (Hash)
             Map<String, Object> refreshTokenData = new HashMap<>();
             refreshTokenData.put("token", finalRefreshToken);
             refreshTokenData.put("deviceInfo", deviceInfo);
-            redisService.hSet(refreshTokenKey, deviceId, refreshTokenData);
-            redisService.expire(refreshTokenKey, refreshTokenExpirationDays, TimeUnit.DAYS);
+            redisService.hSet(RedisTable.AUTH_SESSION_DEVICE, userId, deviceId, refreshTokenData);
+            redisService.expire(RedisTable.AUTH_SESSION_DEVICE, userId, refreshTokenExpirationDays, TimeUnit.DAYS);
             finalMessage = "Đăng nhập thành công (Đã làm mới phiên hoạt động).";
         } else {
             // 4. Nếu chưa tồn tại đầy đủ -> tạo mới cả 2
@@ -106,16 +107,16 @@ public class RefreshTokenService {
             long refreshTokenExpiryMs = TimeUnit.DAYS.toMillis(refreshTokenExpirationDays);
             finalRefreshToken = jwtService.generateToken(userDetails, refreshTokenExpiryMs);
 
-            // Lưu profile
-            redisService.hSet(profileKey, "accessToken", finalAccessToken);
-            redisService.expire(profileKey, accessTokenExpirationMinutes, TimeUnit.MINUTES);
+            // Lưu profile (Hash)
+            redisService.hSet(RedisTable.AUTH_SESSION_PROFILE, userId, "accessToken", finalAccessToken);
+            redisService.expire(RedisTable.AUTH_SESSION_PROFILE, userId, accessTokenExpirationMinutes, TimeUnit.MINUTES);
 
-            // Lưu refresh token
+            // Lưu refresh token (Hash)
             Map<String, Object> refreshTokenData = new HashMap<>();
             refreshTokenData.put("token", finalRefreshToken);
             refreshTokenData.put("deviceInfo", deviceInfo);
-            redisService.hSet(refreshTokenKey, deviceId, refreshTokenData);
-            redisService.expire(refreshTokenKey, refreshTokenExpirationDays, TimeUnit.DAYS);
+            redisService.hSet(RedisTable.AUTH_SESSION_DEVICE, userId, deviceId, refreshTokenData);
+            redisService.expire(RedisTable.AUTH_SESSION_DEVICE, userId, refreshTokenExpirationDays, TimeUnit.DAYS);
             finalMessage = "Đăng nhập thành công.";
         }
 
@@ -130,8 +131,7 @@ public class RefreshTokenService {
      * Xử lý tạo mới Token khi gọi luồng Refresh Token.
      */
     public DeviceInfoResponse refreshSessionTokens(User user, UserDetails userDetails, DeviceInfo deviceInfo, String newDeviceId, String oldDeviceId) {
-        String profileKey = "user:" + user.getId() + ":profile";
-        String refreshTokenKey = "user:refresh_tokens:" + user.getId();
+        Long userId = user.getId();
 
         long accessTokenExpiryMs = TimeUnit.MINUTES.toMillis(accessTokenExpirationMinutes);
         String finalAccessToken = jwtService.generateToken(userDetails, accessTokenExpiryMs);
@@ -141,20 +141,20 @@ public class RefreshTokenService {
 
         // Thu hồi token cũ của thiết bị cũ nếu thiết bị thay đổi (rotate)
         if (oldDeviceId != null && !oldDeviceId.equals(newDeviceId)) {
-            redisService.hDelete(refreshTokenKey, oldDeviceId);
+            redisService.hDelete(RedisTable.AUTH_SESSION_DEVICE, userId, oldDeviceId);
             log.info("Thu hồi Refresh Token của thiết bị cũ: {}", oldDeviceId);
         }
 
         // Cập nhật profile (accessToken)
-        redisService.hSet(profileKey, "accessToken", finalAccessToken);
-        redisService.expire(profileKey, accessTokenExpirationMinutes, TimeUnit.MINUTES);
+        redisService.hSet(RedisTable.AUTH_SESSION_PROFILE, userId, "accessToken", finalAccessToken);
+        redisService.expire(RedisTable.AUTH_SESSION_PROFILE, userId, accessTokenExpirationMinutes, TimeUnit.MINUTES);
 
         // Cập nhật refresh token cho thiết bị mới
         Map<String, Object> refreshTokenData = new HashMap<>();
         refreshTokenData.put("token", finalRefreshToken);
         refreshTokenData.put("deviceInfo", deviceInfo);
-        redisService.hSet(refreshTokenKey, newDeviceId, refreshTokenData);
-        redisService.expire(refreshTokenKey, refreshTokenExpirationDays, TimeUnit.DAYS);
+        redisService.hSet(RedisTable.AUTH_SESSION_DEVICE, userId, newDeviceId, refreshTokenData);
+        redisService.expire(RedisTable.AUTH_SESSION_DEVICE, userId, refreshTokenExpirationDays, TimeUnit.DAYS);
 
         return DeviceInfoResponse.builder()
                 .accessToken(finalAccessToken)
@@ -167,9 +167,8 @@ public class RefreshTokenService {
      * Thu hồi toàn bộ token và session khi logout.
      */
     public void revokeAllUserTokens(Long userId) {
-        String profileKey = "user:" + userId + ":profile";
-        String refreshTokenKey = "user:refresh_tokens:" + userId;
-        redisService.delete(profileKey, refreshTokenKey);
+        redisService.delete(RedisTable.AUTH_SESSION_PROFILE, userId);
+        redisService.delete(RedisTable.AUTH_SESSION_DEVICE, userId);
         log.info("Thu hồi toàn bộ session và refresh token của user ID: {}", userId);
     }
 }

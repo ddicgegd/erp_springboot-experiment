@@ -82,6 +82,7 @@ public class Order extends IdentityOnly<Long> {
    * @en Order items list
    */
   @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+  @org.hibernate.annotations.BatchSize(size = 20)
   @Builder.Default
   List<OrderItem> orderItems = new ArrayList<>();
 
@@ -148,13 +149,24 @@ public class Order extends IdentityOnly<Long> {
   /* ======================= 🚚 Shipping Information ======================= */
 
   /**
-   * Phương thức vận chuyển
+   * Phương thức vận chuyển (lưu dạng String trong DB để tương thích mọi dữ liệu)
    * 
    * @en Shipping method
    */
-  @Enumerated(EnumType.STRING)
-  @Column(name = "shipping_method", length = 50)
-  ShippingMethod shippingMethod;
+  @Column(name = "shipping_method", length = 100)
+  String shippingMethod;
+
+  public ShippingMethod getShippingMethodEnum() {
+      return ShippingMethod.fromString(this.shippingMethod);
+  }
+
+  public void setShippingMethod(ShippingMethod method) {
+      this.shippingMethod = method != null ? method.name() : null;
+  }
+
+  public void setShippingMethod(String method) {
+      this.shippingMethod = method;
+  }
 
   /* ============================ 🚛 Delivery ============================ */
 

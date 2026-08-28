@@ -38,16 +38,21 @@ public interface OutboxEventRepository extends JpaRepository<OutboxEvent, Long> 
     List<OutboxEvent> findEventsNeedingRetry(@Param("now") LocalDateTime now);
 
     /**
-     * Tìm tất cả events sẵn sàng gửi (PENDING + FAILED với retry time)
+     * Tìm tất cả events sẵn sàng gửi (PENDING cũ hơn pendingThreshold để tránh tranh chấp với instant publisher, + FAILED đã đến thời gian retry)
      * 
      * @en Find all events ready to send
      */
     @Query("""
         SELECT e FROM OutboxEvent e 
-        WHERE (e.status = 'PENDING' OR (e.status = 'FAILED' AND e.nextRetryAt <= :now))
+        WHERE ((e.status = 'PENDING' AND e.createdAt <= :pendingThreshold) 
+            OR (e.status = 'FAILED' AND e.nextRetryAt <= :now))
         ORDER BY e.createdAt ASC
         """)
-    List<OutboxEvent> findEventsReadyToSend(@Param("now") LocalDateTime now);
+    List<OutboxEvent> findEventsReadyToSend(@Param("now") LocalDateTime now, @Param("pendingThreshold") LocalDateTime pendingThreshold);
+
+    default List<OutboxEvent> findEventsReadyToSend(LocalDateTime now) {
+        return findEventsReadyToSend(now, now);
+    }
 
     /**
      * Tìm events DEAD (đã retry quá nhiều lần)

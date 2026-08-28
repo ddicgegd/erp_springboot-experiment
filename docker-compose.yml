@@ -21,6 +21,16 @@ services:
   redis:
     image: redis:alpine
     container_name: erp-redis
+    command: >
+      redis-server
+      --maxmemory 256mb
+      --maxmemory-policy volatile-lru
+      --activedefrag yes
+      --active-defrag-ignore-bytes 50mb
+      --active-defrag-threshold-lower 10
+      --active-defrag-threshold-upper 30
+      --hash-max-listpack-entries 512
+      --hash-max-listpack-value 64
     ports:
       - "6379:6379"
     volumes:
@@ -62,22 +72,6 @@ services:
       - KAFKA_CLIENT_PASSWORDS=kafka@2025
     volumes:
       - kafka_data:/bitnami/kafka
-
-  # 6. Redpanda Console (Kafka UI)
-  redpanda-console:
-    image: docker.redpanda.com/redpandadata/console:latest
-    container_name: erp-redpanda-console
-    ports:
-      - "8081:8080"
-    environment:
-      - KAFKA_BROKERS=kafka:29092
-      - KAFKA_SASL_ENABLED=true
-      - KAFKA_SASL_USERNAME=kafka
-      - KAFKA_SASL_PASSWORD=kafka@2025
-      - KAFKA_SASL_MECHANISM=PLAIN
-    depends_on:
-      - kafka
-
   # 5. Spring Boot App
   app:
     build:
