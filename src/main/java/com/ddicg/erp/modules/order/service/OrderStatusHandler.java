@@ -14,8 +14,8 @@ public class OrderStatusHandler {
     private static final Map<OrderStatus, Set<OrderStatus>> ALLOWED = new EnumMap<>(OrderStatus.class);
 
     static {
-        ALLOWED.put(OrderStatus.PENDING, Set.of(OrderStatus.CONFIRMED, OrderStatus.WAITING_PAYMENT, OrderStatus.CANCELLED, OrderStatus.FAILED));
-        ALLOWED.put(OrderStatus.WAITING_PAYMENT, Set.of(OrderStatus.CONFIRMED, OrderStatus.CANCELLED, OrderStatus.FAILED));
+        ALLOWED.put(OrderStatus.PENDING, Set.of(OrderStatus.PROCESSING, OrderStatus.WAITING_PAYMENT, OrderStatus.CANCELLED, OrderStatus.FAILED, OrderStatus.CONFIRMED));
+        ALLOWED.put(OrderStatus.WAITING_PAYMENT, Set.of(OrderStatus.PROCESSING, OrderStatus.CANCELLED, OrderStatus.FAILED, OrderStatus.CONFIRMED));
         ALLOWED.put(OrderStatus.CONFIRMED, Set.of(OrderStatus.PROCESSING, OrderStatus.CANCELLED));
         ALLOWED.put(OrderStatus.PROCESSING, Set.of(OrderStatus.SHIPPING, OrderStatus.READY_FOR_PICKUP, OrderStatus.CANCELLED));
         ALLOWED.put(OrderStatus.SHIPPING, Set.of(OrderStatus.DELIVERED, OrderStatus.DELAYED, OrderStatus.RETURNING));

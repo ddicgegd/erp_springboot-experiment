@@ -2,6 +2,7 @@ package com.ddicg.erp.modules.cart.controller;
 
 import com.ddicg.erp.core.common.dto.response.Response;
 import com.ddicg.erp.modules.cart.dto.CartItemRequest;
+import com.ddicg.erp.modules.cart.dto.MergeCartRequest;
 import com.ddicg.erp.modules.cart.dto.ShoppingCartDto;
 import com.ddicg.erp.modules.cart.dto.UpdateCartItemRequest;
 import jakarta.validation.Valid;
@@ -16,43 +17,56 @@ public interface ShoppingCartController {
 
     @GetMapping
     @ResponseStatus(HttpStatus.OK)
-    @PreAuthorize("isAuthenticated()")
-    Response<ShoppingCartDto> getCart();
+    Response<ShoppingCartDto> getCart(
+            @RequestParam(value = "fields", required = false) List<String> fields,
+            @RequestParam(value = "include", required = false) List<String> include,
+            @RequestHeader(value = "X-Guest-Id", required = false) String guestId);
 
     @GetMapping("/count")
     @ResponseStatus(HttpStatus.OK)
-    @PreAuthorize("isAuthenticated()")
-    Response<Integer> getCartCount();
+    Response<Integer> getCartCount(
+            @RequestHeader(value = "X-Guest-Id", required = false) String guestId);
 
     @PostMapping("/items")
     @ResponseStatus(HttpStatus.OK)
-    @PreAuthorize("isAuthenticated()")
-    Response<ShoppingCartDto> addToCart(@Valid @RequestBody List<CartItemRequest> items);
+    Response<ShoppingCartDto> addToCart(
+            @Valid @RequestBody List<CartItemRequest> items,
+            @RequestHeader(value = "X-Guest-Id", required = false) String guestId);
 
     @PostMapping("/add")
     @ResponseStatus(HttpStatus.OK)
-    @PreAuthorize("isAuthenticated()")
-    Response<ShoppingCartDto> addLegacy(@Valid @RequestBody List<CartItemRequest> items);
+    Response<ShoppingCartDto> addLegacy(
+            @Valid @RequestBody List<CartItemRequest> items,
+            @RequestHeader(value = "X-Guest-Id", required = false) String guestId);
 
     @PutMapping("/items/{sku}")
     @ResponseStatus(HttpStatus.OK)
-    @PreAuthorize("isAuthenticated()")
     Response<ShoppingCartDto> updateItemQuantity(
             @PathVariable String sku,
-            @Valid @RequestBody UpdateCartItemRequest request);
+            @Valid @RequestBody UpdateCartItemRequest request,
+            @RequestHeader(value = "X-Guest-Id", required = false) String guestId);
 
     @DeleteMapping("/items/{sku}")
     @ResponseStatus(HttpStatus.OK)
-    @PreAuthorize("isAuthenticated()")
-    Response<ShoppingCartDto> removeItem(@PathVariable String sku);
+    Response<ShoppingCartDto> removeItem(
+            @PathVariable String sku,
+            @RequestHeader(value = "X-Guest-Id", required = false) String guestId);
 
     @DeleteMapping("/remove")
     @ResponseStatus(HttpStatus.OK)
-    @PreAuthorize("isAuthenticated()")
-    Response<ShoppingCartDto> removeItems(@RequestBody List<String> skus);
+    Response<ShoppingCartDto> removeItems(
+            @RequestBody List<String> skus,
+            @RequestHeader(value = "X-Guest-Id", required = false) String guestId);
 
     @DeleteMapping("/clear")
     @ResponseStatus(HttpStatus.OK)
+    Response<ShoppingCartDto> clearCart(
+            @RequestHeader(value = "X-Guest-Id", required = false) String guestId);
+
+    @PostMapping("/merge")
+    @ResponseStatus(HttpStatus.OK)
     @PreAuthorize("isAuthenticated()")
-    Response<ShoppingCartDto> clearCart();
+    Response<ShoppingCartDto> mergeCart(
+            @RequestBody(required = false) MergeCartRequest request,
+            @RequestHeader(value = "X-Guest-Id", required = false) String guestIdHeader);
 }

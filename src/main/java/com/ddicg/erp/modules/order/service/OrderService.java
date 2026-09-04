@@ -235,13 +235,15 @@ public class OrderService implements iOrder {
     public Response<OrderDto> confirmOrder(ConfirmOrderRequest r) {
         var o = orderRepository.findById(convertLong(r.getOrderId())).orElseThrow();
         var cur = orderStatusHandler.getCurrentStatus(o);
-        orderStatusHandler.transitionTo(o, OrderStatus.CONFIRMED, r.getConfirmationInfo());
+        if (cur == OrderStatus.PENDING) {
+            orderStatusHandler.transitionTo(o, OrderStatus.PROCESSING, r.getConfirmationInfo());
+        }
         o.setConfirmedAt(LocalDateTime.now());
         o.setConfirmedBy(securityUtil.getCurrentUsername());
         orderHelper.confirmReservation(o.getOrderItems());
         var s = orderRepository.save(o);
-        orderHelper.saveOrderStatusChangedEvent(s, cur, OrderStatus.CONFIRMED, r.getConfirmationInfo());
-        log.debug("🔄 CONFIRMED: {}", s.getOrderNumber());
+        orderHelper.saveOrderStatusChangedEvent(s, cur, OrderStatus.PROCESSING, r.getConfirmationInfo());
+        log.debug("🔄 CONFIRMED_TO_PROCESSING: {}", s.getOrderNumber());
         return Response.ok(orderMapper.toDto(s));
     }
 
@@ -401,7 +403,6 @@ public class OrderService implements iOrder {
         if (cur != OrderStatus.WAITING_PAYMENT && cur != OrderStatus.PENDING)
             throw new BusinessException(ErrorCode.INVALID_STATUS_TRANSITION, "");
         if ("SUCCESS".equalsIgnoreCase(r.getStatus())) {
-            orderStatusHandler.transitionTo(o, OrderStatus.CONFIRMED, "");
             orderStatusHandler.transitionTo(o, OrderStatus.PROCESSING, "");
             o.setConfirmedAt(LocalDateTime.now());
             orderHelper.confirmReservation(o.getOrderItems());
@@ -542,7 +543,6 @@ public class OrderService implements iOrder {
         List<OrderStatus> statuses = new ArrayList<>();
         statuses.add(OrderStatus.PENDING);
         if (paymentMethod == PaymentMethod.COD) {
-            statuses.add(OrderStatus.CONFIRMED);
             statuses.add(OrderStatus.PROCESSING);
         } else if (paymentMethod != null) {
             statuses.add(OrderStatus.WAITING_PAYMENT);

@@ -1,5 +1,6 @@
 package com.ddicg.erp.modules.cart.dto;
 
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -18,5 +19,6 @@ public class CartItemRequest {
 
     @NotNull(message = "Số lượng không được để trống")
     @Min(value = 1, message = "Số lượng phải lớn hơn hoặc bằng 1")
+    @Max(value = 99, message = "Số lượng không được vượt quá 99")
     Integer quantity;
 }

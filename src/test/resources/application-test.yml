@@ -107,3 +107,21 @@ application:
 app:
   redisson:
     enabled: false
+  fineract:
+    enabled: false
+
+fineract:
+  base-url: http://localhost:8443/fineract-provider/api/v1
+  tenant-id: default
+  username: mifos
+  password: password
+  office-id: 1
+  legal-form-id: 1
+  date-format: "dd MMMM yyyy"
+  locale: "en"
+  ssl-bypass: true
+  cash-gl-account-id: 1
+  bank-gl-account-id: 4
+  sales-revenue-gl-account-id: 2
+  sales-returns-gl-account-id: 3
+  currency-code: VND

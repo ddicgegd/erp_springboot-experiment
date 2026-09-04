@@ -8,17 +8,51 @@ import java.util.List;
 
 public interface ShoppingCartService {
 
-    Response<ShoppingCartDto> getCart();
+    Response<ShoppingCartDto> getCart(String guestId, List<String> fields, List<String> include);
 
-    Response<Integer> getCartCount();
+    default Response<ShoppingCartDto> getCart(String guestId) {
+        return getCart(guestId, null, null);
+    }
 
-    Response<ShoppingCartDto> addToCart(List<CartItemRequest> items);
+    default Response<ShoppingCartDto> getCart() {
+        return getCart(null, null, null);
+    }
 
-    Response<ShoppingCartDto> updateItemQuantity(String sku, Integer quantity);
+    Response<Integer> getCartCount(String guestId);
 
-    Response<ShoppingCartDto> removeItem(String sku);
+    default Response<Integer> getCartCount() {
+        return getCartCount(null);
+    }
 
-    Response<ShoppingCartDto> removeItems(List<String> skus);
+    Response<ShoppingCartDto> addToCart(List<CartItemRequest> items, String guestId);
 
-    Response<ShoppingCartDto> clearCart();
+    default Response<ShoppingCartDto> addToCart(List<CartItemRequest> items) {
+        return addToCart(items, null);
+    }
+
+    Response<ShoppingCartDto> updateItemQuantity(String sku, Integer quantity, String guestId);
+
+    default Response<ShoppingCartDto> updateItemQuantity(String sku, Integer quantity) {
+        return updateItemQuantity(sku, quantity, null);
+    }
+
+    Response<ShoppingCartDto> removeItem(String sku, String guestId);
+
+    default Response<ShoppingCartDto> removeItem(String sku) {
+        return removeItem(sku, null);
+    }
+
+    Response<ShoppingCartDto> removeItems(List<String> skus, String guestId);
+
+    default Response<ShoppingCartDto> removeItems(List<String> skus) {
+        return removeItems(skus, null);
+    }
+
+    Response<ShoppingCartDto> clearCart(String guestId);
+
+    default Response<ShoppingCartDto> clearCart() {
+        return clearCart(null);
+    }
+
+    Response<ShoppingCartDto> mergeCart(String guestId);
 }

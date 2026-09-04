@@ -79,7 +79,7 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
             @Param("endDate") LocalDateTime endDate
     );
 
-    @Query("SELECT DISTINCT o FROM Order o JOIN FETCH o.orderItems WHERE o.status LIKE '%PENDING%' OR o.status LIKE '%CONFIRMED%' ORDER BY o.auditInfo.createdAt ASC")
+    @Query("SELECT DISTINCT o FROM Order o JOIN FETCH o.orderItems WHERE o.status LIKE '%PENDING%' OR o.status LIKE '%WAITING_PAYMENT%' ORDER BY o.auditInfo.createdAt ASC")
     List<Order> findPendingOrders();
 
     @Query("SELECT DISTINCT o FROM Order o JOIN FETCH o.orderItems WHERE o.status LIKE '%PROCESSING%' OR o.status LIKE '%PACKED%' OR o.status LIKE '%SHIPPED%' ORDER BY o.auditInfo.createdAt ASC")

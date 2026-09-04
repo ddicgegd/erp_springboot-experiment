@@ -11,6 +11,7 @@ public class CustomUserDetails implements UserDetails {
     private final String username;
     private final String email;
     private final String password;
+    private final String fineractClientId;
     private final Collection<? extends GrantedAuthority> authorities;
     private final boolean enabled;
 
@@ -19,12 +20,14 @@ public class CustomUserDetails implements UserDetails {
         this.username = user.getUsername();
         this.email = user.getEmail();
         this.password = user.getPassword();
+        this.fineractClientId = user.getFineractClientId();
         this.authorities = authorities;
         this.enabled = true;
     }
 
     public String getId() { return id; }
     public String getEmail() { return email; }
+    public String getFineractClientId() { return fineractClientId; }
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() { return authorities; }

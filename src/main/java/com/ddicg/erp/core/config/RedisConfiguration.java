@@ -32,6 +32,7 @@ public class RedisConfiguration {
     AUTH_SESSION_PROFILE("auth:session:profile:", false),
     AUTH_SESSION_DEVICE("auth:session:device:", false),
     CART_ITEMS("cart:items:", false),
+    CART_GUEST_ITEMS("cart:guest:items:", false),
     CART_CHECKOUT_DRAFT("cart:checkout_draft:", false),
     CATALOG_PRODUCT("catalog:product:detail:", false),
     CATALOG_REC("catalog:product:rec:", false),

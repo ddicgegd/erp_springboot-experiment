@@ -26,7 +26,10 @@ public enum ErrorCode {
     PRODUCT_OUT_OF_STOCK("Sản phẩm hết hàng", HttpStatus.BAD_REQUEST),
     REGISTRATION_INFO_MISMATCH("Thông tin đăng ký không khớp", HttpStatus.BAD_REQUEST),
     PAYMENT_TIMEOUT("Quá thời gian chờ phản hồi thanh toán", HttpStatus.REQUEST_TIMEOUT),
-    PAYMENT_FAILED("Thanh toán thất bại", HttpStatus.BAD_REQUEST);
+    PAYMENT_FAILED("Thanh toán thất bại", HttpStatus.BAD_REQUEST),
+    USER_PROFILE_INCOMPLETE("Thông tin hồ sơ người dùng chưa đầy đủ (yêu cầu họ và tên thực tế)", HttpStatus.BAD_REQUEST),
+    FINERACT_CLIENT_NOT_SYNCED("Tài khoản chưa được đồng bộ với hệ thống tài chính Fineract", HttpStatus.BAD_REQUEST),
+    LOAN_NOT_FOUND("Khoản vay không tồn tại hoặc không thuộc về người dùng", HttpStatus.NOT_FOUND);
 
     private final String message;
     private final HttpStatus status;

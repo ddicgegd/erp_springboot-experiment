@@ -26,6 +26,7 @@ class RedisTableConfigTest {
         assertThat(RedisTable.AUTH_RECOVERY_EMAIL.key("test@example.com")).isEqualTo("auth:action:recovery:email:test@example.com");
         assertThat(RedisTable.AUTH_GUARD_COOLDOWN.key("1")).isEqualTo("auth:guard:cooldown:1");
         assertThat(RedisTable.CART_ITEMS.key("1")).isEqualTo("cart:items:1");
+        assertThat(RedisTable.CART_GUEST_ITEMS.key("guest123")).isEqualTo("cart:guest:items:guest123");
         assertThat(RedisTable.CATALOG_PRODUCT.key("100")).isEqualTo("catalog:product:detail:100");
         assertThat(RedisTable.CATALOG_REC.key("rec1")).isEqualTo("catalog:product:rec:rec1");
         assertThat(RedisTable.VOUCHER_INFO.key("SALE20")).isEqualTo("voucher:info:SALE20");
@@ -39,11 +40,13 @@ class RedisTableConfigTest {
         assertThat(RedisTable.LOCK_INVENTORY.isImmutable()).isTrue();
 
         assertThat(RedisTable.CART_ITEMS.isImmutable()).isFalse();
+        assertThat(RedisTable.CART_GUEST_ITEMS.isImmutable()).isFalse();
         assertThat(RedisTable.AUTH_SESSION_PROFILE.isImmutable()).isFalse();
         assertThat(RedisTable.CATALOG_PRODUCT.isImmutable()).isFalse();
 
         assertThat(RedisTable.fromKey("auth:otp:verification:xyz")).contains(RedisTable.AUTH_OTP_VERIFICATION);
         assertThat(RedisTable.fromKey("cart:items:user1")).contains(RedisTable.CART_ITEMS);
+        assertThat(RedisTable.fromKey("cart:guest:items:guest123")).contains(RedisTable.CART_GUEST_ITEMS);
         assertThat(RedisTable.fromKey("unknown:key")).isEmpty();
         assertThat(RedisTable.fromKey(null)).isEmpty();
     }

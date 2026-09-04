@@ -83,6 +83,27 @@ public class SecurityUtil {
         return null;
     }
 
+    public String getCurrentFineractClientId() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+        if (authentication == null || !authentication.isAuthenticated() ||
+                authentication instanceof AnonymousAuthenticationToken) {
+            return null;
+        }
+
+        Object principal = authentication.getPrincipal();
+
+        if (principal instanceof CustomUserDetails customUserDetails) {
+            return customUserDetails.getFineractClientId();
+        }
+
+        return null;
+    }
+
+    public boolean isStaffOrAdmin() {
+        return hasRole("ADMIN") || hasRole("MANAGEMENT") || hasRole("STAFF");
+    }
+
     /**
      * Lấy User entity của người dùng hiện tại
      */

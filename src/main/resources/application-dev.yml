@@ -75,14 +75,20 @@ fineract:
   tenant-id: ${FINERACT_TENANT_ID:default}
   username: ${FINERACT_USERNAME:mifos}
   password: ${FINERACT_PASSWORD:password}
-  default-office-id: 1
-  default-legal-form-id: 1
+  office-id: ${FINERACT_OFFICE_ID:1}
+  legal-form-id: ${FINERACT_LEGAL_FORM_ID:1}
   date-format: "dd MMMM yyyy"
   locale: "en"
   ssl-bypass: ${FINERACT_SSL_BYPASS:true}
   cash-gl-account-id: ${FINERACT_CASH_GL_ACCOUNT_ID:1}
+  bank-gl-account-id: ${FINERACT_BANK_GL_ACCOUNT_ID:4}
   sales-revenue-gl-account-id: ${FINERACT_SALES_REVENUE_GL_ACCOUNT_ID:2}
   sales-returns-gl-account-id: ${FINERACT_SALES_RETURNS_GL_ACCOUNT_ID:3}
+  currency-code: ${FINERACT_CURRENCY_CODE:VND}
+
+app:
+  fineract:
+    enabled: ${APP_FINERACT_ENABLED:true}
 
 logging:
   level:

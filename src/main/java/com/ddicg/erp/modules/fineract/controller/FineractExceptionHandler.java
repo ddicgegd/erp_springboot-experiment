@@ -10,7 +10,7 @@ import org.springframework.web.client.RestClientResponseException;
 import java.util.HashMap;
 import java.util.Map;
 
-@RestControllerAdvice(basePackages = "com.ddicg.erp.fineract.controller")
+@RestControllerAdvice(basePackages = "com.ddicg.erp.modules.fineract.controller")
 public class FineractExceptionHandler {
 
     @ExceptionHandler(RestClientResponseException.class)

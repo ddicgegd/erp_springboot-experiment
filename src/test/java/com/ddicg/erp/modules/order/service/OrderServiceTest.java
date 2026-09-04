@@ -545,4 +545,57 @@ class OrderServiceTest {
         verify(orderHelper).releaseInventory(any());
         verify(orderHelper).saveOrderStatusChangedEvent(eq(order), eq(com.ddicg.erp.core.common.model.enums.OrderStatus.WAITING_PAYMENT), eq(com.ddicg.erp.core.common.model.enums.OrderStatus.FAILED), anyString(), eq("system"));
     }
+
+    @Test
+    @DisplayName("Tạo đơn hàng COD khởi tạo trạng thái PENDING và PROCESSING (bỏ qua CONFIRMED)")
+    void testCreateOrder_COD_InitializesDirectlyToProcessing() {
+        CreateOrderRequest request = CreateOrderRequest.builder()
+                .addressSku("ADDR-1001")
+                .shippingMethod(ShippingMethod.PICKUP)
+                .paymentMethod(PaymentMethod.COD)
+                .items(List.of(
+                        CreateOrderRequest.OrderItemRequest.builder()
+                                .attributesSku("SKU-1001")
+                                .quantity(1)
+                                .build()
+                ))
+                .build();
+
+        when(attributesRepository.findAllBySku_skuIn(List.of("SKU-1001"))).thenReturn(List.of(sampleAttr));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> {
+            Order o = invocation.getArgument(0);
+            assertEquals(List.of(com.ddicg.erp.core.common.model.enums.OrderStatus.PENDING, com.ddicg.erp.core.common.model.enums.OrderStatus.PROCESSING), o.getStatus());
+            assertEquals(com.ddicg.erp.core.common.model.enums.OrderStatus.PROCESSING, o.getCurrentStatus());
+            return o;
+        });
+        when(orderMapper.toDto(any(Order.class))).thenReturn(OrderDto.builder().build());
+
+        orderService.createOrder(request);
+        verify(orderRepository).save(any(Order.class));
+    }
+
+    @Test
+    @DisplayName("Thanh toán thành công chuyển thẳng từ WAITING_PAYMENT sang PROCESSING")
+    void testProcessPayment_Success_TransitionsDirectlyToProcessing() {
+        Order order = new Order();
+        order.setOrderNumber("ORD-PAY-001");
+        order.setStatus(new java.util.ArrayList<>(List.of(com.ddicg.erp.core.common.model.enums.OrderStatus.PENDING, com.ddicg.erp.core.common.model.enums.OrderStatus.WAITING_PAYMENT)));
+        order.setCurrentStatus(com.ddicg.erp.core.common.model.enums.OrderStatus.WAITING_PAYMENT);
+
+        when(orderRepository.findByOrderNumber("ORD-PAY-001")).thenReturn(Optional.of(order));
+        when(orderStatusHandler.getCurrentStatus(order)).thenReturn(com.ddicg.erp.core.common.model.enums.OrderStatus.WAITING_PAYMENT);
+        when(orderRepository.save(order)).thenReturn(order);
+        when(orderMapper.toDto(order)).thenReturn(OrderDto.builder().orderNumber("ORD-PAY-001").build());
+
+        com.ddicg.erp.modules.order.dto.request.PaymentCallbackRequest callback = new com.ddicg.erp.modules.order.dto.request.PaymentCallbackRequest();
+        callback.setOrderNumber("ORD-PAY-001");
+        callback.setStatus("SUCCESS");
+
+        var response = orderService.processPayment(callback);
+
+        assertNotNull(response);
+        verify(orderStatusHandler).transitionTo(order, com.ddicg.erp.core.common.model.enums.OrderStatus.PROCESSING, "");
+        verify(orderHelper).confirmReservation(any());
+        verify(redisService).delete(eq(RedisTable.LOCK_ORDER), eq("ORD-PAY-001"));
+    }
 }
