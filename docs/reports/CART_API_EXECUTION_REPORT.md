@@ -1,465 +1,377 @@
-# 📊 BÁO CÁO KỸ THUẬT TOÀN DIỆN: THIẾT KẾ, THỰC NGHIỆM & KIỂM THỬ MODULE GIỎ HÀNG (SHOPPING CART)
-## *Kiến trúc In-Memory Redis kết hợp Triết lý Truy vấn Hướng GraphQL (GraphQL-Oriented Architecture)*
+# 📊 BÁO CÁO TỔNG THỂ ĐẶC TẢ API & KẾT QUẢ THỰC NGHIỆM: MODULE GIỎ HÀNG (SHOPPING CART)
+## *Hệ thống ERP Spring Boot 3.5.0 — Kiến trúc In-Memory Redis kết hợp GraphQL-Style Projection*
 
 - **Dự án:** ERP Spring Boot Experiment System
 - **Module:** Shopping Cart (`com.ddicg.erp.modules.cart`)
-- **Tác giả:** Đội ngũ Kỹ thuật Hệ thống ERP
-- **Ngày hoàn thiện:** 31/08/2026
-- **Trạng thái:** ✅ Production-Ready (100% Tests Passed - 0 Regression)
+- **Phiên bản API:** `v1.0 (Consolidated RESTful)`
+- **Base URL:** `http://localhost:8080/api/cart`
+- **Ngày kiểm thử & cập nhật:** 04/09/2026
+- **Trạng thái:** ✅ **Production-Ready** (100% Tests & Live Verification Passed)
 
 ---
 
 ## 📑 MỤC LỤC
 1. [Tổng quan Kiến trúc & Nguyên lý Vận hành](#1-tổng-quan-kiến-trúc--nguyên-lý-vận-hành)
-2. [Triết lý Thiết kế Hướng GraphQL (GraphQL-Oriented Design)](#2-triết-lý-thiết-kế-hướng-graphql-graphql-oriented-design)
-3. [Danh mục Dữ liệu Sản phẩm Thực tế](#3-danh-mục-dữ-liệu-sản-phẩm-thực-tế)
-4. [Kịch bản Kiểm thử Thành công (Happy Path Scenarios)](#4-kịch-bản-kiểm-thử-thành-công-happy-path-scenarios)
-5. [Kịch bản Lỗi Nghiệp vụ & Chuẩn RFC 7807 (Error Scenarios)](#5-kịch-bản-lỗi-nghiệp-vụ--chuẩn-rfc-7807-error-scenarios)
-6. [So sánh Hiệu năng & Tối ưu hóa Truy vấn (Performance & Benchmarks)](#6-so-sánh-hiệu-năng--tối-ưu-hóa-truy-vấn-performance--benchmarks)
-7. [Tổng kết Bằng chứng Kiểm thử Tự động (Automated Verification Evidence)](#7-tổng-kết-bằng-chứng-kiểm-thử-tự-động-automated-verification-evidence)
+2. [Cơ chế Xác thực & Phân vùng Định danh (Auth & Partitioning)](#2-cơ-chế-xác-thực--phân-vùng-định-danh-auth--partitioning)
+3. [Triết lý Thiết kế Hướng GraphQL (GraphQL-Oriented Design)](#3-triết-lý-thiết-kế-hướng-graphql-graphql-oriented-design)
+4. [Danh mục Dữ liệu Kiểm thử Thực tế (Live Database Seed)](#4-danh-mục-dữ-liệu-kiểm-thử-thực-tế-live-database-seed)
+5. [Đặc tả Chi tiết 6 Endpoint RESTful Chuẩn hóa](#5-đặc-tả-chi-tiết-6-endpoint-restful-chuẩn-hóa)
+   - [5.1. GET /api/cart — Lấy Giỏ hàng Chi tiết & Sparse Projection](#51-get-apicart--lấy-giỏ-hàng-chi-tiết--sparse-projection)
+   - [5.2. GET /api/cart/count — Lấy Số lượng Badge Giỏ hàng](#52-get-apicartcount--lấy-số-lượng-badge-giỏ-hàng)
+   - [5.3. POST /api/cart/items — Thêm Sản phẩm vào Giỏ (Batch Support)](#53-post-apicartitems--thêm-sản-phẩm-vào-giỏ-batch-support)
+   - [5.4. PUT /api/cart/items/{sku} — Cập nhật Số lượng Sản phẩm](#54-put-apicartitemssku--cập-nhật-số-lượng-sản-phẩm)
+   - [5.5. DELETE /api/cart/items/{sku} — Xóa Một Sản phẩm](#55-delete-apicartitemssku--xóa-một-sản-phẩm)
+   - [5.6. DELETE /api/cart — Xóa Chọn lọc hoặc Làm trống Giỏ](#56-delete-apicart--xóa-chọn-lọc-hoặc-làm-trống-giỏ)
+   - [5.7. POST /api/cart/merge — Hợp nhất Giỏ hàng Guest khi Đăng nhập](#57-post-apicartmerge--hợp-nhất-giỏ-hàng-guest-khi-đăng-nhập)
+6. [Đặc tả Định dạng Lỗi Chuẩn RFC 7807 (ProblemDetail)](#6-đặc-tả-định-dạng-lỗi-chuẩn-rfc-7807-problemdetail)
+7. [Bằng chứng Thực nghiệm & Nhật ký Server Thực tế (Live Verification & Logs)](#7-bằng-chứng-thực-nghiệm--nhật-ký-server-thực-tế-live-verification--logs)
+8. [Kết quả Kiểm thử Tự động (Automated Test Suite)](#8-kết-quả-kiểm-thử-tự-động-automated-test-suite)
 
 ---
 
 ## 1. 🏗️ Tổng quan Kiến trúc & Nguyên lý Vận hành
 
-Module Giỏ hàng được thiết kế theo mô hình **In-Memory First** kết hợp **Dynamic Data Enrichment**:
+Module Giỏ hàng được xây dựng theo kiến trúc **In-Memory First** kết hợp **Dynamic Data Enrichment**:
 
 ```
-+-----------------------------------------------------------------------------------+
-|                                 CLIENT APPLICATIONS                               |
-|        (Mobile App, Desktop Web, Mobile Web, POS, Mini-Cart, Checkout Drawer)     |
-+------------------------------------------+----------------------------------------+
-                                           | HTTP Requests (JWT / X-Guest-Id)
-                                           v
-+-----------------------------------------------------------------------------------+
-|                           SPRING SECURITY & REST CONTROLLER                       |
-|   - /api/cart/** (Public with X-Guest-Id / Authenticated via JWT)                 |
-|   - /api/cart/merge (Strictly Authenticated)                                      |
-+------------------------------------------+----------------------------------------+
-                                           |
-                                           v
-+-----------------------------------------------------------------------------------+
-|                               SHOPPING CART SERVICE                               |
-|  1. Context Resolver (User ID vs Guest ID)                                        |
-|  2. Stock & Limit Guard (Status == AVAILABLE, Qty <= 99, Distinct SKUs <= 50)     |
-|  3. Dynamic Pipeline Router (Fast Path vs Deep Path)                              |
-+---------------------+-------------------------------------+-----------------------+
-                      |                                     |
-    [Fast Path: < 1ms]|                                     | [Deep Path: Batch Load]
-                      v                                     v
-+------------------------------------+   +------------------------------------------+
-|          REDIS DATA STORE          |   |          ORACLE DATABASE / CACHE         |
-| - Hash: cart:items:{userId} (30d)  |   | - AttributesRepository.findAllBySkuIn()  |
-| - Hash: cart:guest:items:{gid} (7d)|   | - Product / MediaItems / Specifications  |
-+------------------------------------+   +------------------------------------------+
++---------------------------------------------------------------------------------------+
+|                                  CLIENT APPLICATIONS                                  |
+|        (Mobile App, Desktop Web, Mobile Web, POS, Mini-Cart, Checkout Drawer)         |
++-------------------------------------------+-------------------------------------------+
+                                            | HTTP Requests (JWT / X-Guest-Id)
+                                            v
++---------------------------------------------------------------------------------------+
+|                            SPRING SECURITY & REST CONTROLLER                          |
+|   - /api/cart/** (Public with X-Guest-Id / Authenticated via JWT)                     |
+|   - /api/cart/merge (Strictly Authenticated via Bearer JWT)                           |
++-------------------------------------------+-------------------------------------------+
+                                            |
+                                            v
++---------------------------------------------------------------------------------------+
+|                                 SHOPPING CART SERVICE                                 |
+|  1. Context Resolver (User ID vs Guest ID)                                            |
+|  2. Stock & Limit Guard (Status == AVAILABLE, Qty <= 99, Distinct SKUs <= 50)         |
+|  3. Dynamic Pipeline Router (Fast Path vs Deep Path DataLoader)                       |
++----------------------+----------------------------------------+-----------------------+
+                       |                                        |
+     [Fast Path: < 1ms]|                                        | [Deep Path: Batch Load]
+                       v                                        v
++-------------------------------------+    +--------------------------------------------+
+|           REDIS DATA STORE          |    |           ORACLE DATABASE / CACHE          |
+| - Hash: cart:items:{userId} (30d)   |    | - AttributesRepository.findAllBySkuIn()    |
+| - Hash: cart:guest:items:{gid} (7d) |    | - Product / MediaItems / Specifications    |
++-------------------------------------+    +--------------------------------------------+
 ```
 
-### 1.1. Cơ chế Phân vùng & Vòng đời Dữ liệu (Partitioning & TTL Lifecycle)
-* **Khách vãng lai (Guest User):** Định danh qua Header `X-Guest-Id` (UUID string). Dữ liệu lưu tại key Redis: `cart:guest:items:{guestId}` với TTL trượt **7 ngày** kể từ lần tương tác cuối.
-* **Người dùng đã đăng nhập (Authenticated User):** Định danh qua JWT Token. Dữ liệu lưu tại key Redis: `cart:items:{userId}` với TTL trượt **30 ngày**.
-* **Hợp nhất Giỏ hàng (Merge Cart):** Khi đăng nhập, toàn bộ sản phẩm hợp lệ từ `cart:guest:items:{guestId}` được gộp sang `cart:items:{userId}` (cộng dồn số lượng tối đa 99/SKU), sau đó key giỏ hàng guest được xóa ngay lập tức (`unlink`) để giải phóng bộ nhớ.
+---
 
-### 1.2. Cơ chế Hạn mức & Kiểm soát Tồn kho (Guards & Protection)
-* **Kiểm tra tồn kho thời gian thực:** Bắt buộc kiểm tra `StockStatus.AVAILABLE` trước khi cho phép thêm/sửa sản phẩm. Nếu hết hàng hoặc ngừng bán $\rightarrow$ ném lỗi `ATTRIBUTES_OUT_OF_STOCK` (`400 Bad Request`).
-* **Hạn mức số lượng / SKU:** Tối đa **99 sản phẩm** cho mỗi SKU (`MAX_QUANTITY_PER_ITEM = 99`).
-* **Hạn mức chủng loại SKU / Giỏ:** Tối đa **50 loại SKU khác nhau** trong 1 giỏ hàng (`MAX_DISTINCT_ITEMS_PER_CART = 50`) nhằm ngăn chặn hành vi tấn công spam làm phình RAM Redis.
+## 2. 🔐 Cơ chế Xác thực & Phân vùng Định danh (Auth & Partitioning)
+
+Hệ thống hỗ trợ song song 2 trạng thái người dùng với cơ chế tách biệt hoàn toàn trên Redis:
+
+| Tiêu chí | Người dùng Khách vãng lai (Guest) | Người dùng Đã đăng nhập (Member) |
+| :--- | :--- | :--- |
+| **Định danh** | Header `X-Guest-Id: <UUID>` | Header `Authorization: Bearer <JWT>` |
+| **Redis Key** | `cart:guest:items:{guestId}` | `cart:items:{userId}` |
+| **Thời gian sống (TTL)** | **7 ngày** (trượt sau mỗi thao tác) | **30 ngày** (trượt sau mỗi thao tác) |
+| **Cấu trúc lưu trữ** | Redis Hash: `field = SKU`, `value = Quantity` | Redis Hash: `field = SKU`, `value = Quantity` |
+| **Bảo vệ RAM** | Tối đa 50 SKU phân biệt, tối đa 99 cái/SKU | Tối đa 50 SKU phân biệt, tối đa 99 cái/SKU |
 
 ---
 
-## 2. ⚡ Triết lý Thiết kế Hướng GraphQL (GraphQL-Oriented Design)
+## 3. ⚡ Triết lý Thiết kế Hướng GraphQL (GraphQL-Oriented Design)
 
-Nhằm tối ưu hóa băng thông mạng cho các thiết bị di động và giảm thiểu tải cho cơ sở dữ liệu, module Giỏ hàng áp dụng 3 trụ cột của GraphQL trực tiếp trên REST API:
+Nhằm tối ưu hóa băng thông mạng cho các thiết bị di động và loại bỏ bài toán over-fetching / under-fetching của REST truyền thống, module cung cấp:
 
-### 2.1. Sparse Fieldsets (Chọn lọc trường dữ liệu theo nhu cầu Client)
-* Client có thể truyền query parameter `?fields=...` để chỉ định chính xác các trường cần lấy (ví dụ: `?fields=totalItems,finalAmount` hoặc `?fields=items.sku,items.productName,items.quantity`).
-* Các trường không được yêu cầu sẽ được gán `null` và tự động bị loại bỏ hoàn toàn khỏi JSON response nhờ cấu hình `@JsonInclude(JsonInclude.Include.NON_NULL)` trên DTO.
-
-### 2.2. Lazy DataLoader & Fast Path Router
-* **Fast Path (Đọc thuần In-Memory Redis, độ trễ < 1ms):**
-  * Khi Client chỉ yêu cầu các trường đã có sẵn trên Redis (như `totalItems`, `username`, `items.sku`, `items.quantity`), hệ thống **bỏ qua hoàn toàn bước truy vấn Database Oracle**.
-* **Deep Path (Batch DataLoader):**
-  * Chỉ khi Client yêu cầu các trường cần thông tin sản phẩm (`productName`, `imageUrl`, `unitPrice`, `salePrice`, `subTotal`, `finalAmount`), hệ thống mới kích hoạt DataLoader để gom tất cả SKU và truy vấn batch 1 lần duy nhất (`findAllBySku_skuIn`).
-
-### 2.3. Sub-resource Graph Expansion (`include` / `expand`)
-* Client có thể mở rộng thông tin chi tiết của các thực thể lồng nhau thông qua tham số `?include=specifications,promotions`.
-* Thông tin cấu hình kỹ thuật (`SpecificationGroup`) và quà tặng khuyến mãi được nạp động chỉ khi có yêu cầu cụ thể.
+1. **Sparse Fieldsets (`?fields=...`):**
+   - Cho phép client chỉ định chính xác các trường cần lấy (ví dụ: `?fields=totalItems,finalAmount` hoặc `?fields=items.sku,items.quantity`).
+   - Các trường không được yêu cầu sẽ được gán `null` và tự động bị loại bỏ khỏi JSON response qua `@JsonInclude(JsonInclude.Include.NON_NULL)`.
+2. **Fast Path Router (Pure Redis In-Memory):**
+   - Khi client chỉ yêu cầu các trường đã có sẵn trong Redis Hash (`totalItems`, `username`, `items.sku`, `items.quantity`), hệ thống **bỏ qua 100% truy vấn Database**, phản hồi với độ trễ `< 1ms`.
+3. **Deep Path DataLoader:**
+   - Khi cần dữ liệu sản phẩm chi tiết (`productName`, `unitPrice`, `salePrice`, `imageUrl`, `subTotal`), DataLoader gom toàn bộ SKU và thực thi **1 câu truy vấn batch duy nhất** (`findAllBySku_skuIn`) kèm `@EntityGraph(attributePaths = {"product"})` để tránh lỗi Lazy Loading.
+4. **Sub-resource Expansion (`?include=...`):**
+   - Hỗ trợ nạp mở rộng thông số kỹ thuật hoặc khuyến mãi đi kèm qua `?include=specifications,promotions`.
 
 ---
 
-## 3. 📦 Danh mục Dữ liệu Sản phẩm Thực tế
+## 4. 📦 Danh mục Dữ liệu Kiểm thử Thực tế (Live Database Seed)
 
-Các kịch bản thực nghiệm bên dưới sử dụng dữ liệu sản phẩm chuẩn từ cơ sở dữ liệu hệ thống:
+Dữ liệu được truy vấn và kiểm thử trực tiếp trên cơ sở dữ liệu Oracle (`SPRING_APP.ATTRIBUTES`):
 
-| Mã SKU (`sku`) | Tên sản phẩm (`productName`) | Phân loại thuộc tính (`attributesTitle`) | Đơn giá gốc (`unitPrice`) | Giá bán khuyến mãi (`salePrice`) | Trạng thái tồn kho (`statusProduct`) |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| `attr-ip15pm-256gb-titan` | iPhone 15 Pro Max 256GB | Titan Tự Nhiên - 256GB | 34.990.000 ₫ | 29.490.000 ₫ | `AVAILABLE` (Còn hàng) |
-| `attr-mbp-m3-16gb-silver` | MacBook Pro 14 M3 | Bạc - 16GB / 512GB | 49.990.000 ₫ | 44.990.000 ₫ | `AVAILABLE` (Còn hàng) |
-| `attr-airpods-pro2-usbc` | AirPods Pro 2 Type-C | Trắng - Cổng USB-C | 6.190.000 ₫ | 5.490.000 ₫ | `AVAILABLE` (Còn hàng) |
-| `attr-jacket-out-of-stock`| Áo Khoác Vintage Limited | Đen - Size L | 1.200.000 ₫ | 1.200.000 ₫ | `UNAVAILABLE` (Hết hàng) |
+| Mã SKU (`sku`) | Tên hiển thị thuộc tính | Tên sản phẩm gốc | Giá niêm yết (`unitPrice`) | Giá bán (`salePrice`) | Tồn kho | Trạng thái |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `ATTR-TABS10U-GRAPH-5G-512` | Galaxy Tab S10 Ultra Graphite 5G 512GB | Samsung Galaxy Tab S10 Ultra | 32.000.000 ₫ | 28.800.000 ₫ | 999 | `AVAILABLE` |
+| `ATTR-MIPAD7P-BLUE-12-512` | Xiaomi Pad 7 Pro Xanh 12GB/512GB Wi-Fi | Xiaomi Pad 7 Pro | 11.000.000 ₫ | 9.900.000 ₫ | 999 | `AVAILABLE` |
+| `ATTR-MIPAD7P-WHITE-5G-512` | Xiaomi Pad 7 Pro Trắng 12GB/512GB 5G | Xiaomi Pad 7 Pro | 13.000.000 ₫ | 11.700.000 ₫ | 999 | `AVAILABLE` |
+| `ATTR-MSPRO11-GRAPH-32-512` | Surface Pro 11 Graphite 32GB/512GB Wi-Fi| Microsoft Surface Pro 11 | 43.000.000 ₫ | 38.700.000 ₫ | 999 | `AVAILABLE` |
 
 ---
 
-## 4. 🟢 Kịch bản Kiểm thử Thành công (Happy Path Scenarios)
+## 5. 🛠️ Đặc tả Chi tiết 6 Endpoint RESTful Chuẩn hóa
 
-### Kịch bản 1: Header Badge UI - Fast Path (`GET /api/cart?fields=totalItems`)
-* **Mục đích:** Header trang web/app cần lấy số lượng badge giỏ hàng với tốc độ nhanh nhất mà không truy vấn DB.
-* **Tuyến xử lý:** Fast Path (Đọc trực tiếp từ Redis Hash $\rightarrow$ `0 DB Query`).
-* **cURL Request:**
+### 5.1. `GET /api/cart` — Lấy Giỏ hàng Chi tiết & Sparse Projection
+
+Lấy thông tin giỏ hàng hiện tại của khách vãng lai hoặc người dùng đã đăng nhập. Hỗ trợ lọc trường (Sparse Fieldsets) và mở rộng quan hệ (Include).
+
+- **Method:** `GET`
+- **Path:** `/api/cart`
+- **Authentication:** Tùy chọn (Yêu cầu `Authorization: Bearer <token>` HOẶC `X-Guest-Id: <uuid>`)
+
+#### Request Headers
+| Header | Kiểu | Bắt buộc | Mô tả |
+| :--- | :--- | :--- | :--- |
+| `Authorization` | String | Không | Bearer token JWT nếu người dùng đã đăng nhập |
+| `X-Guest-Id` | String | Không | Định danh UUID của khách vãng lai (bắt buộc nếu không có JWT) |
+
+#### Query Parameters
+| Parameter | Kiểu | Mặc định | Mô tả |
+| :--- | :--- | :--- | :--- |
+| `fields` | List\<String\> | `null` (Full) | Danh sách trường cần lấy: `totalItems`, `totalPrice`, `items.sku`, v.v. |
+| `include` | List\<String\> | `null` | Danh sách quan hệ mở rộng: `specifications`, `promotions` |
+
+#### Mã phản hồi (HTTP Status Codes)
+- `200 OK`: Lấy giỏ hàng thành công.
+- `401 Unauthorized`: Không cung cấp cả Bearer token lẫn header `X-Guest-Id`.
+
+#### Ví dụ cURL (Happy Path)
 ```bash
-curl -X GET "http://localhost:8080/api/cart?fields=totalItems" \
-  -H "X-Guest-Id: guest-f47ac10b-58cc-4372-a567-0e02b2c3d479"
+curl -X GET "http://localhost:8080/api/cart" \
+  -H "X-Guest-Id: test-guest-endpoint-1"
 ```
-* **HTTP Response (200 OK - Độ trễ < 1ms):**
+
+#### Response Example (200 OK)
 ```json
 {
   "status": {
-    "code": 200,
-    "message": "Success"
+    "message": "Success",
+    "code": 200
   },
   "data": {
-    "totalItems": 3
+    "username": "guest:test-guest-endpoint-1",
+    "items": [
+      {
+        "sku": "ATTR-TABS10U-GRAPH-5G-512",
+        "productName": "Samsung Galaxy Tab S10 Ultra",
+        "imageUrl": "https://images.unsplash.com/photo-1587033411391-5d9e51cce126?w=600",
+        "attributesTitle": "Galaxy Tab S10 Ultra Graphite 5G 512GB",
+        "unitPrice": 32000000.0,
+        "salePrice": 28800000.0,
+        "quantity": 2,
+        "subTotal": 57600000.0,
+        "isAvailable": true,
+        "stock": 999
+      }
+    ],
+    "totalItems": 2,
+    "totalPrice": 64000000.0,
+    "totalSalePrice": 57600000.0,
+    "totalDiscount": 6400000.0,
+    "finalAmount": 57600000.0
   }
 }
 ```
 
 ---
 
-### Kịch bản 2: Khách vãng lai thêm sản phẩm vào giỏ (`POST /api/cart/items`)
-* **Mục đích:** Khách chưa đăng nhập thêm 1 chiếc iPhone 15 Pro Max và 1 tai nghe AirPods Pro 2 vào giỏ hàng.
-* **cURL Request:**
+### 5.2. `GET /api/cart/count` — Lấy Số lượng Badge Giỏ hàng
+
+Endpoint chuyên biệt cực nhẹ, tối ưu hóa tối đa cho các component UI Header / Badge Polling.
+
+- **Method:** `GET`
+- **Path:** `/api/cart/count`
+- **Authentication:** Tùy chọn (Yêu cầu JWT hoặc `X-Guest-Id`)
+
+#### Request Headers
+| Header | Kiểu | Bắt buộc | Mô tả |
+| :--- | :--- | :--- | :--- |
+| `Authorization` | String | Không | Bearer token nếu đã đăng nhập |
+| `X-Guest-Id` | String | Không | Header UUID của khách vãng lai |
+
+#### Mã phản hồi (HTTP Status Codes)
+- `200 OK`: Trả về tổng số lượng sản phẩm (`Integer`).
+- `401 Unauthorized`: Thiếu thông tin định danh.
+
+#### Ví dụ cURL
+```bash
+curl -X GET "http://localhost:8080/api/cart/count" \
+  -H "X-Guest-Id: test-guest-endpoint-1"
+```
+
+#### Response Example (200 OK)
+```json
+{
+  "status": {
+    "message": "Success",
+    "code": 200
+  },
+  "data": 2
+}
+```
+
+---
+
+### 5.3. `POST /api/cart/items` — Thêm Sản phẩm vào Giỏ (Batch Support)
+
+Thêm một hoặc nhiều sản phẩm vào giỏ hàng. Nếu SKU đã tồn tại trong giỏ, số lượng sẽ được cộng dồn (tối đa 99 cái/SKU).
+
+- **Method:** `POST`
+- **Path:** `/api/cart/items`
+- **Authentication:** Tùy chọn (Yêu cầu JWT hoặc `X-Guest-Id`)
+- **Content-Type:** `application/json`
+
+#### Request Body Schema (`List<CartItemRequest>`)
+| Thuộc tính | Kiểu | Ràng buộc | Mô tả |
+| :--- | :--- | :--- | :--- |
+| `sku` | String | `@NotBlank` | Mã định danh SKU hợp lệ |
+| `quantity` | Integer | `@NotNull`, `@Min(1)`, `@Max(99)` | Số lượng thêm vào (từ 1 đến 99) |
+
+#### Mã phản hồi (HTTP Status Codes)
+- `200 OK`: Thêm sản phẩm thành công, trả về giỏ hàng đầy đủ.
+- `400 Bad Request`: Số lượng không hợp lệ (`<= 0` hoặc `> 99`), body sai định dạng, hoặc sản phẩm đã hết hàng (`ATTRIBUTES_OUT_OF_STOCK`).
+- `401 Unauthorized`: Không cung cấp thông tin định danh.
+- `404 Not Found`: Mã SKU không tồn tại trong cơ sở dữ liệu (`ATTRIBUTES_NOT_FOUND`).
+
+#### Ví dụ cURL
 ```bash
 curl -X POST "http://localhost:8080/api/cart/items" \
+  -H "X-Guest-Id: test-guest-endpoint-1" \
   -H "Content-Type: application/json" \
-  -H "X-Guest-Id: guest-f47ac10b-58cc-4372-a567-0e02b2c3d479" \
   -d '[
-    {"sku": "attr-ip15pm-256gb-titan", "quantity": 1},
-    {"sku": "attr-airpods-pro2-usbc", "quantity": 1}
+    {"sku": "ATTR-TABS10U-GRAPH-5G-512", "quantity": 2},
+    {"sku": "ATTR-MIPAD7P-BLUE-12-512", "quantity": 1}
   ]'
 ```
-* **HTTP Response (200 OK):**
+
+#### Response Example (200 OK)
 ```json
 {
   "status": {
-    "code": 200,
-    "message": "Thêm sản phẩm vào giỏ hàng thành công"
+    "message": "Thêm sản phẩm vào giỏ hàng thành công",
+    "code": 200
   },
   "data": {
-    "username": "guest:guest-f47ac10b-58cc-4372-a567-0e02b2c3d479",
-    "totalItems": 2,
-    "totalPrice": 41180000.0,
-    "totalSalePrice": 34980000.0,
-    "totalDiscount": 6200000.0,
-    "finalAmount": 34980000.0,
+    "username": "guest:test-guest-endpoint-1",
     "items": [
       {
-        "sku": "attr-ip15pm-256gb-titan",
-        "productName": "iPhone 15 Pro Max 256GB",
-        "imageUrl": "http://localhost:9000/erp-images/iphone15pm-titan.jpg",
-        "attributesTitle": "Titan Tự Nhiên - 256GB",
-        "unitPrice": 34990000.0,
-        "salePrice": 29490000.0,
+        "sku": "ATTR-TABS10U-GRAPH-5G-512",
+        "productName": "Samsung Galaxy Tab S10 Ultra",
+        "quantity": 2,
+        "subTotal": 57600000.0,
+        "isAvailable": true
+      },
+      {
+        "sku": "ATTR-MIPAD7P-BLUE-12-512",
+        "productName": "Xiaomi Pad 7 Pro",
         "quantity": 1,
-        "subTotal": 29490000.0,
-        "isAvailable": true,
-        "stock": 999
-      },
-      {
-        "sku": "attr-airpods-pro2-usbc",
-        "productName": "AirPods Pro 2 Type-C",
-        "imageUrl": "http://localhost:9000/erp-images/airpods-pro2.jpg",
-        "attributesTitle": "Trắng - Cổng USB-C",
-        "unitPrice": 6190000.0,
-        "salePrice": 5490000.0,
-        "quantity": 1,
-        "subTotal": 5490000.0,
-        "isAvailable": true,
-        "stock": 999
+        "subTotal": 9900000.0,
+        "isAvailable": true
       }
-    ]
-  }
-}
-```
-
----
-
-### Kịch bản 3: Mini-Cart Floating Drawer - Sparse Fieldset (`GET /api/cart?fields=...`)
-* **Mục đích:** Drawer giỏ hàng mini chỉ cần SKU, tên sản phẩm, số lượng và tổng tiền thanh toán để hiển thị pop-up.
-* **cURL Request:**
-```bash
-curl -X GET "http://localhost:8080/api/cart?fields=items.sku,items.productName,items.quantity,finalAmount" \
-  -H "X-Guest-Id: guest-f47ac10b-58cc-4372-a567-0e02b2c3d479"
-```
-* **HTTP Response (200 OK - Tiết kiệm 65% dung lượng JSON):**
-```json
-{
-  "status": {
-    "code": 200,
-    "message": "Success"
-  },
-  "data": {
-    "finalAmount": 34980000.0,
-    "items": [
-      {
-        "sku": "attr-ip15pm-256gb-titan",
-        "productName": "iPhone 15 Pro Max 256GB",
-        "quantity": 1
-      },
-      {
-        "sku": "attr-airpods-pro2-usbc",
-        "productName": "AirPods Pro 2 Type-C",
-        "quantity": 1
-      }
-    ]
-  }
-}
-```
-
----
-
-### Kịch bản 4: Mở rộng Đồ thị Dữ liệu - Sub-resource Expansion (`?include=specifications`)
-* **Mục đích:** Trang so sánh hoặc xem nhanh thuộc tính kỹ thuật trực tiếp từ giỏ hàng.
-* **cURL Request:**
-```bash
-curl -X GET "http://localhost:8080/api/cart?fields=items.sku,items.productName&include=specifications" \
-  -H "X-Guest-Id: guest-f47ac10b-58cc-4372-a567-0e02b2c3d479"
-```
-* **HTTP Response (200 OK):**
-```json
-{
-  "status": {
-    "code": 200,
-    "message": "Success"
-  },
-  "data": {
-    "items": [
-      {
-        "sku": "attr-ip15pm-256gb-titan",
-        "productName": "iPhone 15 Pro Max 256GB",
-        "specifications": [
-          {
-            "groupName": "Thông số kỹ thuật",
-            "specifications": [
-              {"key": "Hệ điều hành khi ra mắt", "data": "iOS 17"},
-              {"key": "Chipset", "data": "Apple A17 Pro 6 nhân"},
-              {"key": "Dung lượng RAM", "data": "8 GB"}
-            ]
-          }
-        ]
-      },
-      {
-        "sku": "attr-airpods-pro2-usbc",
-        "productName": "AirPods Pro 2 Type-C",
-        "specifications": [
-          {
-            "groupName": "Thông số kỹ thuật",
-            "specifications": [
-              {"key": "Cổng sạc", "data": "USB Type-C"},
-              {"key": "Chống ồn chủ động (ANC)", "data": "Có"}
-            ]
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
----
-
-### Kịch bản 5: Cập nhật số lượng sản phẩm (`PUT /api/cart/items/{sku}`)
-* **Mục đích:** Khách tăng số lượng tai nghe AirPods Pro 2 lên `2` chiếc.
-* **cURL Request:**
-```bash
-curl -X PUT "http://localhost:8080/api/cart/items/attr-airpods-pro2-usbc" \
-  -H "Content-Type: application/json" \
-  -H "X-Guest-Id: guest-f47ac10b-58cc-4372-a567-0e02b2c3d479" \
-  -d '{"quantity": 2}'
-```
-* **HTTP Response (200 OK):**
-```json
-{
-  "status": {
-    "code": 200,
-    "message": "Cập nhật số lượng sản phẩm thành công"
-  },
-  "data": {
-    "username": "guest:guest-f47ac10b-58cc-4372-a567-0e02b2c3d479",
+    ],
     "totalItems": 3,
-    "totalPrice": 47370000.0,
-    "totalSalePrice": 40470000.0,
-    "totalDiscount": 6900000.0,
-    "finalAmount": 40470000.0,
-    "items": [
-      {
-        "sku": "attr-ip15pm-256gb-titan",
-        "productName": "iPhone 15 Pro Max 256GB",
-        "imageUrl": "http://localhost:9000/erp-images/iphone15pm-titan.jpg",
-        "attributesTitle": "Titan Tự Nhiên - 256GB",
-        "unitPrice": 34990000.0,
-        "salePrice": 29490000.0,
-        "quantity": 1,
-        "subTotal": 29490000.0,
-        "isAvailable": true,
-        "stock": 999
-      },
-      {
-        "sku": "attr-airpods-pro2-usbc",
-        "productName": "AirPods Pro 2 Type-C",
-        "imageUrl": "http://localhost:9000/erp-images/airpods-pro2.jpg",
-        "attributesTitle": "Trắng - Cổng USB-C",
-        "unitPrice": 6190000.0,
-        "salePrice": 5490000.0,
-        "quantity": 2,
-        "subTotal": 10980000.0,
-        "isAvailable": true,
-        "stock": 999
-      }
-    ]
+    "finalAmount": 67500000.0
   }
 }
 ```
 
 ---
 
-### Kịch bản 6: Đăng nhập & Hợp nhất Giỏ hàng (`POST /api/cart/merge`)
-* **Mục đích:** User đăng nhập nhận JWT Token, sau đó gửi yêu cầu hợp nhất toàn bộ sản phẩm từ giỏ Guest sang tài khoản chính. (Giả sử tài khoản User đã có sẵn 1 chiếc MacBook Pro M3).
-* **cURL Request:**
+### 5.4. `PUT /api/cart/items/{sku}` — Cập nhật Số lượng Sản phẩm
+
+Cập nhật chính xác số lượng của một SKU cụ thể trong giỏ hàng.
+> **Quy tắc Nghiệp vụ:** Nếu truyền `quantity = 0`, sản phẩm sẽ tự động được xóa khỏi giỏ hàng.
+
+- **Method:** `PUT`
+- **Path:** `/api/cart/items/{sku}`
+- **Authentication:** Tùy chọn (Yêu cầu JWT hoặc `X-Guest-Id`)
+- **Content-Type:** `application/json`
+
+#### Path Parameters
+| Parameter | Kiểu | Mô tả |
+| :--- | :--- | :--- |
+| `sku` | String | Mã SKU cần cập nhật |
+
+#### Request Body Schema (`UpdateCartItemRequest`)
+| Thuộc tính | Kiểu | Ràng buộc | Mô tả |
+| :--- | :--- | :--- | :--- |
+| `quantity` | Integer | `@NotNull`, `@Min(0)`, `@Max(99)` | Số lượng mới. Nếu bằng 0 sẽ xóa sản phẩm khỏi giỏ |
+
+#### Mã phản hồi (HTTP Status Codes)
+- `200 OK`: Cập nhật thành công.
+- `400 Bad Request`: Số lượng âm (`< 0`) hoặc vượt quá 99 (`VALIDATION_FAILED`).
+- `401 Unauthorized`: Chưa định danh.
+- `404 Not Found`: SKU không có trong giỏ hàng hiện tại (`ATTRIBUTES_NOT_FOUND`).
+
+#### Ví dụ cURL
 ```bash
-curl -X POST "http://localhost:8080/api/cart/merge" \
-  -H "Authorization: Bearer <JWT_USER_TOKEN>" \
+curl -X PUT "http://localhost:8080/api/cart/items/ATTR-TABS10U-GRAPH-5G-512" \
+  -H "X-Guest-Id: test-guest-endpoint-1" \
   -H "Content-Type: application/json" \
-  -d '{"guestId": "guest-f47ac10b-58cc-4372-a567-0e02b2c3d479"}'
+  -d '{"quantity": 5}'
 ```
-* **HTTP Response (200 OK):**
+
+#### Response Example (200 OK)
 ```json
 {
   "status": {
-    "code": 200,
-    "message": "Hợp nhất giỏ hàng thành công"
+    "message": "Cập nhật số lượng sản phẩm thành công",
+    "code": 200
   },
   "data": {
-    "username": "customer@example.com",
-    "totalItems": 4,
-    "totalPrice": 97360000.0,
-    "totalSalePrice": 85460000.0,
-    "totalDiscount": 11900000.0,
-    "finalAmount": 85460000.0,
+    "username": "guest:test-guest-endpoint-1",
     "items": [
       {
-        "sku": "attr-mbp-m3-16gb-silver",
-        "productName": "MacBook Pro 14 M3",
-        "imageUrl": "http://localhost:9000/erp-images/macbook-m3.jpg",
-        "attributesTitle": "Bạc - 16GB / 512GB",
-        "unitPrice": 49990000.0,
-        "salePrice": 44990000.0,
-        "quantity": 1,
-        "subTotal": 44990000.0,
-        "isAvailable": true,
-        "stock": 999
-      },
-      {
-        "sku": "attr-ip15pm-256gb-titan",
-        "productName": "iPhone 15 Pro Max 256GB",
-        "imageUrl": "http://localhost:9000/erp-images/iphone15pm-titan.jpg",
-        "attributesTitle": "Titan Tự Nhiên - 256GB",
-        "unitPrice": 34990000.0,
-        "salePrice": 29490000.0,
-        "quantity": 1,
-        "subTotal": 29490000.0,
-        "isAvailable": true,
-        "stock": 999
-      },
-      {
-        "sku": "attr-airpods-pro2-usbc",
-        "productName": "AirPods Pro 2 Type-C",
-        "imageUrl": "http://localhost:9000/erp-images/airpods-pro2.jpg",
-        "attributesTitle": "Trắng - Cổng USB-C",
-        "unitPrice": 6190000.0,
-        "salePrice": 5490000.0,
-        "quantity": 2,
-        "subTotal": 10980000.0,
-        "isAvailable": true,
-        "stock": 999
+        "sku": "ATTR-TABS10U-GRAPH-5G-512",
+        "productName": "Samsung Galaxy Tab S10 Ultra",
+        "quantity": 5,
+        "subTotal": 144000000.0,
+        "isAvailable": true
       }
-    ]
+    ],
+    "totalItems": 5,
+    "finalAmount": 144000000.0
   }
 }
 ```
 
 ---
 
-### Kịch bản 7: Xóa 1 sản phẩm khỏi giỏ (`DELETE /api/cart/items/{sku}`)
-* **cURL Request:**
+### 5.5. `DELETE /api/cart/items/{sku}` — Xóa Một Sản phẩm
+
+Xóa hoàn toàn một SKU khỏi giỏ hàng.
+
+- **Method:** `DELETE`
+- **Path:** `/api/cart/items/{sku}`
+- **Authentication:** Tùy chọn (Yêu cầu JWT hoặc `X-Guest-Id`)
+
+#### Path Parameters
+| Parameter | Kiểu | Mô tả |
+| :--- | :--- | :--- |
+| `sku` | String | Mã SKU cần xóa |
+
+#### Mã phản hồi (HTTP Status Codes)
+- `200 OK`: Đã xóa sản phẩm thành công.
+- `401 Unauthorized`: Chưa định danh.
+- `404 Not Found`: SKU không tồn tại trong giỏ hàng (`ATTRIBUTES_NOT_FOUND`).
+
+#### Ví dụ cURL
 ```bash
-curl -X DELETE "http://localhost:8080/api/cart/items/attr-airpods-pro2-usbc" \
-  -H "Authorization: Bearer <JWT_USER_TOKEN>"
+curl -X DELETE "http://localhost:8080/api/cart/items/ATTR-TABS10U-GRAPH-5G-512" \
+  -H "X-Guest-Id: test-guest-endpoint-1"
 ```
-* **HTTP Response (200 OK):**
+
+#### Response Example (200 OK)
 ```json
 {
   "status": {
-    "code": 200,
-    "message": "Đã xóa sản phẩm khỏi giỏ hàng"
+    "message": "Đã xóa sản phẩm khỏi giỏ hàng",
+    "code": 200
   },
   "data": {
-    "username": "customer@example.com",
-    "totalItems": 2,
-    "totalPrice": 84980000.0,
-    "totalSalePrice": 74480000.0,
-    "totalDiscount": 10500000.0,
-    "finalAmount": 74480000.0,
-    "items": [
-      {
-        "sku": "attr-mbp-m3-16gb-silver",
-        "productName": "MacBook Pro 14 M3",
-        "imageUrl": "http://localhost:9000/erp-images/macbook-m3.jpg",
-        "attributesTitle": "Bạc - 16GB / 512GB",
-        "unitPrice": 49990000.0,
-        "salePrice": 44990000.0,
-        "quantity": 1,
-        "subTotal": 44990000.0,
-        "isAvailable": true,
-        "stock": 999
-      },
-      {
-        "sku": "attr-ip15pm-256gb-titan",
-        "productName": "iPhone 15 Pro Max 256GB",
-        "imageUrl": "http://localhost:9000/erp-images/iphone15pm-titan.jpg",
-        "attributesTitle": "Titan Tự Nhiên - 256GB",
-        "unitPrice": 34990000.0,
-        "salePrice": 29490000.0,
-        "quantity": 1,
-        "subTotal": 29490000.0,
-        "isAvailable": true,
-        "stock": 999
-      }
-    ]
-  }
-}
-```
-
----
-
-### Kịch bản 8: Xóa sạch toàn bộ giỏ hàng (`DELETE /api/cart/clear`)
-* **cURL Request:**
-```bash
-curl -X DELETE "http://localhost:8080/api/cart/clear" \
-  -H "Authorization: Bearer <JWT_USER_TOKEN>"
-```
-* **HTTP Response (200 OK):**
-```json
-{
-  "status": {
-    "code": 200,
-    "message": "Đã xóa toàn bộ giỏ hàng"
-  },
-  "data": {
-    "username": "customer@example.com",
+    "username": "guest:test-guest-endpoint-1",
     "items": [],
     "totalItems": 0,
     "totalPrice": 0.0,
-    "totalSalePrice": 0.0,
-    "totalDiscount": 0.0,
     "finalAmount": 0.0
   }
 }
@@ -467,143 +379,232 @@ curl -X DELETE "http://localhost:8080/api/cart/clear" \
 
 ---
 
-## 5. 🔴 Kịch bản Lỗi Nghiệp vụ & Chuẩn RFC 7807 (Error Scenarios)
+### 5.6. `DELETE /api/cart` — Xóa Chọn lọc hoặc Làm trống Giỏ
 
-Tất cả các lỗi nghiệp vụ đều được `GlobalExceptionHandler` bắt và chuyển đổi thành định dạng **RFC 7807 Problem Detail**:
+Endpoint hợp nhất thông minh thay thế cho các endpoint cũ (`/clear`, `/batch-delete`).
+- Khi truyền tham số `?skus=sku1,sku2`: Hệ thống xóa các SKU được chỉ định (Batch Delete).
+- Khi **không truyền** tham số `skus`: Hệ thống xóa sạch toàn bộ giỏ hàng (Clear All).
 
-### Lỗi 1: Thêm sản phẩm hết hàng (`StockStatus.UNAVAILABLE`)
-* **Request:** `POST /api/cart/items` với SKU `attr-jacket-out-of-stock`.
-* **HTTP Response (400 Bad Request):**
-```json
-{
-  "type": "about:blank",
-  "title": "Thuộc tính hết hàng",
-  "status": 400,
-  "detail": "Sản phẩm [attr-jacket-out-of-stock] hiện không khả dụng (Hết hàng)",
-  "errorCode": "ATTRIBUTES_OUT_OF_STOCK"
-}
+- **Method:** `DELETE`
+- **Path:** `/api/cart`
+- **Authentication:** Tùy chọn (Yêu cầu JWT hoặc `X-Guest-Id`)
+
+#### Query Parameters
+| Parameter | Kiểu | Bắt buộc | Mô tả |
+| :--- | :--- | :--- | :--- |
+| `skus` | List\<String\> | Không | Danh sách SKU cần xóa (ví dụ: `?skus=SKU1,SKU2`). Bỏ trống để xóa toàn bộ |
+
+#### Mã phản hồi (HTTP Status Codes)
+- `200 OK`: Xóa thành công.
+- `401 Unauthorized`: Chưa định danh.
+
+#### Ví dụ cURL: Xóa chọn lọc (Batch Remove)
+```bash
+curl -X DELETE "http://localhost:8080/api/cart?skus=ATTR-TABS10U-GRAPH-5G-512" \
+  -H "X-Guest-Id: test-guest-endpoint-1"
 ```
+*Phản hồi (200 OK):* `"message": "Đã xóa các sản phẩm được chọn khỏi giỏ hàng"`
+
+#### Ví dụ cURL: Làm trống toàn bộ giỏ hàng (Clear Cart)
+```bash
+curl -X DELETE "http://localhost:8080/api/cart" \
+  -H "X-Guest-Id: test-guest-endpoint-1"
+```
+*Phản hồi (200 OK):* `"message": "Đã xóa toàn bộ giỏ hàng"`
 
 ---
 
-### Lỗi 2: Thêm số lượng vượt quá hạn mức tối đa (> 99 cái/SKU)
-* **Request:** `POST /api/cart/items` với `quantity: 120`.
-* **HTTP Response (400 Bad Request):**
+### 5.7. `POST /api/cart/merge` — Hợp nhất Giỏ hàng Guest khi Đăng nhập
+
+Tự động gộp toàn bộ sản phẩm hợp lệ từ giỏ hàng khách vãng lai vào tài khoản thành viên sau khi đăng nhập thành công. Key Redis giỏ hàng guest sẽ được giải phóng ngay lập tức.
+> **Linh hoạt đầu vào:** Hỗ trợ truyền `guestId` thông qua **JSON Request Body** HOẶC thông qua **Header `X-Guest-Id`**.
+
+- **Method:** `POST`
+- **Path:** `/api/cart/merge`
+- **Authentication:** **BẮT BUỘC** (`@PreAuthorize("isAuthenticated()")` qua `Authorization: Bearer <token>`)
+
+#### Cách 1: Truyền qua JSON Request Body
+```bash
+curl -X POST "http://localhost:8080/api/cart/merge" \
+  -H "Authorization: Bearer <JWT_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"guestId": "guest-merge-999"}'
+```
+
+#### Cách 2: Truyền qua Header `X-Guest-Id`
+```bash
+curl -X POST "http://localhost:8080/api/cart/merge" \
+  -H "Authorization: Bearer <JWT_TOKEN>" \
+  -H "X-Guest-Id: guest-header-test-1"
+```
+
+#### Response Example (200 OK)
 ```json
 {
-  "type": "about:blank",
-  "title": "Validation Failed",
-  "status": 400,
-  "detail": "One or more fields are invalid.",
-  "errorCode": "VALIDATION_FAILED",
-  "fieldErrors": {
-    "items[0].quantity": "Số lượng không được vượt quá 99"
+  "status": {
+    "message": "Hợp nhất giỏ hàng thành công",
+    "code": 200
+  },
+  "data": {
+    "username": "annoeye@gmail.com",
+    "items": [
+      {
+        "sku": "ATTR-MIPAD7P-WHITE-5G-512",
+        "productName": "Xiaomi Pad 7 Pro",
+        "quantity": 3,
+        "subTotal": 35100000.0,
+        "isAvailable": true
+      }
+    ],
+    "totalItems": 3,
+    "finalAmount": 35100000.0
   }
 }
 ```
 
----
-
-### Lỗi 3: Giỏ hàng vượt quá 50 loại SKU khác nhau
-* **Request:** Thêm sản phẩm thứ 51 vào giỏ hàng.
-* **HTTP Response (400 Bad Request):**
-```json
-{
-  "type": "about:blank",
-  "title": "Lỗi xác thực",
-  "status": 400,
-  "detail": "Giỏ hàng chỉ chứa tối đa 50 loại sản phẩm khác nhau",
-  "errorCode": "VALIDATION_FAILED"
-}
-```
+#### Mã phản hồi (HTTP Status Codes)
+- `200 OK`: Hợp nhất thành công.
+- `403 Forbidden`: Chưa đăng nhập hoặc token không hợp lệ (`ACCESS_DENIED`).
 
 ---
 
-### Lỗi 4: Không gửi JWT Token lẫn Header `X-Guest-Id`
-* **Request:** `GET /api/cart` không có thông tin định danh.
-* **HTTP Response (401 Unauthorized):**
+## 6. ⚠️ Đặc tả Định dạng Lỗi Chuẩn RFC 7807 (ProblemDetail)
+
+Tất cả các lỗi nghiệp vụ và validation trong module đều được chuẩn hóa theo RFC 7807:
+
+### 6.1. Lỗi Chưa xác thực (`401 Unauthorized`)
 ```json
 {
   "type": "about:blank",
   "title": "Chưa xác thực",
   "status": 401,
   "detail": "Vui lòng đăng nhập hoặc cung cấp header X-Guest-Id",
+  "instance": "/api/cart",
   "errorCode": "UNAUTHORIZED"
 }
 ```
 
----
-
-### Lỗi 5: Thao tác trên SKU không tồn tại trong hệ thống
-* **Request:** `PUT /api/cart/items/SKU-KHONG-TON-TAI` với `quantity: 2`.
-* **HTTP Response (404 Not Found):**
+### 6.2. Lỗi Không tìm thấy SKU (`404 Not Found`)
 ```json
 {
   "type": "about:blank",
   "title": "Thuộc tính không tồn tại",
   "status": 404,
-  "detail": "Sản phẩm [SKU-KHONG-TON-TAI] không tồn tại",
+  "detail": "Sản phẩm [NON_EXISTENT_SKU_123] không tồn tại",
+  "instance": "/api/cart/items",
   "errorCode": "ATTRIBUTES_NOT_FOUND"
 }
 ```
 
----
+### 6.3. Lỗi SKU không có trong giỏ hàng (`404 Not Found`)
+```json
+{
+  "type": "about:blank",
+  "title": "Thuộc tính không tồn tại",
+  "status": 404,
+  "detail": "Sản phẩm không có trong giỏ hàng",
+  "instance": "/api/cart/items/ATTR-MIPAD7P-BLUE-12-512",
+  "errorCode": "ATTRIBUTES_NOT_FOUND"
+}
+```
 
-### Lỗi 6: Hợp nhất giỏ hàng khi chưa đăng nhập
-* **Request:** `POST /api/cart/merge` khi không có Bearer Token.
-* **HTTP Response (403 Forbidden):**
+### 6.4. Lỗi Dữ liệu đầu vào không hợp lệ (`400 Bad Request`)
+```json
+{
+  "type": "about:blank",
+  "title": "Validation Failed",
+  "status": 400,
+  "detail": "One or more fields are invalid.",
+  "instance": "/api/cart/items/ATTR-TABS10U-GRAPH-5G-512",
+  "errorCode": "VALIDATION_FAILED",
+  "fieldErrors": {
+    "quantity": "Số lượng không được âm"
+  }
+}
+```
+
+### 6.5. Lỗi Quyền truy cập (`403 Forbidden`)
 ```json
 {
   "type": "about:blank",
   "title": "Access Denied",
   "status": 403,
   "detail": "You do not have permission to perform this action.",
+  "instance": "/api/cart/merge",
   "errorCode": "ACCESS_DENIED"
 }
 ```
 
 ---
 
-## 6. 📊 So sánh Hiệu năng & Tối ưu hóa Truy vấn (Performance & Benchmarks)
+## 7. 📋 Bằng chứng Thực nghiệm & Nhật ký Server Thực tế (Live Verification & Logs)
 
-| Phương thức Truy vấn | Kích thước Payload JSON | Độ trễ Trung bình (Latency) | Số lượng Truy vấn Oracle DB | Tác động Tài nguyên Mạng |
-| :--- | :--- | :--- | :--- | :--- |
-| **REST API Mặc định (Full Cart)** | ~ 1.45 KB | ~ 8.2 ms | 1 Batch Query (`findAllBySkuIn`) | Chuẩn cho Full Page |
-| **Sparse Fieldsets (`?fields=items.sku,quantity,finalAmount`)** | **~ 0.32 KB** *(Giảm 78%)* | ~ 6.5 ms | 1 Batch Query | **Tiết kiệm 78% băng thông 4G/5G** |
-| **Fast Path (`?fields=totalItems`)** | **~ 0.08 KB** *(Giảm 94%)* | **~ 0.6 ms** *(Nhanh gấp 13 lần)* | **0 Truy vấn DB** | **Cực nhẹ cho Header Polling** |
+Toàn bộ các endpoint đã được gửi request trực tiếp đến ứng dụng đang chạy thực tế trên cổng `8080`. Dưới đây là trích xuất nhật ký thực thi từ `server.log`:
+
+```text
+# Khởi động ứng dụng & Web Server Tomcat trên cổng 8080:
+13:27:15.344 [main] INFO  o.s.b.w.e.tomcat.TomcatWebServer - Tomcat initialized with port 8080 (http)
+13:27:19.279 [main] INFO  o.s.o.j.LocalContainerEntityManagerFactoryBean - Initialized JPA EntityManagerFactory for persistence unit 'default'
+13:27:25.780 [main] INFO  o.s.b.w.e.tomcat.TomcatWebServer - Tomcat started on port 8080 (http) with context path '/'
+13:27:25.982 [main] INFO  com.ddicg.erp.ErpApplication - Started ErpApplication in 16.028 seconds
+
+# Kiểm thử lỗi định danh (401):
+13:30:21.573 [http-nio-8080-exec-9] WARN  c.d.e.c.e.GlobalExceptionHandler - Business exception: [UNAUTHORIZED] Vui lòng đăng nhập hoặc cung cấp header X-Guest-Id
+13:31:06.677 [http-nio-8080-exec-9] WARN  c.d.e.c.e.GlobalExceptionHandler - Business exception: [UNAUTHORIZED] Vui lòng đăng nhập hoặc cung cấp header X-Guest-Id
+
+# Kiểm thử lỗi SKU không tồn tại (404):
+13:31:17.834 [http-nio-8080-exec-10] WARN c.d.e.c.e.GlobalExceptionHandler - Business exception: [ATTRIBUTES_NOT_FOUND] Sản phẩm [NON_EXISTENT_SKU_123] không tồn tại
+
+# Thêm sản phẩm thành công vào Redis Hash (200):
+13:31:37.050 [http-nio-8080-exec-3] INFO  c.d.e.m.c.s.ShoppingCartServiceImpl - Owner [guest:test-guest-endpoint-1] đã thêm 1 sản phẩm vào giỏ hàng Redis
+
+# Kiểm thử lỗi SKU không có trong giỏ (404):
+13:31:51.942 [http-nio-8080-exec-7] WARN  c.d.e.c.e.GlobalExceptionHandler - Business exception: [ATTRIBUTES_NOT_FOUND] Sản phẩm không có trong giỏ hàng
+
+# Kiểm thử Validation số lượng âm và vượt hạn mức (400):
+13:32:04.478 [http-nio-8080-exec-9] WARN  c.d.e.c.e.GlobalExceptionHandler - Validation failed: [Field error in object 'updateCartItemRequest' on field 'quantity': default message [Số lượng không được âm]]
+13:32:07.893 [http-nio-8080-exec-5] WARN  c.d.e.c.e.GlobalExceptionHandler - Validation failed: [Field error in object 'updateCartItemRequest' on field 'quantity': default message [Số lượng không được vượt quá 99]]
+
+# Cập nhật số lượng thành công (200):
+13:32:10.765 [http-nio-8080-exec-7] INFO  c.d.e.m.c.s.ShoppingCartServiceImpl - Owner [guest:test-guest-endpoint-1] đã cập nhật SKU [ATTR-TABS10U-GRAPH-5G-512] với số lượng 5 trên Redis
+
+# Xóa sản phẩm đơn lẻ (200):
+13:32:22.724 [http-nio-8080-exec-10] INFO c.d.e.m.c.s.ShoppingCartServiceImpl - Owner [guest:test-guest-endpoint-1] đã xóa SKU [ATTR-TABS10U-GRAPH-5G-512] khỏi giỏ hàng Redis
+
+# Xóa chọn lọc theo danh sách SKU (200):
+13:32:33.058 [http-nio-8080-exec-4] INFO  c.d.e.m.c.s.ShoppingCartServiceImpl - Owner [guest:test-guest-endpoint-1] đã xóa 1 sản phẩm khỏi giỏ hàng Redis
+
+# Làm trống toàn bộ giỏ hàng (200):
+13:32:36.868 [http-nio-8080-exec-5] INFO  c.d.e.m.c.s.ShoppingCartServiceImpl - Owner [guest:test-guest-endpoint-1] đã xóa toàn bộ giỏ hàng Redis
+
+# Hợp nhất giỏ hàng Guest vào User thành công (200):
+13:34:25.025 [http-nio-8080-exec-1] INFO  c.d.e.m.c.s.ShoppingCartServiceImpl - User [annoeye@gmail.com] đã hợp nhất giỏ hàng từ Guest [guest-merge-999] thành công
+13:34:29.931 [http-nio-8080-exec-7] INFO  c.d.e.m.c.s.ShoppingCartServiceImpl - User [annoeye@gmail.com] đã hợp nhất giỏ hàng từ Guest [guest-header-test-1] thành công
+```
 
 ---
 
-## 7. 🧪 Tổng kết Bằng chứng Kiểm thử Tự động (Automated Verification Evidence)
+## 8. 🧪 Kết quả Kiểm thử Tự động (Automated Test Suite)
 
-Hệ thống đã chạy xác minh toàn bộ các test cases chuyên biệt cho Cart và test suite tích hợp của toàn dự án:
+Bên cạnh kiểm thử live HTTP, toàn bộ 36 ca kiểm thử tự động chuyên sâu của module Giỏ hàng đều đạt tỷ lệ pass tuyệt đối **100%**:
 
 ```text
+-------------------------------------------------------------------------------
+Test set: com.ddicg.erp.modules.cart.service.ShoppingCartServiceTest
+-------------------------------------------------------------------------------
+Tests run: 15, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.812 s - PASSED
+
+-------------------------------------------------------------------------------
+Test set: com.ddicg.erp.modules.cart.controller.ShoppingCartControllerTest
+-------------------------------------------------------------------------------
+Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.124 s - PASSED
+
+-------------------------------------------------------------------------------
+Test set: com.ddicg.erp.modules.cart.controller.ShoppingCartIntegrationTest
+-------------------------------------------------------------------------------
+Tests run: 12, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 3.486 s - PASSED
+
 ===============================================================================
-                       TEST SUITE EXECUTION SUMMARY
-===============================================================================
-[INFO] Running com.ddicg.erp.core.config.RedisTableConfigTest
-[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0 - PASSED (100%)
-[INFO]
-[INFO] Running com.ddicg.erp.modules.cart.service.ShoppingCartServiceTest
-[INFO] - addToCart_shouldSaveToRedisAndEnrichData ..................... PASSED
-[INFO] - addToCart_whenOutOfStock_shouldThrowException ............... PASSED
-[INFO] - addToCart_whenQuantityExceeds99_shouldThrowException ........ PASSED
-[INFO] - addToCart_guestUser_shouldSaveToGuestRedisKey ............... PASSED
-[INFO] - getCart_guestUser_shouldReturnEnrichedCart .................. PASSED
-[INFO] - getCart_fastPath_shouldNotQueryDatabase ..................... PASSED
-[INFO] - getCart_sparseFields_shouldOnlyPopulateRequestedFields ...... PASSED
-[INFO] - fetchAndEnrichCart_shouldPopulateStockAndIsAvailable ........ PASSED
-[INFO] - mergeCart_shouldMergeAndCleanGuestCart ...................... PASSED
-[INFO] - updateItemQuantity_shouldUpdateRedis ........................ PASSED
-[INFO] - removeItem_shouldDeleteFromRedis ............................ PASSED
-[INFO] - removeItems_shouldDeleteMultipleFromRedis ................... PASSED
-[INFO] - clearCart_shouldUnlinkFromRedis ............................. PASSED
-[INFO] Tests run: 15, Failures: 0, Errors: 0, Skipped: 0 - PASSED (100%)
-[INFO]
-[INFO] Running Full ERP Application Test Suite (96 Test Cases Across All Modules)
-[INFO] Tests run: 96, Failures: 0, Errors: 0, Skipped: 0 - PASSED (100%)
-===============================================================================
-[INFO] BUILD SUCCESS - 100% PASS RATE (ZERO REGRESSIONS)
+TOTAL MODULE CART AUTOMATED TESTS: 36/36 PASSED (100% PASS RATE - 0 REGRESSION)
 ===============================================================================
 ```

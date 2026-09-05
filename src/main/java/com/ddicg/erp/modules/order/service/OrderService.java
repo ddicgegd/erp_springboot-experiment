@@ -33,6 +33,10 @@ import com.ddicg.erp.modules.order.model.Order;
 import com.ddicg.erp.modules.order.model.OrderItem;
 import com.ddicg.erp.modules.order.repository.OrderItemRepository;
 import com.ddicg.erp.modules.order.repository.OrderRepository;
+import com.ddicg.erp.modules.order.service.discount.DiscountEvaluationResult;
+import com.ddicg.erp.modules.order.service.discount.OrderDiscountContext;
+import com.ddicg.erp.modules.order.service.discount.OrderDiscountProcessor;
+import com.ddicg.erp.modules.order.service.discount.VoucherReservationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -68,6 +72,8 @@ public class OrderService implements iOrder {
     private final ShippingCalculationService shippingCalculationService;
     private final ShoppingCartService shoppingCartService;
     private final RedisService redisService;
+    private final OrderDiscountProcessor orderDiscountProcessor;
+    private final VoucherReservationService voucherReservationService;
 
     @Override
     @Transactional
@@ -80,16 +86,45 @@ public class OrderService implements iOrder {
         // 2. Xác định thông tin khách hàng, địa chỉ & cước phí vận chuyển
         Address selectedAddress = resolveShippingAddress(request, shippingMethod);
         CustomerInfo customerInfo = buildCustomerInfo(selectedAddress);
-        Double shippingFee = calculateShippingFee(shippingMethod, selectedAddress);
+        Double rawShippingFee = calculateShippingFee(shippingMethod, selectedAddress);
 
-        // 3. Khởi tạo danh sách OrderItem và tính tổng tiền
+        // 3. Tính toán chiết khấu đa tầng (Shipping, Item, Global)
+        String customerId = securityUtil.getCurrentUser().map(u -> String.valueOf(u.getId())).orElse(null);
+        OrderDiscountContext discountContext = OrderDiscountContext.builder()
+                .items(request.getItems())
+                .attributesList(attributesList)
+                .discountCodes(request.getDiscountCodes())
+                .rawShippingFee(rawShippingFee)
+                .shippingMethod(shippingMethod)
+                .customerId(customerId)
+                .build();
+        DiscountEvaluationResult evalResult = orderDiscountProcessor.evaluateDiscount(discountContext);
+
+        // 4. Khởi tạo danh sách OrderItem và áp dụng giảm giá từng dòng
         List<OrderItem> items = buildOrderItemsFromAttributes(request.getItems(), attributesList);
-        double subtotal = items.stream().mapToDouble(i -> i.getSubtotal() != null ? i.getSubtotal() : 0.0).sum();
-        double totalAmount = Math.max(0.0, subtotal + shippingFee);
+        for (OrderItem item : items) {
+            String sku = item.getAttributesSku();
+            double itemDiscount = evalResult.getItemDiscounts().getOrDefault(sku, 0.0);
+            double itemDiscountPct = evalResult.getItemDiscountPercentages().getOrDefault(sku, 0.0);
+            item.setDiscountAmount(itemDiscount);
+            item.setDiscountPercentage(itemDiscountPct);
+            if (itemDiscount > 0.0) {
+                // Processor computes discounts relative to unitPrice * qty (includes sale price offset)
+                double originalLinePrice = item.getUnitPrice() * item.getQuantity();
+                item.setSubtotal(Math.max(0.0, originalLinePrice - itemDiscount));
+            }
+            // When itemDiscount == 0, keep buildItem's subtotal (salePrice * qty)
+        }
+
+        // 5. Tính toán tài chính cấp đơn hàng
+        double totalDiscount = evalResult.getProductDiscountAmount() + evalResult.getShippingDiscountAmount();
+        double netShippingFee = Math.max(0.0, rawShippingFee - evalResult.getShippingDiscountAmount());
+        double netSubtotal = items.stream().mapToDouble(i -> i.getSubtotal() != null ? i.getSubtotal() : 0.0).sum();
+        double finalTotal = Math.max(0.0, netSubtotal + netShippingFee);
 
         List<OrderStatus> initialStatus = determineInitialStatuses(request.getPaymentMethod());
 
-        // 4. Khởi tạo Entity Order bằng Builder Pattern
+        // 6. Khởi tạo Entity Order bằng Builder Pattern
         Order order = Order.builder()
                 .orderNumber(orderNumber)
                 .shippingMethod(shippingMethod != null ? shippingMethod.name() : null)
@@ -99,24 +134,30 @@ public class OrderService implements iOrder {
                 .currentStatus(initialStatus.get(initialStatus.size() - 1))
                 .customerNotes(request.getCustomerNotes())
                 .orderItems(items)
-                .subtotal(subtotal)
-                .shippingFee(shippingFee)
-                .discountAmount(0.0)
-                .totalAmount(totalAmount)
+                .subtotal(netSubtotal)
+                .shippingFee(netShippingFee)
+                .discountAmount(totalDiscount)
+                .discountCodes(evalResult.getAppliedDiscountCodes())
+                .totalAmount(finalTotal)
                 .build();
         items.forEach(item -> item.setOrder(order));
 
         Order saved = orderRepository.save(order);
-        log.debug("✅ ORDER_CREATED: {} | Method: {} | ShippingFee: {} | Total: {}",
-                saved.getOrderNumber(), saved.getShippingMethod(), saved.getShippingFee(), saved.getTotalAmount());
+        log.debug("✅ ORDER_CREATED: {} | Method: {} | ShippingFee: {} | Discount: {} | Total: {}",
+                saved.getOrderNumber(), saved.getShippingMethod(), saved.getShippingFee(),
+                saved.getDiscountAmount(), saved.getTotalAmount());
 
-        // 5. Dọn giỏ hàng nếu đặt từ Cart
+        // 7. Tạm giữ Voucher trong Redis (Soft Hold 3 phút)
+        voucherReservationService.reserveVouchers(
+                evalResult.getAppliedDiscountCodes(), saved.getOrderNumber(), netSubtotal);
+
+        // 8. Dọn giỏ hàng nếu đặt từ Cart
         cleanCartIfRequested(request, saved);
 
-        // 6. Lưu Outbox Event duy nhất
+        // 9. Lưu Outbox Event duy nhất
         orderHelper.saveOrderCreatedEvent(saved, request);
 
-        // 7. Đặt khóa xử lý đơn hàng trong Redis cố định 1 giây
+        // 10. Đặt khóa xử lý đơn hàng trong Redis cố định 1 giây
         setOrderLockWithTtl(saved.getOrderNumber(), 1L);
 
         return Response.ok(orderMapper.toDto(saved));
@@ -243,6 +284,8 @@ public class OrderService implements iOrder {
         orderHelper.confirmReservation(o.getOrderItems());
         var s = orderRepository.save(o);
         orderHelper.saveOrderStatusChangedEvent(s, cur, OrderStatus.PROCESSING, r.getConfirmationInfo());
+        // Commit vouchers: tăng usedQuantity trong DB và xóa Redis Hold
+        voucherReservationService.commitVouchers(s.getDiscountCodes(), s.getOrderNumber());
         log.debug("🔄 CONFIRMED_TO_PROCESSING: {}", s.getOrderNumber());
         return Response.ok(orderMapper.toDto(s));
     }
@@ -264,6 +307,8 @@ public class OrderService implements iOrder {
         var s = orderRepository.save(o);
         orderHelper.saveOrderStatusChangedEvent(s, cur, OrderStatus.CANCELLED, reason);
         orderHelper.saveOrderCancelledEvent(s, reason, wasPaid);
+        // Release vouchers: xóa key hold trên Redis khi đơn bị hủy
+        voucherReservationService.releaseVouchers(s.getDiscountCodes(), s.getOrderNumber());
         log.debug("🔄 CANCELLED: {} wasPaid={}", s.getOrderNumber(), wasPaid);
         return Response.ok(orderMapper.toDto(s));
     }
@@ -408,6 +453,8 @@ public class OrderService implements iOrder {
             orderHelper.confirmReservation(o.getOrderItems());
             var s = orderRepository.save(o);
             orderHelper.saveOrderStatusChangedEvent(s, cur, OrderStatus.PROCESSING, "payment OK");
+            // Commit vouchers: thanh toán thành công -> xác nhận usedQuantity
+            voucherReservationService.commitVouchers(s.getDiscountCodes(), s.getOrderNumber());
             redisService.delete(RedisTable.LOCK_ORDER, s.getOrderNumber());
             log.debug("🔄 PAYMENT_SUCCESS: {}", s.getOrderNumber());
             return Response.ok(orderMapper.toDto(s));
@@ -416,6 +463,8 @@ public class OrderService implements iOrder {
             orderHelper.releaseInventory(o.getOrderItems());
             var s = orderRepository.save(o);
             orderHelper.saveOrderStatusChangedEvent(s, cur, OrderStatus.FAILED, "payment FAILED");
+            // Release vouchers: thanh toán thất bại -> giải phóng hold
+            voucherReservationService.releaseVouchers(s.getDiscountCodes(), s.getOrderNumber());
             redisService.delete(RedisTable.LOCK_ORDER, s.getOrderNumber());
             log.debug("🔄 PAYMENT_FAILED: {}", s.getOrderNumber());
             return Response.ok(orderMapper.toDto(s));

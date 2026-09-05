@@ -36,11 +36,6 @@ public class ShoppingCartControllerImpl implements ShoppingCartController {
     }
 
     @Override
-    public Response<ShoppingCartDto> addLegacy(List<CartItemRequest> items, String guestId) {
-        return shoppingCartService.addToCart(items, guestId);
-    }
-
-    @Override
     public Response<ShoppingCartDto> updateItemQuantity(String sku, UpdateCartItemRequest request, String guestId) {
         return shoppingCartService.updateItemQuantity(sku, request.getQuantity(), guestId);
     }
@@ -51,12 +46,10 @@ public class ShoppingCartControllerImpl implements ShoppingCartController {
     }
 
     @Override
-    public Response<ShoppingCartDto> removeItems(List<String> skus, String guestId) {
-        return shoppingCartService.removeItems(skus, guestId);
-    }
-
-    @Override
-    public Response<ShoppingCartDto> clearCart(String guestId) {
+    public Response<ShoppingCartDto> deleteCart(List<String> skus, String guestId) {
+        if (skus != null && !skus.isEmpty()) {
+            return shoppingCartService.removeItems(skus, guestId);
+        }
         return shoppingCartService.clearCart(guestId);
     }
 

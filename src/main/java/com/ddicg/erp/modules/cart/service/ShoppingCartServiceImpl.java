@@ -10,31 +10,33 @@ import com.ddicg.erp.core.security.SecurityUtil;
 import com.ddicg.erp.modules.cart.dto.CartItemRequest;
 import com.ddicg.erp.modules.cart.dto.CartItemResponse;
 import com.ddicg.erp.modules.cart.dto.ShoppingCartDto;
+import com.ddicg.erp.modules.cart.model.CartContext;
+import com.ddicg.erp.modules.cart.storage.CartStorageFactory;
+import com.ddicg.erp.modules.cart.storage.CartStorageStrategy;
 import com.ddicg.erp.modules.iam.model.User;
 import com.ddicg.erp.modules.iam.repository.UserRepository;
 import com.ddicg.erp.modules.merchandise.model.Attributes;
 import com.ddicg.erp.modules.merchandise.model.Product;
 import com.ddicg.erp.modules.merchandise.repository.AttributesRepository;
 import lombok.AccessLevel;
-import lombok.Builder;
-import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
- * Quản lý giỏ hàng với tầng lưu trữ chính trên Redis Hash (in-memory) tại DB 0.
- * Bảng logic:
- *   - User: cart:items:{userId} (TTL 30 ngày)
- *   - Guest: cart:guest:items:{guestId} (TTL 7 ngày)
+ * Quản lý giỏ hàng đa tầng (Multi-Tiered Cart Storage):
+ *   - Khách vãng lai (Guest): Lưu ngắn hạn trên Redis (TTL 7 ngày)
+ *   - Thành viên thường (MEMBER, BRONZE): Lưu trên Redis (TTL 30 ngày)
+ *   - Thành viên VIP (SILVER, GOLD, PLATINUM, DIAMOND): Lưu vĩnh viễn trong Database + Redis Cache
  */
 @Service
 @Slf4j
+@Transactional(readOnly = true)
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class ShoppingCartServiceImpl implements ShoppingCartService {
@@ -44,18 +46,27 @@ public class ShoppingCartServiceImpl implements ShoppingCartService {
     public static final int MAX_QUANTITY_PER_ITEM = 99;
     public static final int MAX_DISTINCT_ITEMS_PER_CART = 50;
 
+    private static final Set<String> FAST_PATH_FIELDS = Set.of(
+            "username",
+            "totalitems",
+            "items.sku",
+            "items.quantity"
+    );
+
+    CartStorageFactory cartStorageFactory;
     RedisService redisService;
     AttributesRepository attributesRepository;
     UserRepository userRepository;
     SecurityUtil securityUtil;
 
-    @Getter
-    @Builder
-    private static class CartContext {
-        String key;
-        String ownerName;
-        long ttlDays;
-        boolean isGuest;
+    private Map<String, Attributes> fetchAttributesMap(Collection<String> skus) {
+        if (skus == null || skus.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<String> skuList = (skus instanceof List<String> list) ? list : new ArrayList<>(skus);
+        return attributesRepository.findAllBySku_skuIn(skuList).stream()
+                .filter(a -> a.getSku() != null && a.getSku().getSku() != null)
+                .collect(Collectors.toMap(a -> a.getSku().getSku(), a -> a, (a1, a2) -> a1));
     }
 
     private Optional<User> findAuthenticatedUser() {
@@ -76,6 +87,7 @@ public class ShoppingCartServiceImpl implements ShoppingCartService {
                     .ownerName(user.getUsername())
                     .ttlDays(CART_TTL_DAYS)
                     .isGuest(false)
+                    .user(user)
                     .build();
         }
 
@@ -87,6 +99,7 @@ public class ShoppingCartServiceImpl implements ShoppingCartService {
                     .ownerName("guest:" + trimmedGuestId)
                     .ttlDays(GUEST_CART_TTL_DAYS)
                     .isGuest(true)
+                    .user(null)
                     .build();
         }
 
@@ -96,43 +109,32 @@ public class ShoppingCartServiceImpl implements ShoppingCartService {
     @Override
     public Response<ShoppingCartDto> getCart(final String guestId, final List<String> fields, final List<String> include) {
         CartContext ctx = resolveContext(guestId);
-        ShoppingCartDto dto = fetchAndProjectCart(ctx.getOwnerName(), ctx.getKey(), ctx.getTtlDays(), fields, include);
+        CartStorageStrategy strategy = cartStorageFactory.getStrategy(ctx);
+        ShoppingCartDto dto = fetchAndProjectCart(ctx, strategy, fields, include);
         return Response.ok(dto);
     }
 
     @Override
     public Response<Integer> getCartCount(final String guestId) {
         CartContext ctx = resolveContext(guestId);
-        List<Object> quantities = redisService.hValues(ctx.getKey());
-        if (quantities == null || quantities.isEmpty()) {
-            return Response.ok(0);
-        }
-        int totalCount = quantities.stream()
-                .mapToInt(q -> {
-                    try {
-                        return Integer.parseInt(q.toString());
-                    } catch (NumberFormatException e) {
-                        return 0;
-                    }
-                })
-                .sum();
+        CartStorageStrategy strategy = cartStorageFactory.getStrategy(ctx);
+        int totalCount = strategy.getTotalItemsCount(ctx);
         return Response.ok(totalCount);
     }
 
     @Override
+    @Transactional
     public Response<ShoppingCartDto> addToCart(final List<CartItemRequest> items, final String guestId) {
         if (items == null || items.isEmpty()) {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Danh sách sản phẩm không được rỗng");
         }
 
         CartContext ctx = resolveContext(guestId);
-        String cartKey = ctx.getKey();
+        CartStorageStrategy strategy = cartStorageFactory.getStrategy(ctx);
 
         // 1. Kiểm tra giới hạn số loại sản phẩm khác nhau trong giỏ (max 50)
-        Map<Object, Object> currentEntries = redisService.hGetAll(cartKey);
-        Set<String> existingSkus = (currentEntries != null)
-                ? currentEntries.keySet().stream().map(Object::toString).collect(Collectors.toSet())
-                : new HashSet<>();
+        Map<String, Integer> currentEntries = strategy.getCartEntries(ctx);
+        Set<String> existingSkus = new HashSet<>(currentEntries.keySet());
 
         Set<String> incomingSkus = items.stream().map(CartItemRequest::getSku).collect(Collectors.toSet());
         Set<String> combinedSkus = new HashSet<>(existingSkus);
@@ -144,10 +146,7 @@ public class ShoppingCartServiceImpl implements ShoppingCartService {
         }
 
         // 2. Fetch và validate Attributes từ DB
-        List<String> skuList = incomingSkus.stream().toList();
-        Map<String, Attributes> attributesMap = attributesRepository.findAllBySku_skuIn(skuList).stream()
-                .filter(a -> a.getSku() != null && a.getSku().getSku() != null)
-                .collect(Collectors.toMap(a -> a.getSku().getSku(), a -> a, (a1, a2) -> a1));
+        Map<String, Attributes> attributesMap = fetchAttributesMap(incomingSkus);
 
         for (CartItemRequest itemReq : items) {
             String sku = itemReq.getSku();
@@ -173,31 +172,23 @@ public class ShoppingCartServiceImpl implements ShoppingCartService {
             }
 
             // Kiểm tra tổng số lượng sau khi cộng dồn không vượt quá MAX_QUANTITY_PER_ITEM
-            Object currentQtyObj = (currentEntries != null) ? currentEntries.get(sku) : null;
-            int currentQty = 0;
-            if (currentQtyObj != null) {
-                try {
-                    currentQty = Integer.parseInt(currentQtyObj.toString());
-                } catch (NumberFormatException ignored) {}
-            }
-
+            int currentQty = currentEntries.getOrDefault(sku, 0);
             if (currentQty + requestedQuantity > MAX_QUANTITY_PER_ITEM) {
                 throw new BusinessException(ErrorCode.VALIDATION_FAILED,
                         "Tổng số lượng sản phẩm [" + sku + "] trong giỏ hàng không được vượt quá " + MAX_QUANTITY_PER_ITEM);
             }
 
-            // Tăng số lượng trên Redis Hash
-            redisService.hIncrBy(cartKey, sku, requestedQuantity);
+            strategy.addOrIncrementItem(ctx, sku, requestedQuantity);
         }
 
-        redisService.expire(cartKey, ctx.getTtlDays(), TimeUnit.DAYS);
-        ShoppingCartDto dto = fetchAndProjectCart(ctx.getOwnerName(), cartKey, ctx.getTtlDays(), null, null);
-        log.info("Owner [{}] đã thêm {} sản phẩm vào giỏ hàng Redis", ctx.getOwnerName(), items.size());
+        ShoppingCartDto dto = fetchAndProjectCart(ctx, strategy, null, null);
+        log.info("Owner [{}] (VIP={}) đã thêm {} sản phẩm vào giỏ hàng", ctx.getOwnerName(), ctx.isVip(), items.size());
 
         return Response.ok(dto, "Thêm sản phẩm vào giỏ hàng thành công");
     }
 
     @Override
+    @Transactional
     public Response<ShoppingCartDto> updateItemQuantity(final String sku, final Integer quantity, final String guestId) {
         if (sku == null || sku.isBlank()) {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED, "SKU không được để trống");
@@ -211,20 +202,20 @@ public class ShoppingCartServiceImpl implements ShoppingCartService {
         }
 
         CartContext ctx = resolveContext(guestId);
-        String cartKey = ctx.getKey();
+        CartStorageStrategy strategy = cartStorageFactory.getStrategy(ctx);
 
         if (quantity == 0) {
-            redisService.hDelete(cartKey, sku);
+            strategy.setItemQuantity(ctx, sku, 0);
         } else {
-            Object currentQty = redisService.hGet(cartKey, sku);
-            if (currentQty == null) {
+            Map<String, Integer> entries = strategy.getCartEntries(ctx);
+            if (!entries.containsKey(sku)) {
                 throw new BusinessException(ErrorCode.ATTRIBUTES_NOT_FOUND, "Sản phẩm không có trong giỏ hàng");
             }
 
             // Validate SKU availability
             List<Attributes> attrs = attributesRepository.findAllBySku_skuIn(List.of(sku));
             if (attrs.isEmpty()) {
-                redisService.hDelete(cartKey, sku);
+                strategy.removeItem(ctx, sku);
                 throw new BusinessException(ErrorCode.ATTRIBUTES_NOT_FOUND, "Sản phẩm [" + sku + "] không tồn tại");
             }
             Attributes attr = attrs.get(0);
@@ -233,97 +224,94 @@ public class ShoppingCartServiceImpl implements ShoppingCartService {
                         "Sản phẩm [" + sku + "] hiện không khả dụng (" + attr.getStatusProduct().getValue() + ")");
             }
 
-            redisService.hSet(cartKey, sku, quantity.toString());
+            strategy.setItemQuantity(ctx, sku, quantity);
         }
 
-        redisService.expire(cartKey, ctx.getTtlDays(), TimeUnit.DAYS);
-        ShoppingCartDto dto = fetchAndProjectCart(ctx.getOwnerName(), cartKey, ctx.getTtlDays(), null, null);
-        log.info("Owner [{}] đã cập nhật SKU [{}] với số lượng {} trên Redis", ctx.getOwnerName(), sku, quantity);
+        ShoppingCartDto dto = fetchAndProjectCart(ctx, strategy, null, null);
+        log.info("Owner [{}] đã cập nhật SKU [{}] với số lượng {}", ctx.getOwnerName(), sku, quantity);
 
         return Response.ok(dto, "Cập nhật số lượng sản phẩm thành công");
     }
 
     @Override
+    @Transactional
     public Response<ShoppingCartDto> removeItem(final String sku, final String guestId) {
         if (sku == null || sku.isBlank()) {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED, "SKU không được để trống");
         }
 
         CartContext ctx = resolveContext(guestId);
-        String cartKey = ctx.getKey();
+        CartStorageStrategy strategy = cartStorageFactory.getStrategy(ctx);
 
-        Object existing = redisService.hGet(cartKey, sku);
-        if (existing == null) {
+        Map<String, Integer> entries = strategy.getCartEntries(ctx);
+        if (!entries.containsKey(sku)) {
             throw new BusinessException(ErrorCode.ATTRIBUTES_NOT_FOUND, "Không tìm thấy sản phẩm trong giỏ hàng");
         }
 
-        redisService.hDelete(cartKey, sku);
-        redisService.expire(cartKey, ctx.getTtlDays(), TimeUnit.DAYS);
-        ShoppingCartDto dto = fetchAndProjectCart(ctx.getOwnerName(), cartKey, ctx.getTtlDays(), null, null);
-        log.info("Owner [{}] đã xóa SKU [{}] khỏi giỏ hàng Redis", ctx.getOwnerName(), sku);
+        strategy.removeItem(ctx, sku);
+        ShoppingCartDto dto = fetchAndProjectCart(ctx, strategy, null, null);
+        log.info("Owner [{}] đã xóa SKU [{}] khỏi giỏ hàng", ctx.getOwnerName(), sku);
 
         return Response.ok(dto, "Đã xóa sản phẩm khỏi giỏ hàng");
     }
 
     @Override
+    @Transactional
     public Response<ShoppingCartDto> removeItems(final List<String> skus, final String guestId) {
         if (skus == null || skus.isEmpty()) {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Danh sách SKU cần xóa không được rỗng");
         }
 
         CartContext ctx = resolveContext(guestId);
-        String cartKey = ctx.getKey();
+        CartStorageStrategy strategy = cartStorageFactory.getStrategy(ctx);
 
-        redisService.hDelete(cartKey, skus.toArray(new Object[0]));
-        redisService.expire(cartKey, ctx.getTtlDays(), TimeUnit.DAYS);
-        ShoppingCartDto dto = fetchAndProjectCart(ctx.getOwnerName(), cartKey, ctx.getTtlDays(), null, null);
-        log.info("Owner [{}] đã xóa {} sản phẩm khỏi giỏ hàng Redis", ctx.getOwnerName(), skus.size());
+        strategy.removeItems(ctx, skus);
+        ShoppingCartDto dto = fetchAndProjectCart(ctx, strategy, null, null);
+        log.info("Owner [{}] đã xóa {} sản phẩm khỏi giỏ hàng", ctx.getOwnerName(), skus.size());
 
         return Response.ok(dto, "Đã xóa các sản phẩm được chọn khỏi giỏ hàng");
     }
 
     @Override
+    @Transactional
     public Response<ShoppingCartDto> clearCart(final String guestId) {
         CartContext ctx = resolveContext(guestId);
-        String cartKey = ctx.getKey();
+        CartStorageStrategy strategy = cartStorageFactory.getStrategy(ctx);
 
-        redisService.unlink(cartKey);
-        log.info("Owner [{}] đã xóa toàn bộ giỏ hàng Redis", ctx.getOwnerName());
+        strategy.clearCart(ctx);
+        log.info("Owner [{}] đã xóa toàn bộ giỏ hàng", ctx.getOwnerName());
 
         return Response.ok(emptyCartDto(ctx.getOwnerName()), "Đã xóa toàn bộ giỏ hàng");
     }
 
     @Override
+    @Transactional
     public Response<ShoppingCartDto> mergeCart(final String guestId) {
         User user = findAuthenticatedUser()
                 .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED, "Vui lòng đăng nhập để hợp nhất giỏ hàng"));
 
-        String userCartKey = RedisTable.CART_ITEMS.key(user.getId() != null ? user.getId() : user.getUsername());
+        CartContext userCtx = resolveContext(null);
+        CartStorageStrategy userStrategy = cartStorageFactory.getStrategy(userCtx);
 
         if (guestId == null || guestId.isBlank()) {
-            return Response.ok(fetchAndProjectCart(user.getUsername(), userCartKey, CART_TTL_DAYS, null, null), "Hợp nhất giỏ hàng thành công");
+            return Response.ok(fetchAndProjectCart(userCtx, userStrategy, null, null), "Hợp nhất giỏ hàng thành công");
         }
 
         String guestCartKey = RedisTable.CART_GUEST_ITEMS.key(guestId.trim());
-        Map<Object, Object> guestEntries = redisService.hGetAll(guestCartKey);
+        Map<Object, Object> guestRaw = redisService.hGetAll(guestCartKey);
 
-        if (guestEntries == null || guestEntries.isEmpty()) {
-            return Response.ok(fetchAndProjectCart(user.getUsername(), userCartKey, CART_TTL_DAYS, null, null), "Hợp nhất giỏ hàng thành công");
+        if (guestRaw == null || guestRaw.isEmpty()) {
+            return Response.ok(fetchAndProjectCart(userCtx, userStrategy, null, null), "Hợp nhất giỏ hàng thành công");
         }
 
-        List<String> guestSkus = guestEntries.keySet().stream().map(Object::toString).toList();
-        Map<String, Attributes> attributesMap = attributesRepository.findAllBySku_skuIn(guestSkus).stream()
-                .filter(a -> a.getSku() != null && a.getSku().getSku() != null)
-                .collect(Collectors.toMap(a -> a.getSku().getSku(), a -> a, (a1, a2) -> a1));
+        List<String> guestSkus = guestRaw.keySet().stream().map(Object::toString).toList();
+        Map<String, Attributes> attributesMap = fetchAttributesMap(guestSkus);
+        Map<String, Integer> userEntries = userStrategy.getCartEntries(userCtx);
 
-        Map<Object, Object> userEntries = redisService.hGetAll(userCartKey);
-
-        for (Map.Entry<Object, Object> entry : guestEntries.entrySet()) {
+        for (Map.Entry<Object, Object> entry : guestRaw.entrySet()) {
             String sku = entry.getKey().toString();
-            int guestQty;
-            try {
-                guestQty = Integer.parseInt(entry.getValue().toString());
-            } catch (NumberFormatException e) {
+            int guestQty = parseQuantity(entry.getValue());
+            if (guestQty <= 0) {
                 continue;
             }
 
@@ -333,40 +321,43 @@ public class ShoppingCartServiceImpl implements ShoppingCartService {
                 continue;
             }
 
-            int userQty = 0;
-            if (userEntries != null && userEntries.containsKey(sku)) {
-                try {
-                    userQty = Integer.parseInt(userEntries.get(sku).toString());
-                } catch (NumberFormatException ignored) {}
-            }
-
+            int userQty = userEntries.getOrDefault(sku, 0);
             int mergedQty = Math.min(MAX_QUANTITY_PER_ITEM, userQty + guestQty);
-            redisService.hSet(userCartKey, sku, String.valueOf(mergedQty));
+            userStrategy.setItemQuantity(userCtx, sku, mergedQty);
         }
 
         // Xóa giỏ hàng guest sau khi merge
         redisService.unlink(guestCartKey);
-        redisService.expire(userCartKey, CART_TTL_DAYS, TimeUnit.DAYS);
 
-        ShoppingCartDto dto = fetchAndProjectCart(user.getUsername(), userCartKey, CART_TTL_DAYS, null, null);
+        ShoppingCartDto dto = fetchAndProjectCart(userCtx, userStrategy, null, null);
         log.info("User [{}] đã hợp nhất giỏ hàng từ Guest [{}] thành công", user.getUsername(), guestId);
 
         return Response.ok(dto, "Hợp nhất giỏ hàng thành công");
+    }
+
+    private static int parseQuantity(Object value) {
+        if (value == null) {
+            return 0;
+        }
+        try {
+            return Integer.parseInt(value.toString().trim());
+        } catch (NumberFormatException e) {
+            return 0;
+        }
     }
 
     /**
      * Tầng phân giải dữ liệu (GraphQL-style DataLoader & Projection pipeline).
      */
     private ShoppingCartDto fetchAndProjectCart(
-            String ownerName,
-            String cartKey,
-            long ttlDays,
+            CartContext ctx,
+            CartStorageStrategy strategy,
             List<String> rawFields,
             List<String> rawInclude) {
 
-        Map<Object, Object> rawEntries = redisService.hGetAll(cartKey);
-        if (rawEntries == null || rawEntries.isEmpty()) {
-            return emptyCartDto(ownerName);
+        Map<String, Integer> entries = strategy.getCartEntries(ctx);
+        if (entries == null || entries.isEmpty()) {
+            return emptyCartDto(ctx.getOwnerName());
         }
 
         // Parse normalized fields & include
@@ -390,69 +381,50 @@ public class ShoppingCartServiceImpl implements ShoppingCartService {
         boolean isSparseProjection = !requestedFields.isEmpty();
         boolean requiresDbEnrichment = !isSparseProjection || requiresDatabase(requestedFields, requestedInclude);
 
-        // Fast path: Pure Redis In-Memory resolution (no DB query!)
+        // Fast path: Pure In-Memory resolution (no DB query!)
         if (!requiresDbEnrichment) {
-            return buildFastRedisCart(ownerName, cartKey, ttlDays, rawEntries, requestedFields);
+            return buildFastRedisCart(ctx.getOwnerName(), entries, requestedFields);
         }
 
         // Deep path: DataLoader with Batch DB query
-        return buildEnrichedProjectedCart(ownerName, cartKey, ttlDays, rawEntries, requestedFields, requestedInclude);
+        return buildEnrichedProjectedCart(ctx, strategy, entries, requestedFields, requestedInclude);
     }
 
     private boolean requiresDatabase(Set<String> fields, Set<String> include) {
         if (!include.isEmpty()) {
             return true;
         }
-        for (String f : fields) {
-            String lower = f.toLowerCase();
-            if (lower.equals("totalprice") || lower.equals("totalsaleprice")
-                    || lower.equals("totaldiscount") || lower.equals("finalamount")
-                    || lower.equals("items")
-                    || lower.contains("productname") || lower.contains("imageurl")
-                    || lower.contains("attributestitle") || lower.contains("unitprice")
-                    || lower.contains("saleprice") || lower.contains("subtotal")
-                    || lower.contains("isavailable") || lower.contains("stock")
-                    || lower.contains("specifications") || lower.contains("promotions")) {
-                return true;
-            }
-        }
-        return false;
+        return fields.stream()
+                .map(String::toLowerCase)
+                .anyMatch(f -> !FAST_PATH_FIELDS.contains(f));
     }
 
     private ShoppingCartDto buildFastRedisCart(
             String ownerName,
-            String cartKey,
-            long ttlDays,
-            Map<Object, Object> rawEntries,
+            Map<String, Integer> entries,
             Set<String> fields) {
 
         int totalCount = 0;
         List<CartItemResponse> items = new ArrayList<>();
         boolean wantsItems = fields.contains("items") || fields.stream().anyMatch(f -> f.startsWith("items."));
 
-        for (Map.Entry<Object, Object> entry : rawEntries.entrySet()) {
-            String sku = entry.getKey().toString();
-            int qty;
-            try {
-                qty = Integer.parseInt(entry.getValue().toString());
-            } catch (NumberFormatException e) {
-                continue;
-            }
+        for (Map.Entry<String, Integer> entry : entries.entrySet()) {
+            String sku = entry.getKey();
+            int qty = entry.getValue();
+            if (qty <= 0) continue;
             totalCount += qty;
 
             if (wantsItems) {
                 CartItemResponse.CartItemResponseBuilder itemB = CartItemResponse.builder();
-                if (fields.contains("items") || isItemFieldRequested(fields, "sku")) {
+                if (isItemFieldRequested(fields, "sku")) {
                     itemB.sku(sku);
                 }
-                if (fields.contains("items") || isItemFieldRequested(fields, "quantity")) {
+                if (isItemFieldRequested(fields, "quantity")) {
                     itemB.quantity(qty);
                 }
                 items.add(itemB.build());
             }
         }
-
-        redisService.expire(cartKey, ttlDays, TimeUnit.DAYS);
 
         ShoppingCartDto.ShoppingCartDtoBuilder builder = ShoppingCartDto.builder();
         if (fields.contains("username")) {
@@ -469,20 +441,14 @@ public class ShoppingCartServiceImpl implements ShoppingCartService {
     }
 
     private ShoppingCartDto buildEnrichedProjectedCart(
-            String ownerName,
-            String cartKey,
-            long ttlDays,
-            Map<Object, Object> rawEntries,
+            CartContext ctx,
+            CartStorageStrategy strategy,
+            Map<String, Integer> entries,
             Set<String> fields,
             Set<String> include) {
 
-        List<String> skus = rawEntries.keySet().stream()
-                .map(Object::toString)
-                .toList();
-
-        Map<String, Attributes> attributesMap = attributesRepository.findAllBySku_skuIn(skus).stream()
-                .filter(a -> a.getSku() != null && a.getSku().getSku() != null)
-                .collect(Collectors.toMap(a -> a.getSku().getSku(), a -> a, (a1, a2) -> a1));
+        List<String> skus = new ArrayList<>(entries.keySet());
+        Map<String, Attributes> attributesMap = fetchAttributesMap(skus);
 
         List<CartItemResponse> itemResponses = new ArrayList<>();
         double totalPrice = 0.0;
@@ -494,28 +460,23 @@ public class ShoppingCartServiceImpl implements ShoppingCartService {
         boolean includeSpecs = include.contains("specifications") || fields.contains("items.specifications") || fields.contains("specifications");
         boolean includePromos = include.contains("promotions") || fields.contains("items.promotions") || fields.contains("promotions");
 
-        for (Map.Entry<Object, Object> entry : rawEntries.entrySet()) {
-            String sku = entry.getKey().toString();
-            int qty;
-            try {
-                qty = Integer.parseInt(entry.getValue().toString());
-            } catch (NumberFormatException e) {
-                continue;
-            }
+        for (Map.Entry<String, Integer> entry : entries.entrySet()) {
+            String sku = entry.getKey();
+            int qty = entry.getValue();
+            if (qty <= 0) continue;
 
             Attributes attr = attributesMap.get(sku);
             if (attr == null) {
-                log.warn("Auto-clean: Removing dead SKU [{}] from Redis cart of [{}]", sku, ownerName);
-                redisService.hDelete(cartKey, sku);
+                log.warn("Auto-clean: Removing dead SKU [{}] from cart of [{}]", sku, ctx.getOwnerName());
+                strategy.removeItem(ctx, sku);
                 continue;
             }
 
             Product product = attr.getProduct();
             String productName = product != null ? product.getName() : attr.getName();
-            String imageUrl = null;
-            if (product != null && product.getMediaItems() != null && !product.getMediaItems().isEmpty()) {
-                imageUrl = product.getMediaItems().get(0).getUrl();
-            }
+            String imageUrl = (product != null && product.getMediaItems() != null && !product.getMediaItems().isEmpty())
+                    ? product.getMediaItems().get(0).getUrl()
+                    : null;
 
             double unitPrice = attr.getPrice();
             double salePrice = (attr.getSalePrice() > 0) ? attr.getSalePrice() : unitPrice;
@@ -529,69 +490,39 @@ public class ShoppingCartServiceImpl implements ShoppingCartService {
             Integer stock = isAvailable ? 999 : 0;
 
             if (wantsItems) {
-                if (!isSparse || fields.contains("items")) {
-                    itemResponses.add(CartItemResponse.builder()
-                            .sku(sku)
-                            .productName(productName)
-                            .imageUrl(imageUrl)
-                            .attributesTitle(attr.getName())
-                            .unitPrice(unitPrice)
-                            .salePrice(salePrice)
-                            .quantity(qty)
-                            .subTotal(subTotal)
-                            .isAvailable(isAvailable)
-                            .stock(stock)
-                            .specifications(includeSpecs ? attr.getSpecifications() : null)
-                            .promotions(includePromos ? attr.getPromotions() : null)
-                            .build());
-                } else {
-                    CartItemResponse.CartItemResponseBuilder itemB = CartItemResponse.builder();
-                    if (isItemFieldRequested(fields, "sku")) itemB.sku(sku);
-                    if (isItemFieldRequested(fields, "productName")) itemB.productName(productName);
-                    if (isItemFieldRequested(fields, "imageUrl")) itemB.imageUrl(imageUrl);
-                    if (isItemFieldRequested(fields, "attributesTitle")) itemB.attributesTitle(attr.getName());
-                    if (isItemFieldRequested(fields, "unitPrice")) itemB.unitPrice(unitPrice);
-                    if (isItemFieldRequested(fields, "salePrice")) itemB.salePrice(salePrice);
-                    if (isItemFieldRequested(fields, "quantity")) itemB.quantity(qty);
-                    if (isItemFieldRequested(fields, "subTotal")) itemB.subTotal(subTotal);
-                    if (isItemFieldRequested(fields, "isAvailable")) itemB.isAvailable(isAvailable);
-                    if (isItemFieldRequested(fields, "stock")) itemB.stock(stock);
-                    if (includeSpecs) itemB.specifications(attr.getSpecifications());
-                    if (includePromos) itemB.promotions(attr.getPromotions());
-                    itemResponses.add(itemB.build());
-                }
+                CartItemResponse.CartItemResponseBuilder itemB = CartItemResponse.builder();
+                if (!isSparse || isItemFieldRequested(fields, "sku")) itemB.sku(sku);
+                if (!isSparse || isItemFieldRequested(fields, "productName")) itemB.productName(productName);
+                if (!isSparse || isItemFieldRequested(fields, "imageUrl")) itemB.imageUrl(imageUrl);
+                if (!isSparse || isItemFieldRequested(fields, "attributesTitle")) itemB.attributesTitle(attr.getName());
+                if (!isSparse || isItemFieldRequested(fields, "unitPrice")) itemB.unitPrice(unitPrice);
+                if (!isSparse || isItemFieldRequested(fields, "salePrice")) itemB.salePrice(salePrice);
+                if (!isSparse || isItemFieldRequested(fields, "quantity")) itemB.quantity(qty);
+                if (!isSparse || isItemFieldRequested(fields, "subTotal")) itemB.subTotal(subTotal);
+                if (!isSparse || isItemFieldRequested(fields, "isAvailable")) itemB.isAvailable(isAvailable);
+                if (!isSparse || isItemFieldRequested(fields, "stock")) itemB.stock(stock);
+                if (includeSpecs) itemB.specifications(attr.getSpecifications());
+                if (includePromos) itemB.promotions(attr.getPromotions());
+                itemResponses.add(itemB.build());
             }
         }
 
-        redisService.expire(cartKey, ttlDays, TimeUnit.DAYS);
         double totalDiscount = Math.max(0.0, totalPrice - totalSalePrice);
 
-        if (!isSparse) {
-            return ShoppingCartDto.builder()
-                    .username(ownerName)
-                    .items(itemResponses)
-                    .totalItems(totalItems)
-                    .totalPrice(totalPrice)
-                    .totalSalePrice(totalSalePrice)
-                    .totalDiscount(totalDiscount)
-                    .finalAmount(totalSalePrice)
-                    .build();
-        }
-
         ShoppingCartDto.ShoppingCartDtoBuilder dtoB = ShoppingCartDto.builder();
-        if (fields.contains("username")) dtoB.username(ownerName);
+        if (!isSparse || fields.contains("username")) dtoB.username(ctx.getOwnerName());
         if (wantsItems) dtoB.items(itemResponses);
-        if (fields.contains("totalItems")) dtoB.totalItems(totalItems);
-        if (fields.contains("totalPrice")) dtoB.totalPrice(totalPrice);
-        if (fields.contains("totalSalePrice")) dtoB.totalSalePrice(totalSalePrice);
-        if (fields.contains("totalDiscount")) dtoB.totalDiscount(totalDiscount);
-        if (fields.contains("finalAmount")) dtoB.finalAmount(totalSalePrice);
+        if (!isSparse || fields.contains("totalItems")) dtoB.totalItems(totalItems);
+        if (!isSparse || fields.contains("totalPrice")) dtoB.totalPrice(totalPrice);
+        if (!isSparse || fields.contains("totalSalePrice")) dtoB.totalSalePrice(totalSalePrice);
+        if (!isSparse || fields.contains("totalDiscount")) dtoB.totalDiscount(totalDiscount);
+        if (!isSparse || fields.contains("finalAmount")) dtoB.finalAmount(totalSalePrice);
 
         return dtoB.build();
     }
 
     private boolean isItemFieldRequested(Set<String> fields, String fieldName) {
-        return fields.contains(fieldName) || fields.contains("items." + fieldName);
+        return fields.contains("items") || fields.contains(fieldName) || fields.contains("items." + fieldName);
     }
 
     private ShoppingCartDto emptyCartDto(String ownerName) {

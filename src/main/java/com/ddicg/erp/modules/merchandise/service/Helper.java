@@ -5,11 +5,7 @@ import org.slf4j.LoggerFactory;
 
 import com.ddicg.erp.core.common.model.embedded.AuditInfo;
 import com.ddicg.erp.modules.merchandise.model.Attributes;
-import com.ddicg.erp.modules.cart.model.CartItem;
-import com.ddicg.erp.modules.cart.model.ShoppingCart;
-import com.ddicg.erp.modules.iam.model.User;
-import com.ddicg.erp.modules.merchandise.repository.AttributesRepository;
-import com.ddicg.erp.modules.cart.dto.ShoppingCartDto;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;

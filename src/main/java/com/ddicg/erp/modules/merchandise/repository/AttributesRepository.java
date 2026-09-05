@@ -29,6 +29,7 @@ public interface AttributesRepository extends JpaRepository<Attributes, Long>, J
 
   Optional<Attributes> findAttributesById(Long id);
 
+  @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"product"})
   List<Attributes> findAllBySku_skuIn(List<String> skus);
 
   @Query("""

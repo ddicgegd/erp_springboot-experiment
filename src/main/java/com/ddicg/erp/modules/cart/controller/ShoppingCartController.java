@@ -33,12 +33,6 @@ public interface ShoppingCartController {
             @Valid @RequestBody List<CartItemRequest> items,
             @RequestHeader(value = "X-Guest-Id", required = false) String guestId);
 
-    @PostMapping("/add")
-    @ResponseStatus(HttpStatus.OK)
-    Response<ShoppingCartDto> addLegacy(
-            @Valid @RequestBody List<CartItemRequest> items,
-            @RequestHeader(value = "X-Guest-Id", required = false) String guestId);
-
     @PutMapping("/items/{sku}")
     @ResponseStatus(HttpStatus.OK)
     Response<ShoppingCartDto> updateItemQuantity(
@@ -52,15 +46,10 @@ public interface ShoppingCartController {
             @PathVariable String sku,
             @RequestHeader(value = "X-Guest-Id", required = false) String guestId);
 
-    @DeleteMapping("/remove")
+    @DeleteMapping
     @ResponseStatus(HttpStatus.OK)
-    Response<ShoppingCartDto> removeItems(
-            @RequestBody List<String> skus,
-            @RequestHeader(value = "X-Guest-Id", required = false) String guestId);
-
-    @DeleteMapping("/clear")
-    @ResponseStatus(HttpStatus.OK)
-    Response<ShoppingCartDto> clearCart(
+    Response<ShoppingCartDto> deleteCart(
+            @RequestParam(value = "skus", required = false) List<String> skus,
             @RequestHeader(value = "X-Guest-Id", required = false) String guestId);
 
     @PostMapping("/merge")

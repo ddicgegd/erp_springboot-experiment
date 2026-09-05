@@ -16,6 +16,10 @@ import com.ddicg.erp.modules.order.dto.request.CreateOrderRequest;
 import com.ddicg.erp.modules.order.model.Order;
 import com.ddicg.erp.modules.order.repository.OrderItemRepository;
 import com.ddicg.erp.modules.order.repository.OrderRepository;
+import com.ddicg.erp.modules.order.service.discount.DiscountEvaluationResult;
+import com.ddicg.erp.modules.order.service.discount.OrderDiscountContext;
+import com.ddicg.erp.modules.order.service.discount.OrderDiscountProcessor;
+import com.ddicg.erp.modules.order.service.discount.VoucherReservationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -27,10 +31,14 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -63,6 +71,10 @@ class OrderServiceTest {
     private com.ddicg.erp.modules.cart.service.ShoppingCartService shoppingCartService;
     @Mock
     private com.ddicg.erp.core.common.service.RedisService redisService;
+    @Mock
+    private OrderDiscountProcessor orderDiscountProcessor;
+    @Mock
+    private VoucherReservationService voucherReservationService;
 
     @InjectMocks
     private OrderService orderService;
@@ -78,6 +90,10 @@ class OrderServiceTest {
                 .salePrice(180000.0)
                 .costPrice(100000.0)
                 .build();
+
+        // Default stub: no-discount result so all existing tests are unaffected
+        when(orderDiscountProcessor.evaluateDiscount(any(OrderDiscountContext.class)))
+                .thenReturn(DiscountEvaluationResult.builder().build());
     }
 
     @Test
@@ -597,5 +613,154 @@ class OrderServiceTest {
         verify(orderStatusHandler).transitionTo(order, com.ddicg.erp.core.common.model.enums.OrderStatus.PROCESSING, "");
         verify(orderHelper).confirmReservation(any());
         verify(redisService).delete(eq(RedisTable.LOCK_ORDER), eq("ORD-PAY-001"));
+    }
+
+    // =========================================================================
+    // VOUCHER INTEGRATION TEST CASES
+    // =========================================================================
+
+    @Test
+    @DisplayName("Tạo đơn hàng với voucher hợp lệ -> Tính đúng chiết khấu, ghi vào Order và gọi reserveVouchers")
+    void createOrder_withValidVouchers_shouldApplyDiscountsAndReserveVouchers() {
+        // Arrange: discount processor trả về 20k giảm cho SKU-1001 và 10k giảm ship
+        DiscountEvaluationResult discountResult = DiscountEvaluationResult.builder()
+                .productDiscountAmount(20000.0)
+                .itemLevelDiscountAmount(20000.0)
+                .globalDiscountAmount(0.0)
+                .shippingDiscountAmount(10000.0)
+                .appliedDiscountCodes(List.of("SALE10", "FREESHIP50"))
+                .itemDiscounts(Map.of("SKU-1001", 20000.0))
+                .itemDiscountPercentages(Map.of("SKU-1001", 10.0))
+                .build();
+
+        when(orderDiscountProcessor.evaluateDiscount(any(OrderDiscountContext.class)))
+                .thenReturn(discountResult);
+
+        CreateOrderRequest request = CreateOrderRequest.builder()
+                .orderNumber("ORD-VOUCHER-001")
+                .addressSku("ADDR-1001")
+                .shippingMethod(ShippingMethod.DELIVERY)
+                .paymentMethod(PaymentMethod.COD)
+                .discountCodes(List.of("SALE10", "FREESHIP50"))
+                .items(List.of(
+                        CreateOrderRequest.OrderItemRequest.builder()
+                                .attributesSku("SKU-1001")
+                                .quantity(1)
+                                .build()
+                ))
+                .build();
+
+        com.ddicg.erp.modules.iam.model.Address mockAddress = new com.ddicg.erp.modules.iam.model.Address();
+        mockAddress.setSku("ADDR-1001");
+        when(addressRepository.findBySku("ADDR-1001")).thenReturn(Optional.of(mockAddress));
+        when(shippingCalculationService.calculateShippingFee(any(), any(), any())).thenReturn(30000.0);
+        when(orderRepository.existsByOrderNumber("ORD-VOUCHER-001")).thenReturn(false);
+        when(attributesRepository.findAllBySku_skuIn(anyList())).thenReturn(List.of(sampleAttr));
+        when(orderRepository.save(any(Order.class))).thenAnswer(inv -> {
+            Order o = inv.getArgument(0);
+            // Assert: discount fields được điền đúng
+            assertEquals(30000.0, o.getDiscountAmount(), 0.001); // 20k product + 10k ship
+            assertEquals(20000.0, o.getShippingFee(), 0.001);    // 30k - 10k discount
+            assertEquals(List.of("SALE10", "FREESHIP50"), o.getDiscountCodes());
+            return o;
+        });
+        when(orderMapper.toDto(any(Order.class))).thenAnswer(inv -> {
+            Order o = inv.getArgument(0);
+            return OrderDto.builder().orderNumber(o.getOrderNumber()).totalAmount(o.getTotalAmount()).build();
+        });
+
+        Response<OrderDto> response = orderService.createOrder(request);
+
+        assertNotNull(response);
+        // Verify reserveVouchers được gọi với đúng codes và orderNumber
+        verify(voucherReservationService).reserveVouchers(
+                eq(List.of("SALE10", "FREESHIP50")),
+                eq("ORD-VOUCHER-001"),
+                any(Double.class)
+        );
+        verify(orderDiscountProcessor).evaluateDiscount(any(OrderDiscountContext.class));
+    }
+
+    @Test
+    @DisplayName("confirmOrder -> Gọi commitVouchers để tăng usedQuantity và xóa Redis hold")
+    void confirmOrder_shouldCommitVouchers() {
+        Order order = new Order();
+        order.setOrderNumber("ORD-CONFIRM-001");
+        order.setStatus(new java.util.ArrayList<>(List.of(com.ddicg.erp.core.common.model.enums.OrderStatus.PENDING)));
+        order.setCurrentStatus(com.ddicg.erp.core.common.model.enums.OrderStatus.PENDING);
+        order.setDiscountCodes(List.of("SALE10"));
+        order.setOrderItems(new java.util.ArrayList<>());
+
+        when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
+        when(orderStatusHandler.getCurrentStatus(order)).thenReturn(com.ddicg.erp.core.common.model.enums.OrderStatus.PENDING);
+        when(orderRepository.save(order)).thenReturn(order);
+        when(orderMapper.toDto(order)).thenReturn(OrderDto.builder().orderNumber("ORD-CONFIRM-001").build());
+        when(securityUtil.getCurrentUsername()).thenReturn("admin");
+
+        com.ddicg.erp.modules.order.dto.request.ConfirmOrderRequest r =
+                new com.ddicg.erp.modules.order.dto.request.ConfirmOrderRequest();
+        r.setOrderId("1");
+        r.setConfirmationInfo("OK");
+
+        orderService.confirmOrder(r);
+
+        verify(voucherReservationService).commitVouchers(eq(List.of("SALE10")), eq("ORD-CONFIRM-001"));
+    }
+
+    @Test
+    @DisplayName("cancelOrder -> Gọi releaseVouchers để xóa Redis hold khi đơn bị hủy")
+    void cancelOrder_shouldReleaseVouchers() {
+        Order order = new Order();
+        order.setOrderNumber("ORD-CANCEL-001");
+        order.setStatus(new java.util.ArrayList<>(List.of(com.ddicg.erp.core.common.model.enums.OrderStatus.PENDING)));
+        order.setCurrentStatus(com.ddicg.erp.core.common.model.enums.OrderStatus.PENDING);
+        order.setDiscountCodes(List.of("FREESHIP50"));
+        order.setOrderItems(new java.util.ArrayList<>());
+
+        when(orderRepository.findById(2L)).thenReturn(Optional.of(order));
+        when(orderStatusHandler.getCurrentStatus(order)).thenReturn(com.ddicg.erp.core.common.model.enums.OrderStatus.PENDING);
+        when(orderStatusHandler.isValidTransition(
+                com.ddicg.erp.core.common.model.enums.OrderStatus.PENDING,
+                com.ddicg.erp.core.common.model.enums.OrderStatus.CANCELLED)).thenReturn(true);
+        when(orderRepository.save(order)).thenReturn(order);
+        when(orderMapper.toDto(order)).thenReturn(OrderDto.builder().orderNumber("ORD-CANCEL-001").build());
+        when(securityUtil.getCurrentUsername()).thenReturn("admin");
+
+        com.ddicg.erp.modules.order.dto.request.CancelOrderRequest r =
+                new com.ddicg.erp.modules.order.dto.request.CancelOrderRequest();
+        r.setOrderId("2");
+        r.setCancellationReason("Khách đổi ý");
+
+        orderService.cancelOrder(r);
+
+        verify(voucherReservationService).releaseVouchers(eq(List.of("FREESHIP50")), eq("ORD-CANCEL-001"));
+    }
+
+    @Test
+    @DisplayName("processPayment failure -> Gọi releaseVouchers để giải phóng hold khi thanh toán thất bại")
+    void processPayment_failure_shouldReleaseVouchers() {
+        Order order = new Order();
+        order.setOrderNumber("ORD-FAIL-001");
+        order.setStatus(new java.util.ArrayList<>(List.of(
+                com.ddicg.erp.core.common.model.enums.OrderStatus.PENDING,
+                com.ddicg.erp.core.common.model.enums.OrderStatus.WAITING_PAYMENT)));
+        order.setCurrentStatus(com.ddicg.erp.core.common.model.enums.OrderStatus.WAITING_PAYMENT);
+        order.setDiscountCodes(List.of("GIAM50K"));
+        order.setOrderItems(new java.util.ArrayList<>());
+
+        when(orderRepository.findByOrderNumber("ORD-FAIL-001")).thenReturn(Optional.of(order));
+        when(orderStatusHandler.getCurrentStatus(order)).thenReturn(com.ddicg.erp.core.common.model.enums.OrderStatus.WAITING_PAYMENT);
+        when(orderRepository.save(order)).thenReturn(order);
+        when(orderMapper.toDto(order)).thenReturn(OrderDto.builder().orderNumber("ORD-FAIL-001").build());
+
+        com.ddicg.erp.modules.order.dto.request.PaymentCallbackRequest callback =
+                new com.ddicg.erp.modules.order.dto.request.PaymentCallbackRequest();
+        callback.setOrderNumber("ORD-FAIL-001");
+        callback.setStatus("FAILED");
+
+        orderService.processPayment(callback);
+
+        verify(voucherReservationService).releaseVouchers(eq(List.of("GIAM50K")), eq("ORD-FAIL-001"));
+        verify(redisService).delete(eq(RedisTable.LOCK_ORDER), eq("ORD-FAIL-001"));
     }
 }

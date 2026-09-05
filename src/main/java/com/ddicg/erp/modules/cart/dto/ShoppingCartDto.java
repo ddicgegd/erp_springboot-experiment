@@ -15,7 +15,6 @@ import java.util.List;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class ShoppingCartDto implements Serializable {
-    Long id;
     String username;
     List<CartItemResponse> items;
     Integer totalItems;
