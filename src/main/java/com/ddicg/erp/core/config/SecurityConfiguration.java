@@ -67,6 +67,7 @@ public class SecurityConfiguration {
             "/api/vouchers/active",
             "/api/vouchers/check/**",
             "/api/cart/**",
+            "/api/bookmarks/**",
             "/api/v1/erp/loan-products/**"
     };
 

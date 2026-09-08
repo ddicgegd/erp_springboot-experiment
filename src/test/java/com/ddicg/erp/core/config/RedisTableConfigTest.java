@@ -47,8 +47,15 @@ class RedisTableConfigTest {
         assertThat(RedisTable.fromKey("auth:otp:verification:xyz")).contains(RedisTable.AUTH_OTP_VERIFICATION);
         assertThat(RedisTable.fromKey("cart:items:user1")).contains(RedisTable.CART_ITEMS);
         assertThat(RedisTable.fromKey("cart:guest:items:guest123")).contains(RedisTable.CART_GUEST_ITEMS);
+        assertThat(RedisTable.fromKey("bookmark:saved:user1:SKU-1")).contains(RedisTable.BOOKMARK_SAVED);
+        assertThat(RedisTable.fromKey("bookmark:staging:user1:SKU-1")).contains(RedisTable.BOOKMARK_STAGING);
         assertThat(RedisTable.fromKey("unknown:key")).isEmpty();
         assertThat(RedisTable.fromKey(null)).isEmpty();
+
+        assertThat(RedisTable.AUTH_OTP_VERIFICATION.getDatabase()).isEqualTo(0);
+        assertThat(RedisTable.BOOKMARK_SAVED.getDatabase()).isEqualTo(0);
+        assertThat(RedisTable.BOOKMARK_STAGING.getDatabase()).isEqualTo(0);
+        assertThat(RedisTable.CART_ITEMS.getDatabase()).isEqualTo(0);
     }
 
     @Test
