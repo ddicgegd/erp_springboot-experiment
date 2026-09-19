@@ -100,4 +100,10 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
             @Param("startDate") LocalDateTime startDate,
             @Param("endDate") LocalDateTime endDate
     );
+
+    @Query("SELECT o.currentStatus, COUNT(o) FROM Order o WHERE (:startDate IS NULL OR o.auditInfo.createdAt >= :startDate) AND (:endDate IS NULL OR o.auditInfo.createdAt <= :endDate) GROUP BY o.currentStatus")
+    List<Object[]> countOrdersByStatusWithDateRange(
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate
+    );
 }

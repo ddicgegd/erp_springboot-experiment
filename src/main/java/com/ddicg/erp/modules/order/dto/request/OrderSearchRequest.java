@@ -16,6 +16,7 @@ public class OrderSearchRequest {
     private String customerPhone;
 
     private OrderStatus orderStatus;
+    private java.util.List<OrderStatus> orderStatuses;
 
     private LocalDateTime startDate;
     private LocalDateTime endDate;
@@ -60,6 +61,8 @@ public class OrderSearchRequest {
     public void setCustomerPhone(String customerPhone) { this.customerPhone = customerPhone; }
     public OrderStatus getOrderStatus() { return orderStatus; }
     public void setOrderStatus(OrderStatus orderStatus) { this.orderStatus = orderStatus; }
+    public java.util.List<OrderStatus> getOrderStatuses() { return orderStatuses; }
+    public void setOrderStatuses(java.util.List<OrderStatus> orderStatuses) { this.orderStatuses = orderStatuses; }
     public LocalDateTime getStartDate() { return startDate; }
     public void setStartDate(LocalDateTime startDate) { this.startDate = startDate; }
     public LocalDateTime getEndDate() { return endDate; }

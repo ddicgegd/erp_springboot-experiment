@@ -27,6 +27,7 @@ public class ErpApplication {
 
     public static void main(String[] args) {
         final var app = new SpringApplication(ErpApplication.class);
+        app.setDefaultProperties(java.util.Collections.singletonMap("spring.profiles.default", "dev"));
         final var env = app.run(args).getEnvironment();
         logApplicationStartup(env); 
     }

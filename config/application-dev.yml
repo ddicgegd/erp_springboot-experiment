@@ -1,4 +1,31 @@
 spring:
+  application:
+    name: ERP_SpringBoot-Experiment
+  cache:
+    type: caffeine
+
+  autoconfigure:
+    exclude:
+      - org.redisson.spring.starter.RedissonAutoConfigurationV2
+
+  config:
+    import: optional:file:.env[.properties]
+
+  contact:
+    name: ANNOEYE
+    url: zalo.me/0971791373
+    email: annoeye@gmail.com
+
+  main:
+    allow-bean-definition-overriding: true
+
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+    mapper:
+      default-view-inclusion: true
+
   datasource:
     url: ${DB_URL:jdbc:oracle:thin:@localhost:1521/XEPDB1}
     username: ${DB_USERNAME:Spring_app}
@@ -13,11 +40,35 @@ spring:
       security.protocol: ${KAFKA_SECURITY_PROTOCOL:SASL_PLAINTEXT}
       sasl.mechanism: ${KAFKA_SASL_MECHANISM:PLAIN}
       sasl.jaas.config: org.apache.kafka.common.security.plain.PlainLoginModule required username="${KAFKA_USER:kafka}" password="${KAFKA_PASSWORD:kafka@2025}";
+    admin:
+      fail-fast: false
+      auto-create: true
+      properties:
+        request.timeout.ms: 5000
+        default.api.timeout.ms: 5000
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      retries: 3
+      properties:
+        linger.ms: 5
+    consumer:
+      group-id: erp-service-group
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      properties:
+        spring.json.trusted.packages: "*"
     listener:
+      ack-mode: record
+      missing-topics-fatal: false
       concurrency: ${KAFKA_LISTENER_CONCURRENCY:1}
       auto-startup: ${KAFKA_LISTENER_AUTO_STARTUP:true}
 
   jpa:
+    open-in-view: false
     hibernate:
       ddl-auto: validate
     show-sql: ${JPA_SHOW_SQL:false}
@@ -50,6 +101,48 @@ spring:
           starttls:
             enable: true
 
+  output:
+    ansi:
+      enabled: ALWAYS
+
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 50MB
+      max-request-size: 50MB
+
+  mvc:
+    problemdetails:
+      enabled: true
+
+server:
+  port: 8080
+  url: ${SERVER_URL:http://localhost:8080}
+
+frontend:
+  url: ${FRONTEND_URL:http://localhost:5173/berry-vue}
+
+# MCP (Model Context Protocol) Configuration
+mcp:
+  enabled: true
+  endpoint: /mcp
+  server-name: ERP-MCP-Server
+  server-version: 1.0.0
+  protocol-version: 2025-06-18
+  session:
+    timeout-minutes: 30
+  servers:
+    kafka:
+      enabled: true
+    redis:
+      enabled: true
+    database:
+      enabled: true
+    minio:
+      enabled: true
+    frontend:
+      enabled: true
+
 integration:
   minio:
     access-key: ${MINIO_ACCESS_KEY:admin}
@@ -57,11 +150,10 @@ integration:
     url: ${MINIO_URL:http://localhost:9000}
     bucket: ${MINIO_BUCKET:erp-local}
 
-server:
-  url: ${SERVER_URL:http://localhost:8080}
-
-frontend:
-  url: ${FRONTEND_URL:http://localhost:5173/berry-vue}
+geocoding:
+  nominatim:
+    url: ${GEOCODING_NOMINATIM_URL}
+  user-agent: ${GEOCODING_USER_AGENT}
 
 application:
   security:
@@ -90,7 +182,21 @@ app:
   fineract:
     enabled: ${APP_FINERACT_ENABLED:true}
 
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+    enabled: true
+  swagger-ui:
+    enabled: true
+    operations-sorter: method
+    display-request-duration: true
+    tags-sorter: alpha
+  show-actuator: false
+  default-produces-media-type: application/json
+
 logging:
+  pattern:
+    console: "%boldYellow(%d{HH:mm:ss.SSS}) %boldCyan(%d{yyyy-MM-dd}) %green([%thread]) %highlight(%-5level) %cyan(%logger{36}) %magenta([%file:%line]) %yellow(-) %msg%n%clr(%wEx){red}"
   level:
     root: INFO
     com:
@@ -105,3 +211,8 @@ logging:
           schema:
             internal:
               ExceptionHandlerLoggedImpl: ERROR
+
+management:
+  health:
+    mail:
+      enabled: false

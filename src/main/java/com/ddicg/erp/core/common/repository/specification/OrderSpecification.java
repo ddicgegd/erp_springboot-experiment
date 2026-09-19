@@ -40,7 +40,9 @@ public class OrderSpecification {
                 predicates.add(cb.equal(root.get("customerInfo").get("customerPhone"), request.getCustomerPhone()));
             }
 
-            if (request.getOrderStatus() != null) {
+            if (request.getOrderStatuses() != null && !request.getOrderStatuses().isEmpty()) {
+                predicates.add(root.get("currentStatus").in(request.getOrderStatuses()));
+            } else if (request.getOrderStatus() != null) {
                 predicates.add(cb.equal(root.get("currentStatus"), request.getOrderStatus()));
             }
 

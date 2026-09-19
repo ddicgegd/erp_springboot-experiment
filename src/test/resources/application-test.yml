@@ -3,6 +3,11 @@ spring:
     allow-bean-definition-overriding: true
     lazy-initialization: false
 
+  contact:
+    name: TEST
+    url: localhost
+    email: test@example.com
+
   flyway:
     enabled: false
 
@@ -94,6 +99,7 @@ logging:
     com.ddicg.erp: WARN
 
 server:
+  port: 8080
   url: http://localhost:8080
 
 frontend:
@@ -125,3 +131,8 @@ fineract:
   sales-revenue-gl-account-id: 2
   sales-returns-gl-account-id: 3
   currency-code: VND
+
+geocoding:
+  nominatim:
+    url: ${GEOCODING_NOMINATIM_URL:http://localhost:8080}
+  user-agent: ${GEOCODING_USER_AGENT:ERP-Test}

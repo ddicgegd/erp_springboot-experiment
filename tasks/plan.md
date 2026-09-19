@@ -1,34 +1,59 @@
-# Implementation Plan: Tối ưu hóa cấu trúc RedisConfiguration & Chuẩn hóa phân quyền bảng logic
+# Implementation Plan: Tái cấu trúc Order API & Chuyển đổi Truy vấn sang GraphQL
 
 ## Overview
-Chuẩn hóa cấu trúc `RedisConfiguration`, định nghĩa tập trung các logical tables qua enum `RedisTable` (nằm trong `db(0)`) kèm theo cờ `boolean` phân quyền sửa đổi dữ liệu (`immutable`). Đảm bảo cơ chế tự động kiểm tra và báo lỗi (`validateWrite`) khi thực hiện các thao tác ghi/sửa đổi dữ liệu (`setValue`, `hSet`, v.v.) trên các bảng cấm sửa đổi, mang lại mã nguồn sạch sẽ, chuyên nghiệp và đúng chuẩn Spring Boot.
+Dự án tái cấu trúc toàn diện module Order nhằm giải quyết tình trạng bùng nổ endpoint dư thừa (endpoint sprawl), khắc phục sự chồng chéo giữa Customer và Admin, và áp dụng mô hình CQRS (Command Query Responsibility Segregation):
+- **Phía Query (Đọc & Tìm kiếm):** Tích hợp Spring Boot Starter for GraphQL. Gom toàn bộ 6 endpoint đọc phân tán (`/my-orders/list`, `/my-orders/{orderNumber}`, `/search`, `/pending`, `/in-progress`, `/statistics`) vào 2-3 GraphQL queries linh hoạt, tái sử dụng `OrderSpecification` hiện có.
+- **Phía Command (Ghi & Chuyển trạng thái):** Chuẩn hóa REST API theo resource-based (`/api/orders/{orderNumber}/...`), dọn dẹp các endpoint RPC rời rạc (`/confirm`, `/complete`, `/cancel`, `/ship`, `/transition`) thành bộ endpoint chuyển trạng thái thống nhất.
 
 ## Architecture Decisions
-- **Single Database (db(0)):** Toàn bộ dữ liệu Redis của ứng dụng ERP nằm trên database index 0, sử dụng cấu hình tập trung đơn giản và nhất quán.
-- **Logical Partitioning & Boolean Permission in `RedisTable`:** Mỗi bảng logic có prefix riêng biệt và cờ `boolean immutable` để quy định quyền sửa đổi dữ liệu đã tồn tại.
-- **Automated Validation on Write Operations:** Mọi thao tác ghi dữ liệu theo bảng (`setValue`, `setValueWithExpiry`, `setValueWithJitter`, `hSet`,...) trong `RedisService` đều tự động kích hoạt `table.validateWrite(keyExists)` để ném `BusinessException(ErrorCode.FORBIDDEN, ...)` nếu cố tình ghi đè lên dữ liệu đã tồn tại trên bảng `immutable`.
-- **Spring Beans Standardization:** Cấu hình Bean `RedisTemplate<String, Object>` với serializer chuẩn (`StringRedisSerializer`, `GenericJackson2JsonRedisSerializer`) và `StreamMessageListenerContainer` cho Redis Streams.
+1. **Áp dụng CQRS (Command Query Responsibility Segregation):**
+   - **GraphQL cho Query:** Toàn bộ truy vấn danh sách, chi tiết, lọc nâng cao, thống kê chuyển qua GraphQL (`/graphql`).
+   - **REST cho Command:** Giữ các thao tác ghi dữ liệu (tạo đơn, cập nhật địa chỉ giao hàng, chuyển trạng thái) trên RESTful endpoints để tận dụng HTTP status codes, idempotency và xử lý transaction an toàn.
+2. **Bảo mật & Phân quyền tầng DataFetcher:**
+   - Bảo mật GraphQL thông qua Spring Security context (`SecurityUtil`).
+   - Nếu caller là khách hàng (Role CUSTOMER): Tự động gán `customerId = currentUser.id` để ngăn chặn rò rỉ dữ liệu.
+   - Nếu caller là Quản trị viên (Role ADMIN / STAFF): Cho phép truy vấn tất cả hoặc lọc theo bất kỳ khách hàng nào.
+3. **Tái sử dụng JPA Specification:**
+   - Không viết lại logic query DB. Ánh xạ `OrderFilterInput` trong GraphQL sang trực tiếp `OrderSpecification` có sẵn.
+4. **Chiến lược Migration:**
+   - Không xóa đột ngột các REST endpoint cũ ngay lập tức; đánh dấu `@Deprecated` trong Controller trong giai đoạn chuyển giao để tránh gãy giao diện hiện có, sau đó dọn dẹp hoàn toàn.
 
 ## Task List
 
-### Phase 1: Chuẩn hóa Cấu hình & Enum Table
-- [x] Task 1: Chuẩn hóa `RedisConfiguration.java` (Enum `RedisTable` & Bean configurations)
+### Phase 1: Nền tảng GraphQL & Cấu hình Security (Foundation)
+- [ ] Task 1: Tích hợp `spring-boot-starter-graphql` vào `pom.xml` và cấu hình Spring Security cho endpoint `/graphql`
+- [ ] Task 2: Định nghĩa Schema GraphQL cho Order (`src/main/resources/graphql/order.graphqls`)
 
-### Phase 2: Chuẩn hóa Tầng Service & Kiểm tra Tự động
-- [x] Task 2: Rà soát và đồng bộ hóa tự động kiểm tra quyền trong `RedisService.java` & `iRedis.java`
+### Checkpoint: Foundation
+- [ ] Ứng dụng build thành công với Spring Boot GraphQL starter
+- [ ] Endpoint `/graphql` hoạt động và truy cập được qua GraphiQL / Postman với JWT Authentication
 
-### Phase 3: Kiểm thử & Đảm bảo Chất lượng
-- [x] Task 3: Cập nhật & mở rộng Unit Test trong `RedisTableConfigTest.java` và `RedisServiceTest.java`
+### Phase 2: Triển khai Query DataFetchers (GraphQL Read Side)
+- [ ] Task 3: Triển khai `OrderGraphQLQueryController` với query `orders(filter, page, sort)` tích hợp `OrderSpecification`
+- [ ] Task 4: Triển khai query `order(orderNumber)` lấy chi tiết đơn hàng kèm phân quyền dữ liệu theo người dùng
+- [ ] Task 5: Triển khai query `orderStatistics(startDate, endDate)` cho trang thống kê Admin
+
+### Checkpoint: Core GraphQL Queries
+- [ ] Khách hàng query được danh sách và chi tiết đơn hàng của chính mình
+- [ ] Admin query được danh sách đơn hàng theo nhiều tiêu chí (`status = PENDING`, `PROCESSING`, khoảng ngày, số tiền)
+- [ ] Admin query được thống kê đơn hàng qua GraphQL
+
+### Phase 3: Chuẩn hóa & Tối ưu REST API Command Side
+- [ ] Task 6: Chuẩn hóa các action cập nhật trạng thái đơn hàng (gom `/confirm`, `/complete`, `/transition` thành `PATCH /api/orders/{orderNumber}/status`)
+- [ ] Task 7: Đánh dấu `@Deprecated` các REST Query endpoints cũ trong `OrderController` và chuẩn hóa route RESTful
 
 ### Checkpoint: Complete
-- [x] `./mvnw test-compile` thành công 100% không cảnh báo lỗi
-- [x] Các test liên quan đến Redis (`RedisTableConfigTest`, `RedisServiceTest`, `VoucherRedisServiceTest`) pass 100% (15/15 tests)
+- [ ] Toàn bộ luồng tạo, cập nhật, hủy đơn hoạt động thông suốt qua REST chuẩn hóa
+- [ ] Toàn bộ luồng tìm kiếm, chi tiết, thống kê hoạt động tối ưu qua GraphQL
+- [ ] Sẵn sàng đưa vào kiểm thử tích hợp
 
 ## Risks and Mitigations
 | Risk | Impact | Mitigation |
-|------|--------|------------|
-| Thiếu sót kiểm tra quyền ở một phương thức ghi theo bảng trong `RedisService` | Med | Rà soát toàn bộ các phương thức thao tác bảng trong `RedisService` và đối chiếu với interface `iRedis` |
-| Thay đổi làm ảnh hưởng đến các service nghiệp vụ đang gọi `RedisTable` | High | Giữ nguyên tên enum `RedisTable`, tên bảng và chữ ký phương thức `key(Object id)` |
+| :--- | :--- | :--- |
+| N+1 query problem khi fetch `orderItems` qua GraphQL | High | Sử dụng `@EntityGraph` hoặc JPA fetch join trong Repository khi truy vấn chi tiết đơn hàng |
+| Client gửi query GraphQL lồng nhau quá sâu gây nghẽn CPU | Medium | Cấu hình `maxQueryDepth` giới hạn độ sâu query |
+| Rò rỉ dữ liệu đơn hàng của khách hàng khác qua GraphQL | High | Kiểm tra quyền sở hữu bắt buộc tại tầng Service/Controller dựa trên `SecurityUtil.getCurrentUser()` |
 
 ## Open Questions
-- Không còn câu hỏi mở (đã hoàn thành kiểm thử thành công).
+- Bạn muốn giữ GraphiQL UI bật trong môi trường dev (`spring.graphql.graphiql.enabled=true`) để test trực quan trên trình duyệt không?
+- Bạn muốn giữ lại các endpoint REST GET cũ với tag `@Deprecated` trong bao lâu trước khi gỡ hẳn khỏi codebase?
