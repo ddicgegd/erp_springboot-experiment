@@ -92,8 +92,8 @@ __pycache__/
 # Database Data (Docker volumes)
 # ====================
 oracle-data/
-docker/data/mongodb/
-docker/data/mongodb-live/
+docker/data/
+*.rdb
 
 # ====================
 # Generated Docs & Help
