@@ -8,11 +8,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.messaging.handler.annotation.Header;
-import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -34,14 +34,33 @@ public class OrderFineractConsumer {
             groupId = "fineract-order-group",
             containerFactory = "kafkaListenerContainerFactory",
             properties = {"auto.offset.reset=earliest", "enable.auto.commit=false"})
-    public void consume(@Payload Object msg,
+    public void consume(Object msg,
                         @Header(value = KafkaHeaders.RECEIVED_KEY, required = false) String key) {
         try {
+            if (msg instanceof ConsumerRecord<?, ?> record) {
+                if (key == null && record.key() != null) {
+                    key = String.valueOf(record.key());
+                }
+                msg = record.value();
+            }
+
+            if (msg == null) {
+                return;
+            }
+
             JsonNode root;
             if (msg instanceof JsonNode jsonNode) {
                 root = jsonNode;
             } else if (msg instanceof String str) {
+                if (str.isBlank()) {
+                    return;
+                }
                 root = objectMapper.readTree(str);
+            } else if (msg instanceof byte[] bytes) {
+                if (bytes.length == 0) {
+                    return;
+                }
+                root = objectMapper.readTree(bytes);
             } else {
                 root = objectMapper.valueToTree(msg);
             }

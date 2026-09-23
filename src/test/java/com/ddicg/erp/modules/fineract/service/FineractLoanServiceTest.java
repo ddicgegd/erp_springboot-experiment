@@ -1,6 +1,7 @@
 package com.ddicg.erp.modules.fineract.service;
 
 import com.ddicg.erp.core.security.SecurityUtil;
+import com.ddicg.erp.modules.fineract.config.FineractProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -27,6 +28,9 @@ class FineractLoanServiceTest {
 
     @Mock
     private SecurityUtil securityUtil;
+
+    @Mock
+    private FineractProperties fineractProperties;
 
     @InjectMocks
     private FineractLoanService loanService;
@@ -98,6 +102,8 @@ class FineractLoanServiceTest {
         ObjectNode payload = mapper.createObjectNode().put("principal", 10000000);
         ObjectNode createdResponse = mapper.createObjectNode().put("loanId", 100L);
 
+        when(fineractProperties.getLocale()).thenReturn("vi");
+        when(fineractProperties.getDateFormat()).thenReturn("dd MMMM yyyy");
         when(fineractRestClient.post()).thenReturn(requestBodyUriSpec);
         when(requestBodyUriSpec.uri(eq("/loans"))).thenReturn(requestBodySpec);
         when(requestBodySpec.body(payload)).thenReturn(requestBodySpec);

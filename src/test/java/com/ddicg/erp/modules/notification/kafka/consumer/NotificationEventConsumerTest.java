@@ -95,4 +95,21 @@ class NotificationEventConsumerTest {
         assertEquals(EmailDeliveryResult.Status.DROPPED_RATE_LIMITED, result.getStatus());
         verifyNoInteractions(emailSenderService);
     }
+
+    @Test
+    @DisplayName("consume - xử lý thành công khi Spring Kafka truyền ConsumerRecord chứa payload JSON")
+    void testConsume_WithConsumerRecord() throws Exception {
+        String json = "{\"messageId\":\"msg-cr-1\",\"recipient\":\"test@example.com\",\"templateCode\":\"VERIFICATION_EMAIL\",\"deduplicationKey\":\"dedup-cr-1\",\"params\":{\"username\":\"crUser\"}}";
+        org.apache.kafka.clients.consumer.ConsumerRecord<String, Object> record =
+                new org.apache.kafka.clients.consumer.ConsumerRecord<>(
+                        com.ddicg.erp.core.common.constants.KafkaTopics.NOTIFICATION_EMAIL_TOPIC, 0, 0L, "test@example.com", json);
+
+        when(emailProtectionService.acquireDeduplicationLock(eq("dedup-cr-1"), eq(10L))).thenReturn(true);
+        when(emailProtectionService.allowDeliveryRate(anyString(), anyInt())).thenReturn(true);
+        when(emailTemplateService.renderHtml(anyString(), anyMap())).thenReturn("<html>Ok</html>");
+        when(emailTemplateService.resolveDefaultSubject(anyString())).thenReturn("Subject");
+
+        assertDoesNotThrow(() -> consumer.consume(record, "test@example.com"));
+        verify(emailSenderService).sendHtmlEmail(eq("test@example.com"), eq("Subject"), eq("<html>Ok</html>"));
+    }
 }

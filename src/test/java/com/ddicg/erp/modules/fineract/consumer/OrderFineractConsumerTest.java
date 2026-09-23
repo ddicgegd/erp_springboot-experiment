@@ -89,4 +89,19 @@ class OrderFineractConsumerTest {
 
         verifyNoInteractions(fineractJournalService);
     }
+
+    @Test
+    @DisplayName("Consume with ConsumerRecord wrapping JSON payload")
+    void testConsume_WithConsumerRecord() {
+        when(orderRepository.findByOrderNumber("ORD-FINERACT-001")).thenReturn(Optional.of(sampleOrder));
+
+        String payload = "{\"eventType\":\"ORDER_STATUS_CHANGED\",\"orderNumber\":\"ORD-FINERACT-001\",\"newStatus\":\"PROCESSING\"}";
+        org.apache.kafka.clients.consumer.ConsumerRecord<String, Object> record =
+                new org.apache.kafka.clients.consumer.ConsumerRecord<>(
+                        com.ddicg.erp.core.common.constants.KafkaTopics.ORDER_TOPIC, 0, 0L, "ORD-FINERACT-001", payload);
+
+        orderFineractConsumer.consume(record, "ORD-FINERACT-001");
+
+        verify(fineractJournalService).recordSale(eq("ORD-FINERACT-001"), eq(BigDecimal.valueOf(500000.0)), any());
+    }
 }

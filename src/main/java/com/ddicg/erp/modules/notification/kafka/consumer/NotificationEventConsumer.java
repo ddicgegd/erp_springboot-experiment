@@ -10,10 +10,10 @@ import com.ddicg.erp.modules.notification.service.EmailTemplateService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.messaging.handler.annotation.Header;
-import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
@@ -36,9 +36,16 @@ public class NotificationEventConsumer {
             containerFactory = "kafkaListenerContainerFactory",
             properties = {"auto.offset.reset=earliest", "enable.auto.commit=false"}
     )
-    public void consume(@Payload Object msg,
+    public void consume(Object msg,
                         @Header(value = KafkaHeaders.RECEIVED_KEY, required = false) String key) {
         try {
+            if (msg instanceof ConsumerRecord<?, ?> record) {
+                if (key == null && record.key() != null) {
+                    key = String.valueOf(record.key());
+                }
+                msg = record.value();
+            }
+
             EmailDispatchPayload payload = parsePayload(msg);
             if (payload == null || payload.getRecipient() == null || payload.getRecipient().isBlank()) {
                 log.warn("[NotificationConsumer] Bỏ qua message không hợp lệ hoặc thiếu recipient: {}", msg);
@@ -92,11 +99,23 @@ public class NotificationEventConsumer {
     }
 
     private EmailDispatchPayload parsePayload(Object msg) throws Exception {
+        while (msg instanceof ConsumerRecord<?, ?> record) {
+            msg = record.value();
+        }
+        if (msg == null) {
+            return null;
+        }
         if (msg instanceof EmailDispatchPayload payload) {
             return payload;
         } else if (msg instanceof String str) {
+            if (str.isBlank()) {
+                return null;
+            }
             return objectMapper.readValue(str, EmailDispatchPayload.class);
         } else if (msg instanceof byte[] bytes) {
+            if (bytes.length == 0) {
+                return null;
+            }
             return objectMapper.readValue(bytes, EmailDispatchPayload.class);
         } else {
             return objectMapper.convertValue(msg, EmailDispatchPayload.class);
