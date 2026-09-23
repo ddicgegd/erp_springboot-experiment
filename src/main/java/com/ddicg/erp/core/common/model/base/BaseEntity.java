@@ -36,13 +36,13 @@ import java.util.List;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public abstract class BaseEntity<T extends Serializable> extends IdentityOnly<T> {
 
-  @Column(name = "created_by")
+  @Column(name = "created_by", updatable = false)
   String createdBy;
 
   @Column(name = "updated_by")
   String updatedBy;
 
-  @Column(name = "created_at")
+  @Column(name = "created_at", updatable = false)
   LocalDateTime createdAt;
 
   @Column(name = "updated_at")
@@ -95,6 +95,21 @@ public abstract class BaseEntity<T extends Serializable> extends IdentityOnly<T>
   public boolean isSoftDeleted() {
     return deletedAt != null;
   }
+
+    @jakarta.persistence.PrePersist
+    public void onPrePersist() {
+        if (this.createdAt == null) {
+            this.createdAt = LocalDateTime.now();
+        }
+        if (this.updatedAt == null) {
+            this.updatedAt = LocalDateTime.now();
+        }
+    }
+
+    @jakarta.persistence.PreUpdate
+    public void onPreUpdate() {
+        this.updatedAt = LocalDateTime.now();
+    }
 
     public T getId() { return super.getId(); }
     public String getCreatedBy() { return createdBy; }

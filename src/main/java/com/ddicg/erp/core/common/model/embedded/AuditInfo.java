@@ -1,10 +1,7 @@
 package com.ddicg.erp.core.common.model.embedded;
 
 import com.ddicg.erp.core.config.converter.AuditEntryListConverter;
-import jakarta.persistence.Column;
-import jakarta.persistence.Convert;
-import jakarta.persistence.Embeddable;
-import jakarta.persistence.EntityListeners;
+import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 import org.springframework.data.annotation.CreatedBy;
@@ -35,11 +32,11 @@ import java.util.List;
 public class AuditInfo {
 
     @CreatedDate
-    @Column(name = "created_at", insertable = false, updatable = false)
+    @Column(name = "created_at", updatable = false)
     LocalDateTime createdAt;
 
     @CreatedBy
-    @Column(name = "created_by", insertable = false, updatable = false)
+    @Column(name = "created_by", updatable = false)
     String createdBy;
 
     @Column(name = "updated_at")
@@ -89,6 +86,21 @@ public class AuditInfo {
 
     public boolean isDeleted() {
         return deletedAt != null;
+    }
+
+    @PrePersist
+    public void onPrePersist() {
+        if (this.createdAt == null) {
+            this.createdAt = LocalDateTime.now();
+        }
+        if (this.updatedAt == null) {
+            this.updatedAt = LocalDateTime.now();
+        }
+    }
+
+    @PreUpdate
+    public void onPreUpdate() {
+        this.updatedAt = LocalDateTime.now();
     }
 
     public void setCreatedAt(java.time.LocalDateTime createdAt) { this.createdAt = createdAt; }

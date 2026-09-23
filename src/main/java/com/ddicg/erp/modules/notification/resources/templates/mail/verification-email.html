@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org" style="color-scheme: light;">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="color-scheme" content="light">
+    <meta name="supported-color-schemes" content="light">
+    <title th:text="${subject} ?: 'Xác thực tài khoản của bạn'">Xác thực tài khoản của bạn</title>
+    <!--[if mso]>
+    <noscript>
+        <xml>
+            <o:OfficeDocumentSettings>
+                <o:PixelsPerInch>96</o:PixelsPerInch>
+            </o:OfficeDocumentSettings>
+        </xml>
+    </noscript>
+    <![endif]-->
+    <style>
+        /* Base resets */
+        body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+        table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+        img { -ms-interpolation-mode: bicubic; border: 0; outline: none; text-decoration: none; }
+        body { margin: 0; padding: 0; width: 100% !important; background-color: #F8F9FA !important; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; color: #0F172A; -webkit-font-smoothing: antialiased; }
+        
+        /* Smooth Physical Bevel Button */
+        .btn-bevel {
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .btn-bevel:hover {
+            background-image: linear-gradient(180deg, #FF7250 0%, #FF4D24 50%, #E8380F 100%) !important;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08), 0 6px 20px rgba(255, 77, 36, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.6), inset 0 -1px 0 rgba(160, 30, 0, 0.4) !important;
+            transform: translateY(-1px);
+        }
+
+        /* Interactive Copy Token Box */
+        .copy-token-box {
+            cursor: pointer;
+            background-color: #F8FAFC;
+            border: 1px solid #E2E8F0;
+            border-radius: 10px;
+            padding: 12px 16px;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            user-select: all;
+            -webkit-user-select: all;
+        }
+        .copy-token-box:hover {
+            background-color: #F1F5F9 !important;
+            border-color: #CBD5E1 !important;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        }
+        .copy-token-box:active {
+            transform: scale(0.992);
+        }
+
+        /* Success Animation State */
+        .copy-token-box.copied {
+            background-color: #F0FDF4 !important;
+            border-color: #86EFAC !important;
+            box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.18), 0 2px 6px rgba(16, 185, 129, 0.1) !important;
+            animation: successPulse 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .copy-token-box.copied .token-value {
+            color: #15803D !important;
+        }
+        .copy-token-box.copied .copy-badge {
+            background-color: #DCFCE7 !important;
+            border-color: #86EFAC !important;
+        }
+        .copy-token-box.copied .copy-state-default {
+            display: none !important;
+        }
+        .copy-token-box.copied .copy-state-success {
+            display: inline-flex !important;
+            animation: checkBounce 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes successPulse {
+            0% { transform: scale(0.98); }
+            50% { transform: scale(1.008); }
+            100% { transform: scale(1); }
+        }
+
+        @keyframes checkBounce {
+            0% { transform: scale(0.6); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        @media only screen and (max-width: 600px) {
+            .mobile-p-20 { padding: 28px 20px !important; }
+            .mobile-title { font-size: 20px !important; line-height: 28px !important; }
+            .mobile-w-100 { width: 100% !important; }
+        }
+    </style>
+</head>
+<body style="margin: 0; padding: 48px 16px; background-color: #F8F9FA; background-image: radial-gradient(circle at 50% 0%, rgba(255, 77, 36, 0.05) 0%, rgba(248, 249, 250, 0) 440px); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; color: #0F172A; -webkit-font-smoothing: antialiased;">
+
+    <!-- Hidden Preheader Preview Text -->
+    <div style="display: none; max-height: 0px; overflow: hidden; font-size: 1px; line-height: 1px; color: #FFFFFF; opacity: 0; mso-hide: all;" th:text="'Xác nhận địa chỉ email để kích hoạt tài khoản ANNOEYE ERP cho ' + (${username} ?: 'bạn') + ' và bắt đầu sử dụng hệ thống.'">
+        Xác nhận địa chỉ email để kích hoạt tài khoản ANNOEYE ERP của bạn và bắt đầu sử dụng hệ thống.
+    </div>
+
+    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+        <tr>
+            <td align="center">
+                
+                <!-- Main Email Card: Clean White, Rounded-2xl (18px), Hairline Border, Ambient Shadow -->
+                <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 580px; background-color: #FFFFFF; border: 1px solid #EAEBED; border-radius: 18px; box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.05), 0 2px 6px rgba(0, 0, 0, 0.02); overflow: hidden;">
+                    
+                    <tr>
+                        <td class="mobile-p-20" style="padding: 36px 40px; background-color: #FFFFFF;">
+                            
+                            <!-- Brand Header -->
+                            <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin-bottom: 28px;">
+                                <tr>
+                                    <td style="width: 32px; height: 32px; vertical-align: middle;">
+                                        <div style="width: 30px; height: 30px; background-color: #FFF7ED; border: 1px solid #FFEDD5; border-radius: 8px; text-align: center; line-height: 28px;">
+                                            <span style="display: inline-block; width: 10px; height: 10px; background-color: #FF4D24; border-radius: 50%; vertical-align: middle; box-shadow: 0 0 6px rgba(255, 77, 36, 0.5);"></span>
+                                        </div>
+                                    </td>
+                                    <td style="padding-left: 10px; vertical-align: middle;">
+                                        <div style="font-size: 14px; font-weight: 800; color: #0F172A; letter-spacing: -0.01em; line-height: 18px;">
+                                            ANNOEYE <span style="color: #FF4D24;">ERP</span>
+                                        </div>
+                                        <div style="font-size: 11px; font-weight: 500; color: #64748B; line-height: 14px;">
+                                            Enterprise Security
+                                        </div>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <!-- Main Title: Format Xác thực tài khoản [username] -->
+                            <h1 class="mobile-title" style="margin: 0 0 18px 0; font-size: 21px; font-weight: 700; color: #0F172A; letter-spacing: -0.025em; line-height: 28px;">
+                                Xác thực tài khoản <span th:text="${username} ?: 'nguyenvana'">nguyenvana</span>
+                            </h1>
+                            
+                            <!-- Email Body Paragraph -->
+                            <p style="margin: 0 0 16px 0; font-size: 14.5px; line-height: 24px; color: #334155;">
+                                Cảm ơn bạn đã tham gia hệ thống quản trị <strong>ANNOEYE ERP</strong><span th:if="${email != null and !email.isBlank()}"> với địa chỉ email <strong th:text="${email}" style="color: #0F172A;">nguyenvana@example.com</strong></span>. Để đảm bảo tính an toàn và kích hoạt đầy đủ quyền hạn truy cập, vui lòng nhấp vào nút bên dưới để xác thực địa chỉ email của bạn:
+                            </p>
+
+                            <!-- Primary Action Button (Centered, Smooth BevelButton, Concentric 12px radius) -->
+                            <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="margin: 26px 0;">
+                                <tr>
+                                    <td align="center">
+                                        <!-- Outlook MSO Bulletproof VML Button -->
+                                        <!--[if mso]>
+                                        <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" th:href="${verificationUrl}" href="https://erp.annoeye.com/verify-email?token=SECURE_TOKEN_XYZ" style="height:44px;v-text-anchor:middle;width:240px;" arcsize="27%" strokecolor="#E03A12" fillcolor="#FF4D24">
+                                            <w:anchorlock/>
+                                            <center style="color:#ffffff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:13px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;">
+                                                KÍCH HOẠT TÀI KHOẢN
+                                            </center>
+                                        </v:roundrect>
+                                        <![endif]-->
+                                        <!--[if !mso]><!-->
+                                        <a th:href="${verificationUrl}" href="https://erp.annoeye.com/verify-email?token=SECURE_TOKEN_XYZ" class="btn-bevel" target="_blank" style="display: inline-block; background-color: #FF4D24; background-image: linear-gradient(180deg, #FF6642 0%, #FF4D24 50%, #ED3E15 100%); border: 1px solid #E03A12; border-top: 1px solid rgba(255, 255, 255, 0.55); border-radius: 12px; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08), 0 4px 16px rgba(255, 77, 36, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.45), inset 0 -1px 0 rgba(160, 30, 0, 0.35); padding: 12px 32px; font-size: 13.5px; font-weight: 700; color: #FFFFFF !important; text-decoration: none; letter-spacing: 0.04em; text-transform: uppercase; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+                                            KÍCH HOẠT TÀI KHOẢN
+                                        </a>
+                                        <!--<![endif]-->
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <!-- Security Expiration Note -->
+                            <p style="margin: 0 0 20px 0; font-size: 13.5px; line-height: 22px; color: #64748B;">
+                                Đường dẫn kích hoạt này có hiệu lực trong vòng <strong th:text="(${expiryMinutes} ?: '5') + ' phút'">5 phút</strong>. Nếu bạn không thực hiện đăng ký tài khoản này, vui lòng bỏ qua email — tài khoản sẽ không được kích hoạt và không có thay đổi nào.
+                            </p>
+
+                            <!-- Subtle Hairline Separator -->
+                            <div style="height: 1px; background-color: #F1F1F4; margin: 24px 0 20px 0;"></div>
+
+                            <!-- Token Copy Section -->
+                            <p style="margin: 0 0 8px 0; font-size: 12.5px; color: #64748B; line-height: 18px;">
+                                Mã token xác thực (nhấp vào khung để sao chép):
+                            </p>
+
+                            <div class="copy-token-box" onclick="copyToken(this)" title="Nhấp vào khung để sao chép mã token" style="cursor: pointer; background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px; padding: 12px 16px; transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);">
+                                <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                                    <tr>
+                                        <td align="left" style="vertical-align: middle;">
+                                            <div style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 13.5px; font-weight: 600; color: #0F172A; letter-spacing: 0.05em; word-break: break-all;">
+                                                <span id="tokenText" class="token-value" th:text="${token != null ? token : (verificationUrl != null and verificationUrl.contains('token=') ? verificationUrl.substring(verificationUrl.indexOf('token=') + 6) : (verificationUrl ?: 'SECURE_TOKEN_XYZ'))}">SECURE_TOKEN_XYZ</span>
+                                            </div>
+                                        </td>
+                                        <td align="right" style="vertical-align: middle; width: 110px; padding-left: 12px; white-space: nowrap;">
+                                            <div class="copy-badge" style="display: inline-flex; align-items: center; justify-content: center; background-color: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 6px; padding: 5px 10px; font-size: 11.5px; font-weight: 600; color: #475569; transition: all 0.2s ease;">
+                                                <!-- Default Copy Icon & Label -->
+                                                <span class="copy-state-default" style="display: inline-flex; align-items: center;">
+                                                    <svg class="copy-icon" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 5px;">
+                                                        <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
+                                                        <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+                                                    </svg>
+                                                    <span>Sao chép</span>
+                                                </span>
+                                                <!-- Success Copied Icon & Label -->
+                                                <span class="copy-state-success" style="display: none; align-items: center; color: #16A34A;">
+                                                    <svg class="check-icon" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#16A34A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 5px;">
+                                                        <polyline points="20 6 9 17 4 12"/>
+                                                    </svg>
+                                                    <span>Đã sao chép!</span>
+                                                </span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+
+                            <!-- Email Sign-off -->
+                            <div style="margin-top: 28px; font-size: 14px; line-height: 22px; color: #334155;">
+                                Trân trọng,<br/>
+                                <strong style="color: #0F172A; font-weight: 700;">Đội ngũ ANNOEYE ERP</strong>
+                            </div>
+
+                        </td>
+                    </tr>
+
+                </table>
+
+            </td>
+        </tr>
+    </table>
+
+    <script>
+        function copyToken(box) {
+            if (!box) return;
+            var tokenEl = box.querySelector('.token-value') || box.querySelector('#tokenText');
+            var text = tokenEl ? tokenEl.innerText.trim() : '';
+            if (!text) return;
+
+            function triggerSuccess() {
+                box.classList.add('copied');
+                if (box._copyTimeout) clearTimeout(box._copyTimeout);
+                box._copyTimeout = setTimeout(function() {
+                    box.classList.remove('copied');
+                }, 2000);
+            }
+
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(triggerSuccess).catch(function() {
+                    fallbackCopyText(text, triggerSuccess);
+                });
+            } else {
+                fallbackCopyText(text, triggerSuccess);
+            }
+        }
+
+        function fallbackCopyText(text, cb) {
+            var ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.left = '-9999px';
+            ta.style.top = '-9999px';
+            document.body.appendChild(ta);
+            ta.focus();
+            ta.select();
+            try {
+                document.execCommand('copy');
+                if (cb) cb();
+            } catch (e) {
+                console.error('Copy failed', e);
+            }
+            document.body.removeChild(ta);
+        }
+    </script>
+</body>
+</html>

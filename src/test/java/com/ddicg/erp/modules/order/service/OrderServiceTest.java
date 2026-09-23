@@ -763,4 +763,100 @@ class OrderServiceTest {
         verify(voucherReservationService).releaseVouchers(eq(List.of("GIAM50K")), eq("ORD-FAIL-001"));
         verify(redisService).delete(eq(RedisTable.LOCK_ORDER), eq("ORD-FAIL-001"));
     }
+
+    @Test
+    @DisplayName("getMyOrdersList -> Trả về danh sách đơn hàng có trường createdAt")
+    void getMyOrdersList_shouldReturnCreatedAt() {
+        com.ddicg.erp.modules.iam.model.User user = new com.ddicg.erp.modules.iam.model.User();
+        user.setId(10L);
+        when(securityUtil.getCurrentUser()).thenReturn(Optional.of(user));
+
+        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+        Order order = new Order();
+        order.setOrderNumber("ORD-LIST-001");
+        order.setCurrentStatus(com.ddicg.erp.core.common.model.enums.OrderStatus.PROCESSING);
+        order.setTotalAmount(150000.0);
+        order.setAuditInfo(com.ddicg.erp.core.common.model.embedded.AuditInfo.builder().createdAt(now).build());
+
+        org.springframework.data.domain.Page<Order> orderPage = new org.springframework.data.domain.PageImpl<>(List.of(order));
+        when(orderRepository.findMyOrdersByStatus(eq(10L), eq(com.ddicg.erp.core.common.model.enums.OrderStatus.PROCESSING), any(org.springframework.data.domain.Pageable.class)))
+                .thenReturn(orderPage);
+
+        when(orderMapper.toMyOrderListResponse(any(Order.class))).thenAnswer(inv -> {
+            Order o = inv.getArgument(0);
+            return com.ddicg.erp.modules.order.dto.response.MyOrderListResponse.builder()
+                    .orderNumber(o.getOrderNumber())
+                    .createdAt(o.getAuditInfo() != null ? o.getAuditInfo().getCreatedAt() : null)
+                    .orderDate(o.getAuditInfo() != null ? o.getAuditInfo().getCreatedAt() : null)
+                    .totalAmount(o.getTotalAmount())
+                    .currentStatus(o.getCurrentStatus())
+                    .build();
+        });
+
+        var res = orderService.getMyOrdersList(com.ddicg.erp.core.common.model.enums.OrderStatus.PROCESSING, 1, 10, "auditInfo.createdAt", "DESC");
+
+        assertNotNull(res);
+        assertNotNull(res.getData());
+        assertEquals(1, res.getData().getContents().size());
+        assertEquals(now, res.getData().getContents().get(0).getCreatedAt());
+        assertEquals(now, res.getData().getContents().get(0).getOrderDate());
+    }
+
+    @Test
+    @DisplayName("createOrder -> AuditInfo được khởi tạo đầy đủ createdAt, createdBy và updateHistory")
+    void createOrder_shouldInitializeAuditInfoCorrectly() {
+        CreateOrderRequest request = CreateOrderRequest.builder()
+                .shippingMethod(ShippingMethod.PICKUP)
+                .paymentMethod(PaymentMethod.COD)
+                .items(List.of(
+                        CreateOrderRequest.OrderItemRequest.builder()
+                                .attributesSku("SKU-1001")
+                                .quantity(1)
+                                .build()
+                ))
+                .build();
+
+        com.ddicg.erp.modules.iam.model.User mockUser = new com.ddicg.erp.modules.iam.model.User();
+        mockUser.setId(101L);
+        mockUser.setFullName("Nguyen Van A");
+
+        when(securityUtil.getCurrentUser()).thenReturn(Optional.of(mockUser));
+        when(securityUtil.getCurrentUsername()).thenReturn("testuser");
+        when(attributesRepository.findAllBySku_skuIn(List.of("SKU-1001"))).thenReturn(List.of(sampleAttr));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> {
+            Order o = invocation.getArgument(0);
+            o.setId(99L);
+            assertNotNull(o.getAuditInfo());
+            assertNotNull(o.getAuditInfo().getCreatedAt());
+            assertEquals("testuser", o.getAuditInfo().getCreatedBy());
+            assertNotNull(o.getAuditInfo().getUpdatedAt());
+            assertFalse(o.getAuditInfo().getUpdateHistory().isEmpty());
+            return o;
+        });
+        when(orderMapper.toDto(any(Order.class))).thenAnswer(invocation -> {
+            Order o = invocation.getArgument(0);
+            return OrderDto.builder().id(o.getId()).orderNumber(o.getOrderNumber()).build();
+        });
+
+        Response<OrderDto> response = orderService.createOrder(request);
+        assertNotNull(response);
+        verify(orderRepository).save(any(Order.class));
+    }
+
+    @Test
+    @DisplayName("AuditInfo -> onPrePersist và onPreUpdate tự động gán createdAt và updatedAt")
+    void auditInfo_lifecycleCallbacks_shouldSetTimestamps() {
+        var audit = new com.ddicg.erp.core.common.model.embedded.AuditInfo();
+        assertNull(audit.getCreatedAt());
+        assertNull(audit.getUpdatedAt());
+
+        audit.onPrePersist();
+        assertNotNull(audit.getCreatedAt());
+        assertNotNull(audit.getUpdatedAt());
+
+        var previousUpdated = audit.getUpdatedAt();
+        audit.onPreUpdate();
+        assertNotNull(audit.getUpdatedAt());
+        assertFalse(audit.getUpdatedAt().isBefore(previousUpdated));
+    }
 }

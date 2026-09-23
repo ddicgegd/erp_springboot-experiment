@@ -71,5 +71,7 @@ public class MyOrderDetailResponse {
 
     LocalDateTime completedAt;
 
+    LocalDateTime createdAt;
+
     AuditInfoDto auditInfo;
 }

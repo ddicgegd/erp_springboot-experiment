@@ -50,7 +50,10 @@ public class RedisConfiguration {
     RATELIMIT("ratelimit:", false, 0),
 
     BOOKMARK_SAVED("bookmark:saved:", false, 0),
-    BOOKMARK_STAGING("bookmark:staging:", false, 0);
+    BOOKMARK_STAGING("bookmark:staging:", false, 0),
+
+    NOTIFICATION_DEDUP("notification:dedup:", true, 0),
+    NOTIFICATION_RATELIMIT("notification:ratelimit:", false, 0);
 
     private final String prefix;
     private final boolean immutable;

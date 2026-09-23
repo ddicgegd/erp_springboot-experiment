@@ -399,7 +399,7 @@ curl -X POST http://localhost:4000/graphql \
   -H "Authorization: Bearer <YOUR_ACCESS_TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{
-    "query": "query { searchOrders(filter: { page: 1, size: 5, orderStatuses: [WAITING_PAYMENT] }) { status { code message } data { contents { id orderNumber currentStatus totalAmount customerName } } } }"
+    "query": "query { searchOrders(filter: { page: 1, size: 5, orderStatuses: [WAITING_PAYMENT] }) { status { code message } data { contents { orderNumber currentStatus totalAmount customerName } } } }"
   }'
 ```
 
@@ -491,5 +491,5 @@ print(response.json())
 | `401` | `Unauthorized` | Token chưa truyền hoặc hết hạn | Gọi `POST /api/auth/login` để lấy access token mới |
 | `403` | `Forbidden` | Tài khoản không có role `ADMIN` hoặc truy cập đơn của người khác | Kiểm tra quyền hạn của user trong bảng `user_roles` |
 | `400` | `Validation Failed` | Thiếu `addressSku`, SKU sản phẩm không tồn tại hoặc hết hàng | Đảm bảo truyền đủ các trường bắt buộc trong `CreateOrderInput` |
-| `404` | `Not Found` | Không tìm thấy mã đơn `orderNumber` hoặc `orderId` | Kiểm tra lại tính chính xác của mã đơn hàng |
+| `404` | `Not Found` | Không tìm thấy mã đơn `orderNumber` | Kiểm tra lại tính chính xác của mã đơn hàng |
 | `500` | `Internal Server Error` | Backend Spring Boot hoặc Oracle DB không thể kết nối | Kiểm tra trạng thái cổng `8080` và container `oracle-db` |

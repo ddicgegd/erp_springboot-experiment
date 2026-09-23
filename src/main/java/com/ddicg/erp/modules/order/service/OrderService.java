@@ -567,6 +567,8 @@ public class OrderService implements iOrder {
     private AuditInfo createInitialAuditInfo() {
         AuditInfo auditInfo = new AuditInfo();
         String username = securityUtil.getCurrentUsername() != null ? securityUtil.getCurrentUsername() : "SYSTEM";
+        auditInfo.setCreatedAt(LocalDateTime.now());
+        auditInfo.setCreatedBy(username);
         auditInfo.addUpdateEntry("Tạo đơn hàng", username);
         return auditInfo;
     }

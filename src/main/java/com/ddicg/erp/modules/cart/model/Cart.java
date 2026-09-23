@@ -46,10 +46,10 @@ public class Cart extends IdentityOnly<Long> {
     @Column(name = "version")
     Long version;
 
-    @Column(name = "created_by")
+    @Column(name = "created_by", updatable = false)
     String createdBy;
 
-    @Column(name = "created_at")
+    @Column(name = "created_at", updatable = false)
     LocalDateTime createdAt;
 
     @Column(name = "updated_at")
@@ -69,4 +69,19 @@ public class Cart extends IdentityOnly<Long> {
     @OneToMany(mappedBy = "cart", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @Builder.Default
     List<CartItem> items = new ArrayList<>();
+
+    @PrePersist
+    public void onPrePersist() {
+        if (this.createdAt == null) {
+            this.createdAt = LocalDateTime.now();
+        }
+        if (this.updatedAt == null) {
+            this.updatedAt = LocalDateTime.now();
+        }
+    }
+
+    @PreUpdate
+    public void onPreUpdate() {
+        this.updatedAt = LocalDateTime.now();
+    }
 }

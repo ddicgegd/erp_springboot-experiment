@@ -1,14 +1,11 @@
 package com.ddicg.erp.core.event.email.email;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 
 import com.ddicg.erp.core.event.domainevent.VerificationEmailEvent;
+import com.ddicg.erp.core.event.email.base.BaseEventListener;
 import com.ddicg.erp.modules.iam.service.EmailService;
 import com.ddicg.erp.modules.iam.service.JwtService;
 import com.ddicg.erp.modules.iam.service.UserDetailsServiceImpl;
-import com.ddicg.erp.core.event.email.base.BaseEventListener;
-import jakarta.mail.MessagingException;
+import com.ddicg.erp.modules.notification.kafka.producer.NotificationEventProducer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
@@ -20,14 +17,16 @@ import org.springframework.transaction.event.TransactionalEventListener;
 @Component
 public class VerificationEmailListener extends BaseEventListener {
 
-
     private final String frontendUrl;
+    private final NotificationEventProducer notificationEventProducer;
 
     public VerificationEmailListener(EmailService emailService,
                                      JwtService jwtService,
                                      UserDetailsServiceImpl userDetailsService,
+                                     NotificationEventProducer notificationEventProducer,
                                      @Value("${frontend.url}") String frontendUrl) {
         super(emailService, jwtService, userDetailsService);
+        this.notificationEventProducer = notificationEventProducer;
         this.frontendUrl = frontendUrl;
     }
 
@@ -38,13 +37,15 @@ public class VerificationEmailListener extends BaseEventListener {
             String verificationUrl = frontendUrl + "/verify-email?token="
                     + body.emailVerificationToken();
 
-            emailService.sendVerificationEmail(
+            notificationEventProducer.sendVerificationEmail(
                     body.email(),
                     body.username(),
-                    verificationUrl
+                    verificationUrl,
+                    body.emailVerificationToken()
             );
-        } catch (MessagingException e) {
-            log.error("Gửi email xác thực thất bại cho user: {}", body.username(), e);
+            log.info("Đã phát Kafka event xác thực email cho user: {}", body.username());
+        } catch (Exception e) {
+            log.error("Gửi Kafka event xác thực email thất bại cho user: {}", body.username(), e);
         }
     }
 }

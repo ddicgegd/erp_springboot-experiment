@@ -20,6 +20,8 @@ public class MyOrderListResponse {
 
     LocalDateTime orderDate;
 
+    LocalDateTime createdAt;
+
     Double totalAmount;
 
     OrderStatus currentStatus;
