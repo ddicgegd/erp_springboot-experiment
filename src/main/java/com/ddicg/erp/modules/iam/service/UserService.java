@@ -243,6 +243,7 @@ public class UserService implements iUser {
       @NonNull final AccountVerificationRequest request) {
 
     var authorization = credentialChangeAuthorization.resolveFromRecoveryToken(code);
+    credentialChangeAuthorization.validatePasswordResetPermission(authorization);
     User user = authorization.user();
     changePassword(user, request);
     credentialChangeAuthorization.consumeRecoveryToken(authorization);
@@ -268,6 +269,23 @@ public class UserService implements iUser {
   @Override
   @Transactional
   public Response<String> recoverAccount(String email) {
+    if (!helper.isEmailFormat(email)) {
+      throw new BusinessException(ErrorCode.INVALID_FORMAT, "Email không đúng định dạng.");
+    }
+
+    checkAndApplyRecoveryRateLimit(email);
+
+    User user = userRepository.findByEmail(email).orElse(null);
+    if (user == null) {
+      log.warn("Yêu cầu khôi phục tài khoản cho email không tồn tại: {}", helper.maskEmail(email));
+      return Response.ok("Đường dẫn khôi phục tài khoản đã được gửi đến " + helper.maskEmail(email) + ". Vui lòng kiểm tra.");
+    }
+
+    if (user.getStatus() == ActiveStatus.LOCKED) {
+      log.warn("Yêu cầu khôi phục tài khoản cho tài khoản đang bị khóa: {}", helper.maskEmail(email));
+      return Response.ok("Đường dẫn khôi phục tài khoản đã được gửi đến " + helper.maskEmail(email) + ". Vui lòng kiểm tra.");
+    }
+
     var recoveryToken = accountRecoveryService.issue(email);
 
     eventPublisher.publishEvent(AccountRecoveryEvent.builder()
@@ -275,10 +293,41 @@ public class UserService implements iUser {
         .token(recoveryToken.token())
         .build());
 
-    log.info("Đã gửi đường dẫn khôi phục tài khoản cho người dùng: {}", recoveryToken.user().getUsername());
+    log.info("Đã gửi đường dẫn khôi phục tài khoản cho người dùng: {}", helper.maskEmail(email));
 
     return Response
         .ok("Đường dẫn khôi phục tài khoản đã được gửi đến " + helper.maskEmail(email) + ". Vui lòng kiểm tra.");
+  }
+
+  private void checkAndApplyRecoveryRateLimit(String email) {
+    if (redisService.hasKey(RedisTable.AUTH_RECOVERY_COOLDOWN, email)) {
+      throw new BusinessException(ErrorCode.TOO_MANY_REQUESTS, "Bạn thao tác quá nhanh. Vui lòng thử lại sau.");
+    }
+
+    Object quotaVal = redisService.getValue(RedisTable.AUTH_RECOVERY_QUOTA, email);
+    int currentCount = 0;
+    if (quotaVal != null) {
+      if (quotaVal instanceof Number) {
+        currentCount = ((Number) quotaVal).intValue();
+      } else {
+        try {
+          currentCount = Integer.parseInt(quotaVal.toString());
+        } catch (NumberFormatException ignored) {
+        }
+      }
+    }
+
+    if (currentCount >= 5) {
+      throw new BusinessException(ErrorCode.TOO_MANY_REQUESTS,
+          "Bạn đã vượt quá số lần yêu cầu khôi phục trong 1 giờ. Vui lòng thử lại sau.");
+    }
+
+    redisService.setValueWithExpiry(RedisTable.AUTH_RECOVERY_COOLDOWN, email, "true", 60, TimeUnit.SECONDS);
+
+    int nextCount = currentCount + 1;
+    Long remainingTtl = redisService.getExpiry(RedisTable.AUTH_RECOVERY_QUOTA.key(email), TimeUnit.SECONDS);
+    long quotaTtl = (remainingTtl != null && remainingTtl > 0) ? remainingTtl : 3600;
+    redisService.setValueWithExpiry(RedisTable.AUTH_RECOVERY_QUOTA, email, String.valueOf(nextCount), quotaTtl, TimeUnit.SECONDS);
   }
 
   @Override
@@ -513,7 +562,10 @@ public class UserService implements iUser {
     var authorization = credentialChangeAuthorization.resolveFromRecoveryTokenOrSession(request.getToken());
     User user = authorization.user();
 
-    if (redisService.hasKey(RedisTable.AUTH_GUARD_COOLDOWN, user.getId())) {
+    boolean wasPendingActivation = authorization.recoveryTokenBased()
+        && authorization.recoveryToken().isPendingActivation();
+
+    if (!wasPendingActivation && redisService.hasKey(RedisTable.AUTH_GUARD_COOLDOWN, user.getId())) {
       throw new BusinessException(ErrorCode.INVALID_CREDENTIALS,
           "Bạn chỉ được đổi tên đăng nhập tối đa 1 lần mỗi tháng. Vui lòng quay lại sau.");
     }
@@ -525,14 +577,26 @@ public class UserService implements iUser {
     }
 
     user.setName(newUsername);
+    if (wasPendingActivation) {
+      user.setStatus(ActiveStatus.ACTIVE);
+      log.info("Kích hoạt tài khoản thành công cho user: {} sau khi đổi username", user.getEmail());
+    }
+
     userRepository.save(user);
 
-    // Đặt cooldown 30 ngày trên Redis
-    redisService.setValueWithExpiry(RedisTable.AUTH_GUARD_COOLDOWN, user.getId(), "true", 30, TimeUnit.DAYS);
+    // Đặt cooldown 30 ngày trên Redis nếu đã active từ trước
+    if (!wasPendingActivation) {
+      redisService.setValueWithExpiry(RedisTable.AUTH_GUARD_COOLDOWN, user.getId(), "true", 30, TimeUnit.DAYS);
+    }
+
     credentialChangeAuthorization.consumeRecoveryToken(authorization);
     refreshTokenService.revokeAllUserTokens(user.getId());
     log.info("Người dùng ID {} đã đổi tên đăng nhập thành công sang {}", user.getId(), newUsername);
 
-    return Response.ok("Đổi tên đăng nhập thành công. Vui lòng đăng nhập lại.");
+    String message = wasPendingActivation
+        ? "Cập nhật tên đăng nhập và kích hoạt tài khoản thành công. Vui lòng đăng nhập."
+        : "Đổi tên đăng nhập thành công. Vui lòng đăng nhập lại.";
+
+    return Response.ok(message);
   }
 }

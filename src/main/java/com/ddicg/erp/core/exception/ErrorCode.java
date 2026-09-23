@@ -29,7 +29,8 @@ public enum ErrorCode {
     PAYMENT_FAILED("Thanh toán thất bại", HttpStatus.BAD_REQUEST),
     USER_PROFILE_INCOMPLETE("Thông tin hồ sơ người dùng chưa đầy đủ (yêu cầu họ và tên thực tế)", HttpStatus.BAD_REQUEST),
     FINERACT_CLIENT_NOT_SYNCED("Tài khoản chưa được đồng bộ với hệ thống tài chính Fineract", HttpStatus.BAD_REQUEST),
-    LOAN_NOT_FOUND("Khoản vay không tồn tại hoặc không thuộc về người dùng", HttpStatus.NOT_FOUND);
+    LOAN_NOT_FOUND("Khoản vay không tồn tại hoặc không thuộc về người dùng", HttpStatus.NOT_FOUND),
+    TOO_MANY_REQUESTS("Yêu cầu quá nhiều lần. Vui lòng thử lại sau.", HttpStatus.TOO_MANY_REQUESTS);
 
     private final String message;
     private final HttpStatus status;

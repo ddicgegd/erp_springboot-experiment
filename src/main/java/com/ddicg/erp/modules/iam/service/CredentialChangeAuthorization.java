@@ -41,6 +41,13 @@ public class CredentialChangeAuthorization {
     accountRecoveryService.consume(authorization.recoveryToken());
   }
 
+  public void validatePasswordResetPermission(Authorization authorization) {
+    if (authorization.recoveryTokenBased() && authorization.recoveryToken().isPendingActivation()) {
+      throw new BusinessException(ErrorCode.ACCESS_DENIED,
+          "Tài khoản chưa được kích hoạt. Vui lòng xác thực tài khoản và cập nhật tên đăng nhập trước khi đổi mật khẩu.");
+    }
+  }
+
   public record Authorization(
       User user,
       RecoveryToken recoveryToken,

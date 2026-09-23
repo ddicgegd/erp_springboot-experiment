@@ -53,7 +53,10 @@ public class RedisConfiguration {
     BOOKMARK_STAGING("bookmark:staging:", false, 0),
 
     NOTIFICATION_DEDUP("notification:dedup:", true, 0),
-    NOTIFICATION_RATELIMIT("notification:ratelimit:", false, 0);
+    NOTIFICATION_RATELIMIT("notification:ratelimit:", false, 0),
+
+    AUTH_RECOVERY_COOLDOWN("auth:action:recovery:cooldown:", false, 0),
+    AUTH_RECOVERY_QUOTA("auth:action:recovery:quota:", false, 0);
 
     private final String prefix;
     private final boolean immutable;

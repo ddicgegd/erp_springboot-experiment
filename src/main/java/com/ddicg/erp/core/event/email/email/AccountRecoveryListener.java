@@ -41,9 +41,9 @@ public class AccountRecoveryListener extends BaseEventListener {
                     resetUrl,
                     body.token()
             );
-            log.info("Đã phát Kafka event khôi phục tài khoản cho user: {}", body.user().getName());
+            log.info("Đã phát Kafka event khôi phục tài khoản cho user ID: {}", body.user().getId());
         } catch (Exception e) {
-            log.error("Lỗi phát Kafka event khôi phục tài khoản cho {}: {}", body.user().getEmail(), e.getMessage(), e);
+            log.error("Lỗi phát Kafka event khôi phục tài khoản cho user ID {}: {}", body.user().getId(), e.getMessage(), e);
         }
     }
 }

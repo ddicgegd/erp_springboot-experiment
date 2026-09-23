@@ -1,8 +1,4 @@
 package com.ddicg.erp.modules.iam.service;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-
 import com.ddicg.erp.modules.iam.model.User;
 import com.ddicg.erp.core.common.model.enums.ActiveStatus;
 import com.ddicg.erp.modules.iam.repository.UserRepository;
@@ -21,8 +17,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class AccountRecoveryService {
 
-
-  private static final Duration RECOVERY_TOKEN_TTL = Duration.ofHours(24);
+  private static final Duration ACTIVE_RECOVERY_TOKEN_TTL = Duration.ofMinutes(20);
+  private static final Duration UNACTIVATED_RECOVERY_TOKEN_TTL = Duration.ofMinutes(10);
 
   private final UserRepository userRepository;
   private final RecoveryTokenStore recoveryTokenStore;
@@ -31,24 +27,19 @@ public class AccountRecoveryService {
     User user = userRepository.findByEmail(email)
         .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND, "Người dùng không tồn tại"));
 
-    if (user.getStatus() != ActiveStatus.ACTIVE) {
-      throw new BusinessException(ErrorCode.INVALID_CREDENTIALS, "Tài khoản chưa được kích hoạt.");
+    if (user.getStatus() == ActiveStatus.LOCKED) {
+      throw new BusinessException(ErrorCode.INVALID_CREDENTIALS, "Tài khoản đang bị khóa.");
     }
 
-    String token = recoveryTokenStore.findTokenByEmail(email)
-        .map(existingToken -> {
-          recoveryTokenStore.extend(email, existingToken, RECOVERY_TOKEN_TTL);
-          log.info("Gia hạn token khôi phục cũ cho user: {}", user.getUsername());
-          return existingToken;
-        })
-        .orElseGet(() -> {
-          String newToken = UUID.randomUUID().toString();
-          recoveryTokenStore.save(email, newToken, RECOVERY_TOKEN_TTL);
-          log.info("Tạo token khôi phục mới cho user: {}", user.getUsername());
-          return newToken;
-        });
+    Duration ttl = (user.getStatus() == ActiveStatus.ACTIVE)
+        ? ACTIVE_RECOVERY_TOKEN_TTL
+        : UNACTIVATED_RECOVERY_TOKEN_TTL;
 
-    return new RecoveryToken(user, token, email);
+    String newToken = UUID.randomUUID().toString();
+    recoveryTokenStore.save(email, newToken, ttl);
+    log.info("Cấp token khôi phục mới cho user: {} với TTL: {} phút", user.getUsername(), ttl.toMinutes());
+
+    return new RecoveryToken(user, newToken, email);
   }
 
   public RecoveryToken resolve(String token) {
@@ -64,6 +55,10 @@ public class AccountRecoveryService {
     User user = userRepository.findByEmail(email)
         .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND,
             "Người dùng không tồn tại để xác thực."));
+
+    if (user.getStatus() == ActiveStatus.LOCKED) {
+      throw new BusinessException(ErrorCode.INVALID_CREDENTIALS, "Tài khoản đang bị khóa.");
+    }
 
     return new RecoveryToken(user, token, email);
   }

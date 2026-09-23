@@ -43,7 +43,11 @@ class RedisTableConfigTest {
         assertThat(RedisTable.CART_GUEST_ITEMS.isImmutable()).isFalse();
         assertThat(RedisTable.AUTH_SESSION_PROFILE.isImmutable()).isFalse();
         assertThat(RedisTable.CATALOG_PRODUCT.isImmutable()).isFalse();
+        assertThat(RedisTable.AUTH_RECOVERY_COOLDOWN.isImmutable()).isFalse();
+        assertThat(RedisTable.AUTH_RECOVERY_QUOTA.isImmutable()).isFalse();
 
+        assertThat(RedisTable.fromKey("auth:action:recovery:cooldown:test@example.com")).contains(RedisTable.AUTH_RECOVERY_COOLDOWN);
+        assertThat(RedisTable.fromKey("auth:action:recovery:quota:test@example.com")).contains(RedisTable.AUTH_RECOVERY_QUOTA);
         assertThat(RedisTable.fromKey("auth:otp:verification:xyz")).contains(RedisTable.AUTH_OTP_VERIFICATION);
         assertThat(RedisTable.fromKey("cart:items:user1")).contains(RedisTable.CART_ITEMS);
         assertThat(RedisTable.fromKey("cart:guest:items:guest123")).contains(RedisTable.CART_GUEST_ITEMS);
