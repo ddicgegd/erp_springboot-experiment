@@ -133,6 +133,11 @@ public class RedisService implements iRedis {
     }
 
     @Override
+    public Long increment(String key) {
+        return getTemplate(key).opsForValue().increment(key);
+    }
+
+    @Override
     public void hSet(String key, String field, Object value) {
         getTemplate(key).opsForHash().put(key, field, value);
     }
@@ -276,6 +281,11 @@ public class RedisService implements iRedis {
     @Override
     public Object getValue(RedisTable table, Object id) {
         return getValue(table.key(id));
+    }
+
+    @Override
+    public Long increment(RedisTable table, Object id) {
+        return increment(table.key(id));
     }
 
     @Override

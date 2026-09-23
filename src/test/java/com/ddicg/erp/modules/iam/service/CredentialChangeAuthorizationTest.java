@@ -65,16 +65,13 @@ class CredentialChangeAuthorizationTest {
     }
 
     @Test
-    @DisplayName("resolveFromRecoveryTokenOrSession: Khi có token thì ưu tiên resolve từ token")
-    void resolveFromRecoveryTokenOrSession_WithToken_ShouldResolveFromToken() {
-        RecoveryToken recoveryToken = new RecoveryToken(inactiveUser, "token-inactive", "inactive@example.com");
-        when(accountRecoveryService.resolve("token-inactive")).thenReturn(recoveryToken);
+    @DisplayName("resolveFromRecoveryTokenOrSession: Khi có token thì ném ACCESS_DENIED vì recovery token không được đổi username")
+    void resolveFromRecoveryTokenOrSession_WithToken_ShouldThrowAccessDenied() {
+        BusinessException ex = assertThrows(BusinessException.class, () ->
+                authorizationService.resolveFromRecoveryTokenOrSession("token-inactive"));
 
-        var auth = authorizationService.resolveFromRecoveryTokenOrSession("token-inactive");
-
-        assertNotNull(auth);
-        assertTrue(auth.recoveryTokenBased());
-        assertEquals(inactiveUser, auth.user());
+        assertEquals(ErrorCode.ACCESS_DENIED, ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("không có quyền thay đổi"));
         verifyNoInteractions(securityUtil);
     }
 
@@ -124,16 +121,12 @@ class CredentialChangeAuthorizationTest {
     }
 
     @Test
-    @DisplayName("validatePasswordResetPermission: Chặn token của tài khoản chưa kích hoạt với lỗi ACCESS_DENIED")
-    void validatePasswordResetPermission_WhenPendingActivation_ShouldThrowAccessDenied() {
+    @DisplayName("validatePasswordResetPermission: Cho phép token tiếp tục đổi mật khẩu ngay cả khi tài khoản chưa kích hoạt")
+    void validatePasswordResetPermission_WhenPendingActivation_ShouldPass() {
         RecoveryToken recoveryToken = new RecoveryToken(inactiveUser, "token-inactive", "inactive@example.com");
         var auth = CredentialChangeAuthorization.Authorization.recovery(recoveryToken);
 
-        BusinessException ex = assertThrows(BusinessException.class, () ->
-                authorizationService.validatePasswordResetPermission(auth));
-
-        assertEquals(ErrorCode.ACCESS_DENIED, ex.getErrorCode());
-        assertTrue(ex.getMessage().contains("chưa được kích hoạt"));
+        assertDoesNotThrow(() -> authorizationService.validatePasswordResetPermission(auth));
     }
 
     @Test

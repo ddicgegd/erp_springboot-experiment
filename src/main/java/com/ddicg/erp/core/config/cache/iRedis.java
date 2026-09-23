@@ -20,6 +20,7 @@ public interface iRedis {
     void setNullSentinel(String key, long ttlSeconds);
     boolean isNullSentinel(String key);
     Object getValue(String key);
+    Long increment(String key);
 
     void hSet(String key, String field, Object value);
     Object hGet(String key, String field);
@@ -53,6 +54,7 @@ public interface iRedis {
     void setNullSentinel(RedisTable table, Object id, long ttlSeconds);
     boolean isNullSentinel(RedisTable table, Object id);
     Object getValue(RedisTable table, Object id);
+    Long increment(RedisTable table, Object id);
 
     void hSet(RedisTable table, Object id, String field, Object value);
     Object hGet(RedisTable table, Object id, String field);

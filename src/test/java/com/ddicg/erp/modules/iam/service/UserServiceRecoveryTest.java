@@ -130,16 +130,18 @@ class UserServiceRecoveryTest {
         RecoveryToken recoveryToken = new RecoveryToken(activeUser, "recovery-tok", "active@example.com");
         when(accountRecoveryService.issue("active@example.com")).thenReturn(recoveryToken);
         when(helper.maskEmail("active@example.com")).thenReturn("a***@example.com");
+        when(redisService.increment(RedisTable.AUTH_RECOVERY_QUOTA, "active@example.com")).thenReturn(1L);
 
         Response<String> response = userService.recoverAccount("active@example.com");
 
         assertNotNull(response);
         assertEquals(200, response.getStatus().getCode());
-        assertTrue(response.getStatus().getMessage().contains("a***@example.com"));
+        assertEquals("Nếu email tồn tại trên hệ thống, liên kết khôi phục tài khoản đã được gửi đến a***@example.com. Vui lòng kiểm tra.", response.getStatus().getMessage());
 
         // Verify rate limiting keys were set
         verify(redisService).setValueWithExpiry(eq(RedisTable.AUTH_RECOVERY_COOLDOWN), eq("active@example.com"), eq("true"), eq(60L), any());
-        verify(redisService).setValueWithExpiry(eq(RedisTable.AUTH_RECOVERY_QUOTA), eq("active@example.com"), eq("1"), anyLong(), any());
+        verify(redisService).increment(RedisTable.AUTH_RECOVERY_QUOTA, "active@example.com");
+        verify(redisService).expire(eq(RedisTable.AUTH_RECOVERY_QUOTA), eq("active@example.com"), eq(3600L), any());
 
         ArgumentCaptor<AccountRecoveryEvent> eventCaptor = ArgumentCaptor.forClass(AccountRecoveryEvent.class);
         verify(eventPublisher).publishEvent(eventCaptor.capture());
@@ -159,7 +161,7 @@ class UserServiceRecoveryTest {
 
         assertNotNull(response);
         assertEquals(200, response.getStatus().getCode());
-        assertTrue(response.getStatus().getMessage().contains("n***@example.com"));
+        assertEquals("Nếu email tồn tại trên hệ thống, liên kết khôi phục tài khoản đã được gửi đến n***@example.com. Vui lòng kiểm tra.", response.getStatus().getMessage());
 
         verify(accountRecoveryService, never()).issue(any());
         verify(eventPublisher, never()).publishEvent(any());
@@ -176,10 +178,19 @@ class UserServiceRecoveryTest {
 
         assertNotNull(response);
         assertEquals(200, response.getStatus().getCode());
-        assertTrue(response.getStatus().getMessage().contains("l***@example.com"));
+        assertEquals("Nếu email tồn tại trên hệ thống, liên kết khôi phục tài khoản đã được gửi đến l***@example.com. Vui lòng kiểm tra.", response.getStatus().getMessage());
 
         verify(accountRecoveryService, never()).issue(any());
         verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    @DisplayName("recoverAccount: Phải được cấu hình @Transactional(readOnly = true)")
+    void recoverAccount_ShouldBeConfiguredWithReadOnlyTransaction() throws NoSuchMethodException {
+        var method = UserService.class.getMethod("recoverAccount", String.class);
+        var transactional = method.getAnnotation(org.springframework.transaction.annotation.Transactional.class);
+        assertNotNull(transactional, "Phải có annotation @Transactional");
+        assertTrue(transactional.readOnly(), "recoverAccount không ghi database nên transaction phải là readOnly = true");
     }
 
     @Test
@@ -202,7 +213,7 @@ class UserServiceRecoveryTest {
     void recoverAccount_WhenQuotaExceeded_ShouldThrowTooManyRequests() {
         when(helper.isEmailFormat("active@example.com")).thenReturn(true);
         when(redisService.hasKey(RedisTable.AUTH_RECOVERY_COOLDOWN, "active@example.com")).thenReturn(false);
-        when(redisService.getValue(RedisTable.AUTH_RECOVERY_QUOTA, "active@example.com")).thenReturn(5);
+        when(redisService.increment(RedisTable.AUTH_RECOVERY_QUOTA, "active@example.com")).thenReturn(6L);
 
         BusinessException ex = assertThrows(BusinessException.class, () ->
                 userService.recoverAccount("active@example.com"));
@@ -226,68 +237,66 @@ class UserServiceRecoveryTest {
     }
 
     @Test
-    @DisplayName("validateResetToken: Trả về UserDto có trạng thái của user và id bị ẩn")
-    void validateResetToken_ShouldReturnUserDtoWithHiddenId() {
+    @DisplayName("validateResetToken: User INACTIVE được tự động kích hoạt lên ACTIVE, lưu DB, trả về username và không tiêu thụ token")
+    void validateResetToken_WhenInactive_ShouldActivateUserAndReturnUsername() {
         RecoveryToken recoveryToken = new RecoveryToken(inactiveUser, "tok-inactive", "inactive@example.com");
         when(accountRecoveryService.resolve("tok-inactive")).thenReturn(recoveryToken);
 
-        UserDto mappedDto = UserDto.builder()
-                .username("inactive_user")
-                .email("inactive@example.com")
-                .active(ActiveStatus.INACTIVE)
-                .build();
-        when(userMapper.toDto(inactiveUser)).thenReturn(mappedDto);
-
-        Response<UserDto> response = userService.validateResetToken("tok-inactive");
+        Response<String> response = userService.validateResetToken("tok-inactive");
 
         assertNotNull(response);
         assertEquals(200, response.getStatus().getCode());
-        UserDto resultDto = response.getData();
-        assertEquals("inactive_user", resultDto.getUsername());
-        assertEquals(ActiveStatus.INACTIVE, resultDto.getActive());
-        assertNull(resultDto.getId());
-    }
-
-    @Test
-    @DisplayName("changeUsername với tài khoản INACTIVE: Đổi username thành công, tự động kích hoạt tài khoản lên ACTIVE, không đặt cooldown 30 ngày")
-    void changeUsername_WhenInactiveAccount_ShouldChangeNameAndActivate() {
-        RecoveryToken recoveryToken = new RecoveryToken(inactiveUser, "tok-inactive", "inactive@example.com");
-        var auth = CredentialChangeAuthorization.Authorization.recovery(recoveryToken);
-
-        ChangeUsernameRequest request = new ChangeUsernameRequest();
-        request.setToken("tok-inactive");
-        request.setNewUsername("brand_new_username");
-
-        when(credentialChangeAuthorization.resolveFromRecoveryTokenOrSession("tok-inactive")).thenReturn(auth);
-        when(userRepository.findByName("brand_new_username")).thenReturn(Optional.empty());
-
-        Response<String> response = userService.changeUsername(request);
-
-        assertNotNull(response);
-        assertEquals(200, response.getStatus().getCode());
-        assertTrue(response.getStatus().getMessage().contains("kích hoạt tài khoản thành công"));
-
-        assertEquals("brand_new_username", inactiveUser.getName());
+        assertEquals("inactive_user", response.getData());
+        assertEquals("Tài khoản của bạn đã được kích hoạt thành công. Vui lòng thiết lập mật khẩu mới.", response.getStatus().getMessage());
         assertEquals(ActiveStatus.ACTIVE, inactiveUser.getStatus());
         verify(userRepository).save(inactiveUser);
-
-        // Đảm bảo không đặt cooldown 30 ngày cho tài khoản mới kích hoạt
-        verify(redisService, never()).setValueWithExpiry(eq(RedisTable.AUTH_GUARD_COOLDOWN), any(), any(), anyLong(), any());
-        verify(credentialChangeAuthorization).consumeRecoveryToken(auth);
-        verify(refreshTokenService).revokeAllUserTokens(20L);
+        verify(accountRecoveryService, never()).consume(any());
     }
 
     @Test
-    @DisplayName("changeUsername với tài khoản ACTIVE: Kiểm tra và áp dụng cooldown 30 ngày, giữ nguyên status ACTIVE")
-    void changeUsername_WhenActiveAccount_ShouldApplyCooldown() {
+    @DisplayName("validateResetToken: User ACTIVE trả về username và thông điệp hợp lệ mà không sửa đổi DB")
+    void validateResetToken_WhenActive_ShouldReturnUsernameWithoutModifyingDB() {
         RecoveryToken recoveryToken = new RecoveryToken(activeUser, "tok-active", "active@example.com");
-        var auth = CredentialChangeAuthorization.Authorization.recovery(recoveryToken);
+        when(accountRecoveryService.resolve("tok-active")).thenReturn(recoveryToken);
+
+        Response<String> response = userService.validateResetToken("tok-active");
+
+        assertNotNull(response);
+        assertEquals(200, response.getStatus().getCode());
+        assertEquals("active_user", response.getData());
+        assertEquals("Mã token hợp lệ. Vui lòng thiết lập mật khẩu mới.", response.getStatus().getMessage());
+        verify(userRepository, never()).save(any());
+        verify(accountRecoveryService, never()).consume(any());
+    }
+
+    @Test
+    @DisplayName("changeUsername: Ném lỗi ACCESS_DENIED khi cố gắng sử dụng recovery token để đổi username")
+    void changeUsername_WhenUsingRecoveryToken_ShouldThrowAccessDenied() {
+        ChangeUsernameRequest request = new ChangeUsernameRequest();
+        request.setToken("tok-recovery");
+        request.setNewUsername("new_name");
+
+        when(credentialChangeAuthorization.resolveFromRecoveryTokenOrSession("tok-recovery"))
+                .thenThrow(new BusinessException(ErrorCode.ACCESS_DENIED, "Mã khôi phục không có quyền thay đổi tên đăng nhập."));
+
+        BusinessException ex = assertThrows(BusinessException.class, () ->
+                userService.changeUsername(request));
+
+        assertEquals(ErrorCode.ACCESS_DENIED, ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("không có quyền thay đổi"));
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("changeUsername với Session đăng nhập: Kiểm tra và áp dụng cooldown 30 ngày")
+    void changeUsername_WhenUsingSession_ShouldApplyCooldown() {
+        var auth = CredentialChangeAuthorization.Authorization.session(activeUser);
 
         ChangeUsernameRequest request = new ChangeUsernameRequest();
-        request.setToken("tok-active");
+        request.setToken(null);
         request.setNewUsername("new_active_username");
 
-        when(credentialChangeAuthorization.resolveFromRecoveryTokenOrSession("tok-active")).thenReturn(auth);
+        when(credentialChangeAuthorization.resolveFromRecoveryTokenOrSession(null)).thenReturn(auth);
         when(redisService.hasKey(RedisTable.AUTH_GUARD_COOLDOWN, 10L)).thenReturn(false);
         when(userRepository.findByName("new_active_username")).thenReturn(Optional.empty());
 
@@ -296,26 +305,21 @@ class UserServiceRecoveryTest {
         assertNotNull(response);
         assertEquals(200, response.getStatus().getCode());
         assertEquals("new_active_username", activeUser.getName());
-        assertEquals(ActiveStatus.ACTIVE, activeUser.getStatus());
         verify(userRepository).save(activeUser);
-
-        // Đã active thì áp dụng cooldown 30 ngày
         verify(redisService).setValueWithExpiry(eq(RedisTable.AUTH_GUARD_COOLDOWN), eq(10L), eq("true"), eq(30L), any());
-        verify(credentialChangeAuthorization).consumeRecoveryToken(auth);
         verify(refreshTokenService).revokeAllUserTokens(10L);
     }
 
     @Test
     @DisplayName("changeUsername: Ném ngoại lệ khi tên đăng nhập mới đã tồn tại")
     void changeUsername_WhenUsernameExists_ShouldThrowInvalidCredentials() {
-        RecoveryToken recoveryToken = new RecoveryToken(inactiveUser, "tok-inactive", "inactive@example.com");
-        var auth = CredentialChangeAuthorization.Authorization.recovery(recoveryToken);
+        var auth = CredentialChangeAuthorization.Authorization.session(activeUser);
 
         ChangeUsernameRequest request = new ChangeUsernameRequest();
-        request.setToken("tok-inactive");
+        request.setToken(null);
         request.setNewUsername("already_taken");
 
-        when(credentialChangeAuthorization.resolveFromRecoveryTokenOrSession("tok-inactive")).thenReturn(auth);
+        when(credentialChangeAuthorization.resolveFromRecoveryTokenOrSession(null)).thenReturn(auth);
         when(userRepository.findByName("already_taken")).thenReturn(Optional.of(activeUser));
 
         BusinessException ex = assertThrows(BusinessException.class, () ->
@@ -327,24 +331,28 @@ class UserServiceRecoveryTest {
     }
 
     @Test
-    @DisplayName("resetPassword với token của user INACTIVE: Bị chặn với lỗi ACCESS_DENIED qua validatePasswordResetPermission")
-    void resetPassword_WhenInactiveToken_ShouldThrowAccessDenied() {
-        RecoveryToken recoveryToken = new RecoveryToken(inactiveUser, "tok-inactive", "inactive@example.com");
+    @DisplayName("resetPassword nhận token qua Request Body: Kích hoạt safeguard nếu user INACTIVE, đổi mật khẩu và thu hồi token")
+    void resetPassword_WhenTokenInBodyAndUserInactive_ShouldActivateUserAndUpdatePassword() {
+        RecoveryToken recoveryToken = new RecoveryToken(inactiveUser, "tok-body", "inactive@example.com");
         var auth = CredentialChangeAuthorization.Authorization.recovery(recoveryToken);
 
-        when(credentialChangeAuthorization.resolveFromRecoveryToken("tok-inactive")).thenReturn(auth);
-        doThrow(new BusinessException(ErrorCode.ACCESS_DENIED, "Tài khoản chưa được kích hoạt."))
-                .when(credentialChangeAuthorization).validatePasswordResetPermission(auth);
+        when(credentialChangeAuthorization.resolveFromRecoveryToken("tok-body")).thenReturn(auth);
+        when(passwordEncoder.encode("newPass123")).thenReturn("encoded_new_pass");
 
         AccountVerificationRequest request = new AccountVerificationRequest();
+        request.setToken("tok-body");
         request.setNewPassword("newPass123");
         request.setConfirmPassword("newPass123");
 
-        BusinessException ex = assertThrows(BusinessException.class, () ->
-                userService.resetPassword("tok-inactive", request));
+        Response<String> response = userService.resetPassword(null, request);
 
-        assertEquals(ErrorCode.ACCESS_DENIED, ex.getErrorCode());
-        verify(userRepository, never()).save(any());
+        assertNotNull(response);
+        assertEquals(200, response.getStatus().getCode());
+        assertEquals("encoded_new_pass", inactiveUser.getPassword());
+        assertEquals(ActiveStatus.ACTIVE, inactiveUser.getStatus());
+        verify(userRepository).save(inactiveUser);
+        verify(credentialChangeAuthorization).consumeRecoveryToken(auth);
+        verify(refreshTokenService).revokeAllUserTokens(20L);
     }
 
     @Test

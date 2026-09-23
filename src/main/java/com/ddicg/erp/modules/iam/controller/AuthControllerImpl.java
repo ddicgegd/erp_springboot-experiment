@@ -51,7 +51,7 @@ public class AuthControllerImpl implements AuthController {
     }
 
     @Override
-    public Response<UserDto> validateResetToken(final String token) {
+    public Response<String> validateResetToken(final String token) {
         return userService.validateResetToken(token);
     }
 

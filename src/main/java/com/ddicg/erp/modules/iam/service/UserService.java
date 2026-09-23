@@ -78,6 +78,12 @@ public class UserService implements iUser {
   private static final SecureRandom SECURE_RANDOM = new SecureRandom();
   @Value("${frontend.url}")
   private String frontendUrl;
+  private static final String RECOVERY_GENERIC_MESSAGE =
+      "Nếu email tồn tại trên hệ thống, liên kết khôi phục tài khoản đã được gửi đến %s. Vui lòng kiểm tra.";
+  private static final String ACTIVATION_SUCCESS_MESSAGE =
+      "Tài khoản của bạn đã được kích hoạt thành công. Vui lòng thiết lập mật khẩu mới.";
+  private static final String VALID_TOKEN_MESSAGE =
+      "Mã token hợp lệ. Vui lòng thiết lập mật khẩu mới.";
   private final UserMapper userMapper;
   private final ActiveLogService activeLogService;
   private final RedisService redisService;
@@ -239,13 +245,23 @@ public class UserService implements iUser {
   @Override
   @Transactional
   public Response<String> resetPassword(
-      @NonNull final String code,
+      final String code,
       @NonNull final AccountVerificationRequest request) {
 
-    var authorization = credentialChangeAuthorization.resolveFromRecoveryToken(code);
+    String token = org.springframework.util.StringUtils.hasText(request.getToken()) ? request.getToken() : code;
+    if (!org.springframework.util.StringUtils.hasText(token)) {
+      throw new BusinessException(ErrorCode.INVALID_CREDENTIALS, "Token khôi phục không được để trống.");
+    }
+
+    var authorization = credentialChangeAuthorization.resolveFromRecoveryToken(token);
     credentialChangeAuthorization.validatePasswordResetPermission(authorization);
     User user = authorization.user();
+
+    if (user.getStatus() == ActiveStatus.INACTIVE) {
+      user.setStatus(ActiveStatus.ACTIVE);
+    }
     changePassword(user, request);
+
     credentialChangeAuthorization.consumeRecoveryToken(authorization);
     refreshTokenService.revokeAllUserTokens(user.getId());
     log.info("Đổi mật khẩu thành công cho user: {}", user.getUsername());
@@ -267,7 +283,7 @@ public class UserService implements iUser {
   }
 
   @Override
-  @Transactional
+  @Transactional(readOnly = true)
   public Response<String> recoverAccount(String email) {
     if (!helper.isEmailFormat(email)) {
       throw new BusinessException(ErrorCode.INVALID_FORMAT, "Email không đúng định dạng.");
@@ -278,12 +294,12 @@ public class UserService implements iUser {
     User user = userRepository.findByEmail(email).orElse(null);
     if (user == null) {
       log.warn("Yêu cầu khôi phục tài khoản cho email không tồn tại: {}", helper.maskEmail(email));
-      return Response.ok("Đường dẫn khôi phục tài khoản đã được gửi đến " + helper.maskEmail(email) + ". Vui lòng kiểm tra.");
+      return Response.ok(String.format(RECOVERY_GENERIC_MESSAGE, helper.maskEmail(email)));
     }
 
     if (user.getStatus() == ActiveStatus.LOCKED) {
       log.warn("Yêu cầu khôi phục tài khoản cho tài khoản đang bị khóa: {}", helper.maskEmail(email));
-      return Response.ok("Đường dẫn khôi phục tài khoản đã được gửi đến " + helper.maskEmail(email) + ". Vui lòng kiểm tra.");
+      return Response.ok(String.format(RECOVERY_GENERIC_MESSAGE, helper.maskEmail(email)));
     }
 
     var recoveryToken = accountRecoveryService.issue(email);
@@ -295,8 +311,7 @@ public class UserService implements iUser {
 
     log.info("Đã gửi đường dẫn khôi phục tài khoản cho người dùng: {}", helper.maskEmail(email));
 
-    return Response
-        .ok("Đường dẫn khôi phục tài khoản đã được gửi đến " + helper.maskEmail(email) + ". Vui lòng kiểm tra.");
+    return Response.ok(String.format(RECOVERY_GENERIC_MESSAGE, helper.maskEmail(email)));
   }
 
   private void checkAndApplyRecoveryRateLimit(String email) {
@@ -304,38 +319,38 @@ public class UserService implements iUser {
       throw new BusinessException(ErrorCode.TOO_MANY_REQUESTS, "Bạn thao tác quá nhanh. Vui lòng thử lại sau.");
     }
 
-    Object quotaVal = redisService.getValue(RedisTable.AUTH_RECOVERY_QUOTA, email);
-    int currentCount = 0;
-    if (quotaVal != null) {
-      if (quotaVal instanceof Number) {
-        currentCount = ((Number) quotaVal).intValue();
-      } else {
-        try {
-          currentCount = Integer.parseInt(quotaVal.toString());
-        } catch (NumberFormatException ignored) {
-        }
+    Long currentCount = redisService.increment(RedisTable.AUTH_RECOVERY_QUOTA, email);
+    if (currentCount != null && currentCount == 1L) {
+      redisService.expire(RedisTable.AUTH_RECOVERY_QUOTA, email, 3600, TimeUnit.SECONDS);
+    } else {
+      Long remainingTtl = redisService.getExpiry(RedisTable.AUTH_RECOVERY_QUOTA.key(email), TimeUnit.SECONDS);
+      if (remainingTtl == null || remainingTtl <= 0) {
+        redisService.expire(RedisTable.AUTH_RECOVERY_QUOTA, email, 3600, TimeUnit.SECONDS);
       }
     }
 
-    if (currentCount >= 5) {
+    if (currentCount != null && currentCount > 5L) {
       throw new BusinessException(ErrorCode.TOO_MANY_REQUESTS,
           "Bạn đã vượt quá số lần yêu cầu khôi phục trong 1 giờ. Vui lòng thử lại sau.");
     }
 
     redisService.setValueWithExpiry(RedisTable.AUTH_RECOVERY_COOLDOWN, email, "true", 60, TimeUnit.SECONDS);
-
-    int nextCount = currentCount + 1;
-    Long remainingTtl = redisService.getExpiry(RedisTable.AUTH_RECOVERY_QUOTA.key(email), TimeUnit.SECONDS);
-    long quotaTtl = (remainingTtl != null && remainingTtl > 0) ? remainingTtl : 3600;
-    redisService.setValueWithExpiry(RedisTable.AUTH_RECOVERY_QUOTA, email, String.valueOf(nextCount), quotaTtl, TimeUnit.SECONDS);
   }
 
   @Override
-  public Response<UserDto> validateResetToken(@NonNull final String token) {
+  @Transactional
+  public Response<String> validateResetToken(@NonNull final String token) {
     var recoveryToken = accountRecoveryService.resolve(token);
-    UserDto dto = userMapper.toDto(recoveryToken.user());
-    dto.setId(null);
-    return Response.ok(dto);
+    User user = recoveryToken.user();
+
+    if (user.getStatus() == ActiveStatus.INACTIVE) {
+      user.setStatus(ActiveStatus.ACTIVE);
+      userRepository.save(user);
+      log.info("Kích hoạt tài khoản thành công qua recovery token cho user: {}", user.getName());
+      return Response.ok(user.getName(), ACTIVATION_SUCCESS_MESSAGE);
+    }
+
+    return Response.ok(user.getName(), VALID_TOKEN_MESSAGE);
   }
 
   // @Override
@@ -562,10 +577,7 @@ public class UserService implements iUser {
     var authorization = credentialChangeAuthorization.resolveFromRecoveryTokenOrSession(request.getToken());
     User user = authorization.user();
 
-    boolean wasPendingActivation = authorization.recoveryTokenBased()
-        && authorization.recoveryToken().isPendingActivation();
-
-    if (!wasPendingActivation && redisService.hasKey(RedisTable.AUTH_GUARD_COOLDOWN, user.getId())) {
+    if (redisService.hasKey(RedisTable.AUTH_GUARD_COOLDOWN, user.getId())) {
       throw new BusinessException(ErrorCode.INVALID_CREDENTIALS,
           "Bạn chỉ được đổi tên đăng nhập tối đa 1 lần mỗi tháng. Vui lòng quay lại sau.");
     }
@@ -577,26 +589,12 @@ public class UserService implements iUser {
     }
 
     user.setName(newUsername);
-    if (wasPendingActivation) {
-      user.setStatus(ActiveStatus.ACTIVE);
-      log.info("Kích hoạt tài khoản thành công cho user: {} sau khi đổi username", user.getEmail());
-    }
-
     userRepository.save(user);
 
-    // Đặt cooldown 30 ngày trên Redis nếu đã active từ trước
-    if (!wasPendingActivation) {
-      redisService.setValueWithExpiry(RedisTable.AUTH_GUARD_COOLDOWN, user.getId(), "true", 30, TimeUnit.DAYS);
-    }
-
-    credentialChangeAuthorization.consumeRecoveryToken(authorization);
+    redisService.setValueWithExpiry(RedisTable.AUTH_GUARD_COOLDOWN, user.getId(), "true", 30, TimeUnit.DAYS);
     refreshTokenService.revokeAllUserTokens(user.getId());
     log.info("Người dùng ID {} đã đổi tên đăng nhập thành công sang {}", user.getId(), newUsername);
 
-    String message = wasPendingActivation
-        ? "Cập nhật tên đăng nhập và kích hoạt tài khoản thành công. Vui lòng đăng nhập."
-        : "Đổi tên đăng nhập thành công. Vui lòng đăng nhập lại.";
-
-    return Response.ok(message);
+    return Response.ok("Đổi tên đăng nhập thành công. Vui lòng đăng nhập lại.");
   }
 }

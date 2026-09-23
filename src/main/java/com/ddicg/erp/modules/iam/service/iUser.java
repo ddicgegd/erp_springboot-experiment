@@ -20,7 +20,7 @@ public interface iUser {
     Response<String> verifyEmail(final String code);
     Response<String> resetPassword(final String code, final AccountVerificationRequest request);
     Response<String> recoverAccount(final String email);
-    Response<UserDto> validateResetToken(final String token);
+    Response<String> validateResetToken(final String token);
     Response<AuthResponse> refreshToken(final RefreshTokenRequest request);
 //    Page<UserDto> search(final UserSearchRequest request);
 //    Page<UserSearchRequest> search(final UserSearchRequest request);

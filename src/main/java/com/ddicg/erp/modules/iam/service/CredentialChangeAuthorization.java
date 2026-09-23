@@ -23,7 +23,8 @@ public class CredentialChangeAuthorization {
 
   public Authorization resolveFromRecoveryTokenOrSession(String token) {
     if (StringUtils.hasText(token)) {
-      return resolveFromRecoveryToken(token);
+      throw new BusinessException(ErrorCode.ACCESS_DENIED,
+          "Mã khôi phục không có quyền thay đổi tên đăng nhập.");
     }
 
     User user = securityUtil.getCurrentUser()
@@ -42,10 +43,7 @@ public class CredentialChangeAuthorization {
   }
 
   public void validatePasswordResetPermission(Authorization authorization) {
-    if (authorization.recoveryTokenBased() && authorization.recoveryToken().isPendingActivation()) {
-      throw new BusinessException(ErrorCode.ACCESS_DENIED,
-          "Tài khoản chưa được kích hoạt. Vui lòng xác thực tài khoản và cập nhật tên đăng nhập trước khi đổi mật khẩu.");
-    }
+    // Unactivated accounts are activated during validateResetToken or resetPassword
   }
 
   public record Authorization(

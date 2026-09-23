@@ -44,18 +44,13 @@ class AuthControllerRecoveryTest {
     @DisplayName("GET /api/auth/validate-reset-token?token={token} ủy quyền đúng cho userService.validateResetToken")
     void validateResetToken_ShouldDelegateToUserService() {
         String token = "uuid-token-xyz";
-        UserDto userDto = UserDto.builder()
-                .username("testuser")
-                .email("test@example.com")
-                .active(ActiveStatus.ACTIVE)
-                .build();
-        when(userService.validateResetToken(token)).thenReturn(Response.ok(userDto));
+        when(userService.validateResetToken(token)).thenReturn(Response.ok("testuser", "Mã token hợp lệ. Vui lòng thiết lập mật khẩu mới."));
 
-        Response<UserDto> response = authController.validateResetToken(token);
+        Response<String> response = authController.validateResetToken(token);
 
         assertNotNull(response);
         assertEquals(200, response.getStatus().getCode());
-        assertEquals("testuser", response.getData().getUsername());
+        assertEquals("testuser", response.getData());
         verify(userService).validateResetToken(token);
     }
 

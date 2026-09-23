@@ -36,12 +36,12 @@ public interface AuthController {
         @PostMapping("/reset-password")
         @ResponseStatus(HttpStatus.OK)
         Response<String> resetPassword(
-                        @RequestParam("code") final String code,
+                        @RequestParam(value = "code", required = false) final String code,
                         @Valid @RequestBody final AccountVerificationRequest body);
 
         @GetMapping("/validate-reset-token")
         @ResponseStatus(HttpStatus.OK)
-        Response<UserDto> validateResetToken(@RequestParam("token") final String token);
+        Response<String> validateResetToken(@RequestParam("token") final String token);
 
         @PostMapping("/refresh-token")
         @ResponseStatus(HttpStatus.OK)

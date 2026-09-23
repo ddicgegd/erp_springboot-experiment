@@ -44,7 +44,15 @@ class RedisServiceTest {
     void testUnlink() {
         redisService.unlink("key1", "key2");
 
-        verify(redisTemplate).unlink(List.of("key1", "key2"));
+        verify(redisTemplate).unlink("key1");
+        verify(redisTemplate).unlink("key2");
+    }
+
+    @Test
+    void testIncrement() {
+        when(valueOperations.increment("counter")).thenReturn(5L);
+        Long res = redisService.increment("counter");
+        assertThat(res).isEqualTo(5L);
     }
 
     @Test
