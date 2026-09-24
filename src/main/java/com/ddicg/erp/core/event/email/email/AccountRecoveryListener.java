@@ -10,8 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.event.TransactionPhase;
-import org.springframework.transaction.event.TransactionalEventListener;
+import org.springframework.context.event.EventListener;
 
 @Slf4j
 @Component
@@ -31,7 +30,7 @@ public class AccountRecoveryListener extends BaseEventListener {
     }
 
     @Async
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @EventListener
     public void handleAccountRecovery(AccountRecoveryEvent body) {
         try {
             String resetUrl = frontendUrl + "/reset-password?token=" + body.token();

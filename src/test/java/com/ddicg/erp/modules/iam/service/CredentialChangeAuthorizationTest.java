@@ -65,22 +65,11 @@ class CredentialChangeAuthorizationTest {
     }
 
     @Test
-    @DisplayName("resolveFromRecoveryTokenOrSession: Khi có token thì ném ACCESS_DENIED vì recovery token không được đổi username")
-    void resolveFromRecoveryTokenOrSession_WithToken_ShouldThrowAccessDenied() {
-        BusinessException ex = assertThrows(BusinessException.class, () ->
-                authorizationService.resolveFromRecoveryTokenOrSession("token-inactive"));
-
-        assertEquals(ErrorCode.ACCESS_DENIED, ex.getErrorCode());
-        assertTrue(ex.getMessage().contains("không có quyền thay đổi"));
-        verifyNoInteractions(securityUtil);
-    }
-
-    @Test
-    @DisplayName("resolveFromRecoveryTokenOrSession: Khi token rỗng thì lấy từ session đăng nhập")
-    void resolveFromRecoveryTokenOrSession_WithoutToken_ShouldResolveFromSession() {
+    @DisplayName("resolveFromSession: Khi đã đăng nhập thì lấy thông tin user từ SecurityUtil")
+    void resolveFromSession_WhenLoggedIn_ShouldResolveFromSession() {
         when(securityUtil.getCurrentUser()).thenReturn(Optional.of(activeUser));
 
-        var auth = authorizationService.resolveFromRecoveryTokenOrSession("");
+        var auth = authorizationService.resolveFromSession();
 
         assertNotNull(auth);
         assertFalse(auth.recoveryTokenBased());
@@ -89,12 +78,12 @@ class CredentialChangeAuthorizationTest {
     }
 
     @Test
-    @DisplayName("resolveFromRecoveryTokenOrSession: Không có token và chưa đăng nhập thì ném USER_NOT_FOUND")
-    void resolveFromRecoveryTokenOrSession_WithoutTokenAndNoSession_ShouldThrow() {
+    @DisplayName("resolveFromSession: Khi chưa đăng nhập thì ném USER_NOT_FOUND")
+    void resolveFromSession_WhenNotLoggedIn_ShouldThrowUserNotFound() {
         when(securityUtil.getCurrentUser()).thenReturn(Optional.empty());
 
         BusinessException ex = assertThrows(BusinessException.class, () ->
-                authorizationService.resolveFromRecoveryTokenOrSession(null));
+                authorizationService.resolveFromSession());
 
         assertEquals(ErrorCode.USER_NOT_FOUND, ex.getErrorCode());
     }

@@ -72,28 +72,22 @@ class AccountRecoveryServiceTest {
         assertNotNull(recoveryToken);
         assertEquals("active@example.com", recoveryToken.email());
         assertEquals(activeUser, recoveryToken.user());
-        assertFalse(recoveryToken.isPendingActivation());
-
         ArgumentCaptor<Duration> ttlCaptor = ArgumentCaptor.forClass(Duration.class);
         verify(recoveryTokenStore).save(eq("active@example.com"), eq(recoveryToken.token()), ttlCaptor.capture());
         assertEquals(Duration.ofMinutes(20), ttlCaptor.getValue());
     }
 
     @Test
-    @DisplayName("Issue token cho user INACTIVE: Cấp token mới với TTL 10 phút và đánh dấu pending activation")
-    void issue_WhenUserIsInactive_ShouldSet10MinutesTtl() {
+    @DisplayName("Issue token cho user INACTIVE: Ném ngoại lệ INVALID_CREDENTIALS")
+    void issue_WhenUserIsInactive_ShouldThrowInvalidCredentials() {
         when(userRepository.findByEmail("inactive@example.com")).thenReturn(Optional.of(inactiveUser));
 
-        RecoveryToken recoveryToken = accountRecoveryService.issue("inactive@example.com");
+        BusinessException exception = assertThrows(BusinessException.class, () ->
+                accountRecoveryService.issue("inactive@example.com"));
 
-        assertNotNull(recoveryToken);
-        assertEquals("inactive@example.com", recoveryToken.email());
-        assertEquals(inactiveUser, recoveryToken.user());
-        assertTrue(recoveryToken.isPendingActivation());
-
-        ArgumentCaptor<Duration> ttlCaptor = ArgumentCaptor.forClass(Duration.class);
-        verify(recoveryTokenStore).save(eq("inactive@example.com"), eq(recoveryToken.token()), ttlCaptor.capture());
-        assertEquals(Duration.ofMinutes(10), ttlCaptor.getValue());
+        assertEquals(ErrorCode.INVALID_CREDENTIALS, exception.getErrorCode());
+        assertTrue(exception.getMessage().contains("chưa được kích hoạt"));
+        verifyNoInteractions(recoveryTokenStore);
     }
 
     @Test
@@ -166,6 +160,19 @@ class AccountRecoveryServiceTest {
 
         assertEquals(ErrorCode.INVALID_CREDENTIALS, exception.getErrorCode());
         assertTrue(exception.getMessage().contains("khóa"));
+    }
+
+    @Test
+    @DisplayName("Resolve token thuộc user INACTIVE: Ném ngoại lệ INVALID_CREDENTIALS")
+    void resolve_WhenUserIsInactive_ShouldThrowInvalidCredentials() {
+        when(recoveryTokenStore.findEmailByToken("inactive-token")).thenReturn(Optional.of("inactive@example.com"));
+        when(userRepository.findByEmail("inactive@example.com")).thenReturn(Optional.of(inactiveUser));
+
+        BusinessException exception = assertThrows(BusinessException.class, () ->
+                accountRecoveryService.resolve("inactive-token"));
+
+        assertEquals(ErrorCode.INVALID_CREDENTIALS, exception.getErrorCode());
+        assertTrue(exception.getMessage().contains("chưa được kích hoạt"));
     }
 
     @Test

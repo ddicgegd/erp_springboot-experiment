@@ -20,6 +20,7 @@ import com.ddicg.erp.modules.iam.service.AccountRecoveryService;
 import com.ddicg.erp.modules.iam.dto.request.AccountVerificationRequest;
 import com.ddicg.erp.modules.iam.dto.request.ChangeUsernameRequest;
 import com.ddicg.erp.modules.iam.dto.request.RefreshTokenRequest;
+import com.ddicg.erp.modules.iam.dto.request.ResendVerificationRequest;
 import com.ddicg.erp.modules.iam.dto.request.UpdateProfileRequest;
 import com.ddicg.erp.modules.iam.dto.request.UserLoginRequest;
 import com.ddicg.erp.modules.iam.dto.request.UserRegisterRequest;
@@ -93,7 +94,7 @@ public class UserService implements iUser {
   private final MinioService minioService;
   private final CredentialChangeAuthorization credentialChangeAuthorization;
   private final AccountRecoveryService accountRecoveryService;
-
+  private final AccountVerificationService accountVerificationService;
   @Override
   @Transactional
   public Response<RegisterResponse> createUser(UserRegisterRequest body) {
@@ -111,7 +112,7 @@ public class UserService implements iUser {
       } else if (existingEmailUser.getStatus() == ActiveStatus.INACTIVE) {
         if (!existingEmailUser.getName().equals(body.getName())) {
           throw new BusinessException(ErrorCode.REGISTRATION_INFO_MISMATCH,
-              "Email này đã được đăng ký nhưng thông tin đăng ký hiện tại không khớp! Bạn có thể sử dụng chức năng Khôi phục thông tin tài khoản.");
+              "Email này đã được đăng ký với tên đăng nhập khác nhưng chưa được kích hoạt. Vui lòng kích hoạt qua email đã gửi hoặc sử dụng tên đăng nhập đã đăng ký.");
         }
       }
     });
@@ -145,14 +146,14 @@ public class UserService implements iUser {
       log.info("Tạo user mới: {}", user.getName());
     }
 
-    String code = UUID.randomUUID().toString();
-    redisService.setValueWithExpiry(RedisTable.AUTH_OTP_VERIFICATION, code, user.getEmail(), 5, TimeUnit.MINUTES);
-
+    checkAndApplyVerificationRateLimit(user.getEmail());
     userRepository.save(user);
+
+    var verificationToken = accountVerificationService.issue(user.getEmail());
 
     eventPublisher.publishEvent(
         VerificationEmailEvent.builder()
-            .emailVerificationToken(code)
+            .emailVerificationToken(verificationToken.token())
             .email(user.getEmail())
             .username(user.getName())
             .purpose(ActiveStatus.EMAIL_VERIFICATION)
@@ -182,17 +183,22 @@ public class UserService implements iUser {
             .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND, "Tên đăng nhập không tồn tại."));
     }
 
-    if (user.getStatus().equals(ActiveStatus.INACTIVE)) { // check status
-      String code = UUID.randomUUID().toString();
-      redisService.setValueWithExpiry(RedisTable.AUTH_OTP_VERIFICATION, code, user.getEmail(), 5, TimeUnit.MINUTES);
-      log.info("Tạo và gửi lại token xác thực cho user chưa active: {}", user.getUsername());
+    if (user.getStatus().equals(ActiveStatus.INACTIVE)) {
+      if (!redisService.hasKey(RedisTable.AUTH_VERIFICATION_COOLDOWN, user.getEmail())) {
+        try {
+          checkAndApplyVerificationRateLimit(user.getEmail());
+          var verificationToken = accountVerificationService.issue(user.getEmail());
+          log.info("Tạo và gửi lại token xác thực cho user chưa active: {}", user.getUsername());
 
-      eventPublisher.publishEvent(VerificationEmailEvent.builder()
-          .emailVerificationToken(code).email(user.getEmail())
-          .username(user.getUsername())
-          .purpose(ActiveStatus.EMAIL_VERIFICATION)
-          .build());
-
+          eventPublisher.publishEvent(VerificationEmailEvent.builder()
+              .emailVerificationToken(verificationToken.token()).email(user.getEmail())
+              .username(user.getUsername())
+              .purpose(ActiveStatus.EMAIL_VERIFICATION)
+              .build());
+        } catch (BusinessException e) {
+          log.warn("Bỏ qua gửi lại email xác thực do chạm hạn ngạch: {}", e.getMessage());
+        }
+      }
       return Response.loginResponse(HttpStatus.UNAUTHORIZED,
           AuthResponse.builder()
                .message("Tài khoản chưa được xác thực. Một email xác thực đã được gửi (lại) đến "
@@ -228,32 +234,66 @@ public class UserService implements iUser {
           "Mã xác thực email không hợp lệ hoặc đã hết hạn.");
     }
 
-    String email = (String) redisService.getValue(RedisTable.AUTH_OTP_VERIFICATION, code);
-    if (email == null) {
-      throw new BusinessException(ErrorCode.INVALID_CREDENTIALS,
-          "Mã xác thực email không hợp lệ hoặc đã hết hạn.");
-    }
-
-    User user = userRepository.findByEmail(email)
-        .orElseThrow(
-            () -> new BusinessException(ErrorCode.USER_NOT_FOUND, "Người dùng không tồn tại để xác thực."));
-
-    user.setStatus(ActiveStatus.ACTIVE);
-    userRepository.save(user);
-    
-    redisService.delete(RedisTable.AUTH_OTP_VERIFICATION, code);
-    log.info("Xác thực email thành công cho user: {}", user.getUsername());
-
+    accountVerificationService.verify(code);
     return Response.ok("Xác thực email thành công. Tài khoản của bạn đã được kích hoạt.");
   }
 
   @Override
-  @Transactional
-  public Response<String> resetPassword(
-      final String code,
-      @NonNull final AccountVerificationRequest request) {
+  @Transactional(readOnly = true)
+  public Response<String> resendVerificationEmail(@NonNull final ResendVerificationRequest request) {
+    String email = request.getEmail();
+    if (!helper.isEmailFormat(email)) {
+      throw new BusinessException(ErrorCode.INVALID_FORMAT, "Email không đúng định dạng.");
+    }
 
-    String token = org.springframework.util.StringUtils.hasText(request.getToken()) ? request.getToken() : code;
+    checkAndApplyVerificationRateLimit(email);
+
+    User user = userRepository.findByEmail(email).orElse(null);
+    if (user == null || user.getStatus() != ActiveStatus.INACTIVE) {
+      log.warn("Yêu cầu gửi lại email xác thực cho email không tồn tại hoặc không INACTIVE: {}", helper.maskEmail(email));
+      return Response.ok(String.format("Nếu email tồn tại trên hệ thống và chưa được kích hoạt, liên kết xác thực mới đã được gửi đến %s. Vui lòng kiểm tra.", helper.maskEmail(email)));
+    }
+
+    var verificationToken = accountVerificationService.issue(email);
+
+    eventPublisher.publishEvent(VerificationEmailEvent.builder()
+        .emailVerificationToken(verificationToken.token())
+        .email(user.getEmail())
+        .username(user.getUsername())
+        .purpose(ActiveStatus.EMAIL_VERIFICATION)
+        .build());
+
+    log.info("Đã gửi lại email xác thực cho người dùng: {}", helper.maskEmail(email));
+    return Response.ok(String.format("Nếu email tồn tại trên hệ thống và chưa được kích hoạt, liên kết xác thực mới đã được gửi đến %s. Vui lòng kiểm tra.", helper.maskEmail(email)));
+  }
+
+  private void checkAndApplyVerificationRateLimit(String email) {
+    if (redisService.hasKey(RedisTable.AUTH_VERIFICATION_COOLDOWN, email)) {
+      throw new BusinessException(ErrorCode.TOO_MANY_REQUESTS, "Bạn thao tác quá nhanh. Vui lòng thử lại sau.");
+    }
+
+    Long currentCount = redisService.increment(RedisTable.AUTH_VERIFICATION_QUOTA, email);
+    if (currentCount != null && currentCount == 1L) {
+      redisService.expire(RedisTable.AUTH_VERIFICATION_QUOTA, email, 3600, TimeUnit.SECONDS);
+    } else {
+      Long remainingTtl = redisService.getExpiry(RedisTable.AUTH_VERIFICATION_QUOTA.key(email), TimeUnit.SECONDS);
+      if (remainingTtl == null || remainingTtl <= 0) {
+        redisService.expire(RedisTable.AUTH_VERIFICATION_QUOTA, email, 3600, TimeUnit.SECONDS);
+      }
+    }
+
+    if (currentCount != null && currentCount > 5L) {
+      throw new BusinessException(ErrorCode.TOO_MANY_REQUESTS,
+          "Bạn đã vượt quá số lần yêu cầu xác thực trong 1 giờ. Vui lòng thử lại sau.");
+    }
+
+    redisService.setValueWithExpiry(RedisTable.AUTH_VERIFICATION_COOLDOWN, email, "true", 60, TimeUnit.SECONDS);
+  }
+
+  @Override
+  @Transactional
+  public Response<String> resetPassword(@NonNull final AccountVerificationRequest request) {
+    String token = request.getToken() != null ? request.getToken().trim() : null;
     if (!org.springframework.util.StringUtils.hasText(token)) {
       throw new BusinessException(ErrorCode.INVALID_CREDENTIALS, "Token khôi phục không được để trống.");
     }
@@ -294,13 +334,8 @@ public class UserService implements iUser {
     checkAndApplyRecoveryRateLimit(email);
 
     User user = userRepository.findByEmail(email).orElse(null);
-    if (user == null) {
-      log.warn("Yêu cầu khôi phục tài khoản cho email không tồn tại: {}", helper.maskEmail(email));
-      return Response.ok(String.format(RECOVERY_GENERIC_MESSAGE, helper.maskEmail(email)));
-    }
-
-    if (user.getStatus() == ActiveStatus.LOCKED) {
-      log.warn("Yêu cầu khôi phục tài khoản cho tài khoản đang bị khóa: {}", helper.maskEmail(email));
+    if (user == null || user.getStatus() != ActiveStatus.ACTIVE) {
+      log.warn("Yêu cầu khôi phục tài khoản cho email không tồn tại hoặc không ACTIVE: {}", helper.maskEmail(email));
       return Response.ok(String.format(RECOVERY_GENERIC_MESSAGE, helper.maskEmail(email)));
     }
 
@@ -308,6 +343,8 @@ public class UserService implements iUser {
 
     eventPublisher.publishEvent(AccountRecoveryEvent.builder()
         .user(recoveryToken.user())
+        .email(email)
+        .username(recoveryToken.user().getName())
         .token(recoveryToken.token())
         .build());
 
@@ -340,18 +377,10 @@ public class UserService implements iUser {
   }
 
   @Override
-  @Transactional
+  @Transactional(readOnly = true)
   public Response<String> validateResetToken(@NonNull final String token) {
     var recoveryToken = accountRecoveryService.resolve(token);
     User user = recoveryToken.user();
-
-    if (user.getStatus() == ActiveStatus.INACTIVE) {
-      user.setStatus(ActiveStatus.ACTIVE);
-      userRepository.save(user);
-      log.info("Kích hoạt tài khoản thành công qua recovery token cho user: {}", user.getName());
-      return Response.ok(user.getName(), ACTIVATION_SUCCESS_MESSAGE);
-    }
-
     return Response.ok(user.getName(), VALID_TOKEN_MESSAGE);
   }
 
@@ -576,7 +605,7 @@ public class UserService implements iUser {
   @Override
   @Transactional
   public Response<String> changeUsername(@NonNull final ChangeUsernameRequest request) {
-    var authorization = credentialChangeAuthorization.resolveFromRecoveryTokenOrSession(request.getToken());
+    var authorization = credentialChangeAuthorization.resolveFromSession();
     User user = authorization.user();
 
     if (redisService.hasKey(RedisTable.AUTH_GUARD_COOLDOWN, user.getId())) {

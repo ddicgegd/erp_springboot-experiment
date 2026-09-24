@@ -5,6 +5,7 @@ import com.ddicg.erp.core.common.model.enums.ActiveStatus;
 import com.ddicg.erp.modules.iam.dto.UserDto;
 import com.ddicg.erp.modules.iam.dto.request.AccountVerificationRequest;
 import com.ddicg.erp.modules.iam.dto.request.ChangeUsernameRequest;
+import com.ddicg.erp.modules.iam.dto.request.ResendVerificationRequest;
 import com.ddicg.erp.modules.iam.service.iUser;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -55,28 +56,26 @@ class AuthControllerRecoveryTest {
     }
 
     @Test
-    @DisplayName("POST /api/auth/reset-password?code={code} ủy quyền đúng cho userService.resetPassword")
+    @DisplayName("POST /api/auth/reset-password ủy quyền đúng cho userService.resetPassword")
     void resetPassword_ShouldDelegateToUserService() {
-        String code = "recovery-code-123";
         AccountVerificationRequest request = new AccountVerificationRequest();
+        request.setToken("recovery-token-123");
         request.setNewPassword("NewPass123@");
         request.setConfirmPassword("NewPass123@");
 
-        when(userService.resetPassword(code, request))
+        when(userService.resetPassword(request))
                 .thenReturn(Response.ok("Mật khẩu đã được thay đổi thành công. Vui lòng đăng nhập lại."));
 
-        Response<String> response = authController.resetPassword(code, request);
+        Response<String> response = authController.resetPassword(request);
 
         assertNotNull(response);
         assertEquals(200, response.getStatus().getCode());
-        verify(userService).resetPassword(code, request);
+        verify(userService).resetPassword(request);
     }
-
     @Test
     @DisplayName("PUT /api/auth/change-username ủy quyền đúng cho userService.changeUsername")
     void changeUsername_ShouldDelegateToUserService() {
         ChangeUsernameRequest request = new ChangeUsernameRequest();
-        request.setToken("recovery-token-456");
         request.setNewUsername("brand_new_name");
 
         when(userService.changeUsername(request))
@@ -95,7 +94,7 @@ class AuthControllerRecoveryTest {
         String token = "otp-token-xyz";
         when(userService.verifyEmail(token)).thenReturn(Response.ok("Active"));
 
-        Response<String> response = authController.verifyEmail(token, null);
+        Response<String> response = authController.verifyEmail(token);
 
         assertNotNull(response);
         assertEquals(200, response.getStatus().getCode());
@@ -103,15 +102,16 @@ class AuthControllerRecoveryTest {
     }
 
     @Test
-    @DisplayName("GET /api/auth/verify-email?code={code} fallback ủy quyền đúng khi không có token")
-    void verifyEmail_WhenOnlyCodeProvided_ShouldFallbackToCode() {
-        String code = "otp-code-999";
-        when(userService.verifyEmail(code)).thenReturn(Response.ok("Active"));
+    @DisplayName("POST /api/auth/resend-verification ủy quyền đúng cho userService.resendVerificationEmail")
+    void resendVerificationEmail_ShouldDelegateToUserService() {
+        ResendVerificationRequest request = new ResendVerificationRequest("inactive@example.com");
+        when(userService.resendVerificationEmail(request))
+                .thenReturn(Response.ok("Đã gửi lại email xác thực."));
 
-        Response<String> response = authController.verifyEmail(null, code);
+        Response<String> response = authController.resendVerificationEmail(request);
 
         assertNotNull(response);
         assertEquals(200, response.getStatus().getCode());
-        verify(userService).verifyEmail(code);
+        verify(userService).resendVerificationEmail(request);
     }
 }

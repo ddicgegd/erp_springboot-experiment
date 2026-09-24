@@ -1,18 +1,19 @@
 package com.ddicg.erp.modules.iam.dto.request;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+
 public class ChangeUsernameRequest {
-    private String token;
+    @NotBlank(message = "Tên đăng nhập mới không được để trống")
+    @Size(min = 3, max = 50, message = "Tên đăng nhập mới phải từ 3 đến 50 ký tự.")
     private String newUsername;
 
     public ChangeUsernameRequest() {}
 
-    public ChangeUsernameRequest(String token, String newUsername) {
-        this.token = token;
+    public ChangeUsernameRequest(String newUsername) {
         this.newUsername = newUsername;
     }
 
-    public String getToken() { return token; }
-    public void setToken(String token) { this.token = token; }
     public String getNewUsername() { return newUsername; }
     public void setNewUsername(String newUsername) { this.newUsername = newUsername; }
 }

@@ -56,7 +56,12 @@ public class RedisConfiguration {
     NOTIFICATION_RATELIMIT("notification:ratelimit:", false, 0),
 
     AUTH_RECOVERY_COOLDOWN("auth:action:recovery:cooldown:", false, 0),
-    AUTH_RECOVERY_QUOTA("auth:action:recovery:quota:", false, 0);
+    AUTH_RECOVERY_QUOTA("auth:action:recovery:quota:", false, 0),
+
+    AUTH_VERIFICATION_TOKEN("auth:action:verification:token:", true, 0),
+    AUTH_VERIFICATION_EMAIL("auth:action:verification:email:", true, 0),
+    AUTH_VERIFICATION_COOLDOWN("auth:action:verification:cooldown:", false, 0),
+    AUTH_VERIFICATION_QUOTA("auth:action:verification:quota:", false, 0);
 
     private final String prefix;
     private final boolean immutable;

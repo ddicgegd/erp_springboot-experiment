@@ -163,7 +163,7 @@
 
                             <!-- Security Expiration Note -->
                             <p style="margin: 0 0 20px 0; font-size: 13.5px; line-height: 22px; color: #64748B;">
-                                Đường dẫn này có hiệu lực trong vòng <strong th:text="(${expiryMinutes} ?: '10') + ' phút'">10 phút</strong> và chỉ sử dụng được một lần duy nhất. Nếu bạn không yêu cầu đặt lại mật khẩu, vui lòng bỏ qua email này — mật khẩu hiện tại của bạn vẫn được bảo vệ an toàn tuyệt đối.
+                                Đường dẫn này có hiệu lực trong vòng <strong th:text="(${expiryMinutes} ?: '20') + ' phút'">20 phút</strong> và chỉ sử dụng được một lần duy nhất. Nếu bạn không yêu cầu đặt lại mật khẩu, vui lòng bỏ qua email này — mật khẩu hiện tại của bạn vẫn được bảo vệ an toàn tuyệt đối.
                             </p>
 
                             <!-- Subtle Hairline Separator -->
@@ -204,6 +204,9 @@
                                     </tr>
                                 </table>
                             </div>
+                            <p style="margin: 8px 0 0 0; font-size: 12px; color: #64748B; line-height: 17px;">
+                                * Lưu ý: Mã token này chỉ sử dụng để <strong>Đặt lại mật khẩu</strong> (tại trang /reset-password hoặc API <code>/api/auth/reset-password</code>), không dùng cho xác thực kích hoạt tài khoản.
+                            </p>
 
                             <!-- Email Sign-off -->
                             <div style="margin-top: 28px; font-size: 14px; line-height: 22px; color: #334155;">

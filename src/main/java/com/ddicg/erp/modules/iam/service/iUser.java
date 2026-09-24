@@ -4,6 +4,7 @@ package com.ddicg.erp.modules.iam.service;
 import com.ddicg.erp.modules.iam.dto.request.AccountVerificationRequest;
 import com.ddicg.erp.modules.iam.dto.request.ChangeUsernameRequest;
 import com.ddicg.erp.modules.iam.dto.request.RefreshTokenRequest;
+import com.ddicg.erp.modules.iam.dto.request.ResendVerificationRequest;
 import com.ddicg.erp.modules.iam.dto.request.UpdateProfileRequest;
 import com.ddicg.erp.modules.iam.dto.request.UserLoginRequest;
 import com.ddicg.erp.modules.iam.dto.request.UserRegisterRequest;
@@ -18,7 +19,8 @@ public interface iUser {
     Response<RegisterResponse> createUser(final UserRegisterRequest body);
     Response<AuthResponse> loginUser(final UserLoginRequest body);
     Response<String> verifyEmail(final String code);
-    Response<String> resetPassword(final String code, final AccountVerificationRequest request);
+    Response<String> resendVerificationEmail(final ResendVerificationRequest request);
+    Response<String> resetPassword(final AccountVerificationRequest request);
     Response<String> recoverAccount(final String email);
     Response<String> validateResetToken(final String token);
     Response<AuthResponse> refreshToken(final RefreshTokenRequest request);

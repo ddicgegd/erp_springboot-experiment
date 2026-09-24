@@ -45,13 +45,13 @@ public class SecurityConfiguration {
             "/api/auth/register",
             "/api/auth/login",
             "/api/auth/refresh-token",
-            "/api/auth/verify**",
+            "/api/auth/verify-email",
+            "/api/auth/resend-verification",
             "/api/auth/test-response",
             "/api/auth/logout",
             "/api/auth/recover-account/**",
-            "/api/auth/validate-reset-token**",
-            "/api/auth/reset-password**",
-            "/api/auth/change-username"
+            "/api/auth/validate-reset-token",
+            "/api/auth/reset-password"
     };
 
     // 3. Nhóm nghiệp vụ E-Commerce & Core Banking công khai

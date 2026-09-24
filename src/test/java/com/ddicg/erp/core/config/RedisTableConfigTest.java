@@ -45,9 +45,16 @@ class RedisTableConfigTest {
         assertThat(RedisTable.CATALOG_PRODUCT.isImmutable()).isFalse();
         assertThat(RedisTable.AUTH_RECOVERY_COOLDOWN.isImmutable()).isFalse();
         assertThat(RedisTable.AUTH_RECOVERY_QUOTA.isImmutable()).isFalse();
-
+        assertThat(RedisTable.AUTH_VERIFICATION_TOKEN.isImmutable()).isTrue();
+        assertThat(RedisTable.AUTH_VERIFICATION_EMAIL.isImmutable()).isTrue();
+        assertThat(RedisTable.AUTH_VERIFICATION_COOLDOWN.isImmutable()).isFalse();
+        assertThat(RedisTable.AUTH_VERIFICATION_QUOTA.isImmutable()).isFalse();
         assertThat(RedisTable.fromKey("auth:action:recovery:cooldown:test@example.com")).contains(RedisTable.AUTH_RECOVERY_COOLDOWN);
         assertThat(RedisTable.fromKey("auth:action:recovery:quota:test@example.com")).contains(RedisTable.AUTH_RECOVERY_QUOTA);
+        assertThat(RedisTable.fromKey("auth:action:verification:token:tok123")).contains(RedisTable.AUTH_VERIFICATION_TOKEN);
+        assertThat(RedisTable.fromKey("auth:action:verification:email:test@example.com")).contains(RedisTable.AUTH_VERIFICATION_EMAIL);
+        assertThat(RedisTable.fromKey("auth:action:verification:cooldown:test@example.com")).contains(RedisTable.AUTH_VERIFICATION_COOLDOWN);
+        assertThat(RedisTable.fromKey("auth:action:verification:quota:test@example.com")).contains(RedisTable.AUTH_VERIFICATION_QUOTA);
         assertThat(RedisTable.fromKey("auth:otp:verification:xyz")).contains(RedisTable.AUTH_OTP_VERIFICATION);
         assertThat(RedisTable.fromKey("cart:items:user1")).contains(RedisTable.CART_ITEMS);
         assertThat(RedisTable.fromKey("cart:guest:items:guest123")).contains(RedisTable.CART_GUEST_ITEMS);

@@ -22,15 +22,10 @@ public class CredentialChangeAuthorization {
     return Authorization.recovery(accountRecoveryService.resolve(token));
   }
 
-  public Authorization resolveFromRecoveryTokenOrSession(String token) {
-    if (StringUtils.hasText(token)) {
-      throw new BusinessException(ErrorCode.ACCESS_DENIED,
-          "Mã khôi phục không có quyền thay đổi tên đăng nhập.");
-    }
-
+  public Authorization resolveFromSession() {
     User user = securityUtil.getCurrentUser()
         .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND,
-            "Người dùng chưa đăng nhập hoặc token khôi phục không hợp lệ."));
+            "Người dùng chưa đăng nhập."));
 
     return Authorization.session(user);
   }
@@ -44,9 +39,9 @@ public class CredentialChangeAuthorization {
   }
 
   public void validatePasswordResetPermission(Authorization authorization) {
-    if (authorization.user().getStatus() == ActiveStatus.INACTIVE) {
+    if (authorization.user().getStatus() != ActiveStatus.ACTIVE) {
       throw new BusinessException(ErrorCode.ACCESS_DENIED,
-          "Tài khoản chưa được kích hoạt. Vui lòng kích hoạt tài khoản trước khi đổi mật khẩu.");
+          "Tài khoản chưa được kích hoạt hoặc đang bị khóa.");
     }
   }
 

@@ -3,6 +3,7 @@ package com.ddicg.erp.modules.iam.controller;
 import com.ddicg.erp.modules.iam.dto.request.AccountVerificationRequest;
 import com.ddicg.erp.modules.iam.dto.request.ChangeUsernameRequest;
 import com.ddicg.erp.modules.iam.dto.request.RefreshTokenRequest;
+import com.ddicg.erp.modules.iam.dto.request.ResendVerificationRequest;
 import com.ddicg.erp.modules.iam.dto.request.UpdateProfileRequest;
 import com.ddicg.erp.modules.iam.dto.request.UserLoginRequest;
 import com.ddicg.erp.modules.iam.dto.request.UserRegisterRequest;
@@ -31,16 +32,13 @@ public interface AuthController {
 
         @GetMapping("/verify-email")
         @ResponseStatus(HttpStatus.OK)
-        Response<String> verifyEmail(
-                @RequestParam(value = "token", required = false) final String token,
-                @RequestParam(value = "code", required = false) final String code);
-
+        Response<String> verifyEmail(@RequestParam("token") final String token);
+        @PostMapping("/resend-verification")
+        @ResponseStatus(HttpStatus.OK)
+        Response<String> resendVerificationEmail(@Valid @RequestBody final ResendVerificationRequest body);
         @PostMapping("/reset-password")
         @ResponseStatus(HttpStatus.OK)
-        Response<String> resetPassword(
-                        @RequestParam(value = "code", required = false) final String code,
-                        @Valid @RequestBody final AccountVerificationRequest body);
-
+        Response<String> resetPassword(@Valid @RequestBody final AccountVerificationRequest body);
         @GetMapping("/validate-reset-token")
         @ResponseStatus(HttpStatus.OK)
         Response<String> validateResetToken(@RequestParam("token") final String token);
@@ -71,5 +69,6 @@ public interface AuthController {
 
         @PutMapping("/change-username")
         @ResponseStatus(HttpStatus.OK)
+        @PreAuthorize("isAuthenticated()")
         Response<String> changeUsername(@Valid @RequestBody final ChangeUsernameRequest body);
 }

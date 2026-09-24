@@ -17,8 +17,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class AccountRecoveryService {
 
-  private static final Duration ACTIVE_RECOVERY_TOKEN_TTL = Duration.ofMinutes(20);
-  private static final Duration UNACTIVATED_RECOVERY_TOKEN_TTL = Duration.ofMinutes(10);
+  private static final Duration RECOVERY_TOKEN_TTL = Duration.ofMinutes(20);
 
   private final UserRepository userRepository;
   private final RecoveryTokenStore recoveryTokenStore;
@@ -27,17 +26,14 @@ public class AccountRecoveryService {
     User user = userRepository.findByEmail(email)
         .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND, "Người dùng không tồn tại"));
 
-    if (user.getStatus() == ActiveStatus.LOCKED) {
-      throw new BusinessException(ErrorCode.INVALID_CREDENTIALS, "Tài khoản đang bị khóa.");
+    if (user.getStatus() != ActiveStatus.ACTIVE) {
+      throw new BusinessException(ErrorCode.INVALID_CREDENTIALS,
+          "Tài khoản chưa được kích hoạt hoặc đang bị khóa.");
     }
 
-    Duration ttl = (user.getStatus() == ActiveStatus.ACTIVE)
-        ? ACTIVE_RECOVERY_TOKEN_TTL
-        : UNACTIVATED_RECOVERY_TOKEN_TTL;
-
     String newToken = UUID.randomUUID().toString();
-    recoveryTokenStore.save(email, newToken, ttl);
-    log.info("Cấp token khôi phục mới cho user: {} với TTL: {} phút", user.getUsername(), ttl.toMinutes());
+    recoveryTokenStore.save(email, newToken, RECOVERY_TOKEN_TTL);
+    log.info("Cấp token khôi phục mới cho user: {} với TTL: {} phút", user.getUsername(), RECOVERY_TOKEN_TTL.toMinutes());
 
     return new RecoveryToken(user, newToken, email);
   }
@@ -56,8 +52,9 @@ public class AccountRecoveryService {
         .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND,
             "Người dùng không tồn tại để xác thực."));
 
-    if (user.getStatus() == ActiveStatus.LOCKED) {
-      throw new BusinessException(ErrorCode.INVALID_CREDENTIALS, "Tài khoản đang bị khóa.");
+    if (user.getStatus() != ActiveStatus.ACTIVE) {
+      throw new BusinessException(ErrorCode.INVALID_CREDENTIALS,
+          "Tài khoản chưa được kích hoạt hoặc đang bị khóa.");
     }
 
     return new RecoveryToken(user, token, email);

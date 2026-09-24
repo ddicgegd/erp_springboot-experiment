@@ -13,6 +13,7 @@ import com.ddicg.erp.core.security.SecurityUtil;
 import com.ddicg.erp.modules.iam.dto.UserDto;
 import com.ddicg.erp.modules.iam.dto.request.AccountVerificationRequest;
 import com.ddicg.erp.modules.iam.dto.request.ChangeUsernameRequest;
+import com.ddicg.erp.modules.iam.dto.request.ResendVerificationRequest;
 import com.ddicg.erp.modules.iam.model.User;
 import com.ddicg.erp.modules.iam.repository.UserRepository;
 import com.ddicg.erp.modules.merchandise.mapper.UserMapper;
@@ -87,6 +88,8 @@ class UserServiceRecoveryTest {
     @Mock
     private AccountRecoveryService accountRecoveryService;
 
+    @Mock
+    private AccountVerificationService accountVerificationService;
     @InjectMocks
     private UserService userService;
 
@@ -185,6 +188,23 @@ class UserServiceRecoveryTest {
     }
 
     @Test
+    @DisplayName("recoverAccount (Anti-Enumeration): User INACTIVE vẫn trả về 200 OK nhưng không cấp token hay phát event")
+    void recoverAccount_WhenUserIsInactive_ShouldReturnGeneric200AndNotPublishEvent() {
+        when(helper.isEmailFormat("inactive@example.com")).thenReturn(true);
+        when(userRepository.findByEmail("inactive@example.com")).thenReturn(Optional.of(inactiveUser));
+        when(helper.maskEmail("inactive@example.com")).thenReturn("i***@example.com");
+
+        Response<String> response = userService.recoverAccount("inactive@example.com");
+
+        assertNotNull(response);
+        assertEquals(200, response.getStatus().getCode());
+        assertEquals("Nếu email tồn tại trên hệ thống, liên kết khôi phục tài khoản đã được gửi đến i***@example.com. Vui lòng kiểm tra.", response.getStatus().getMessage());
+
+        verify(accountRecoveryService, never()).issue(any());
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
     @DisplayName("recoverAccount: Phải được cấu hình @Transactional(readOnly = true)")
     void recoverAccount_ShouldBeConfiguredWithReadOnlyTransaction() throws NoSuchMethodException {
         var method = UserService.class.getMethod("recoverAccount", String.class);
@@ -237,20 +257,12 @@ class UserServiceRecoveryTest {
     }
 
     @Test
-    @DisplayName("validateResetToken: User INACTIVE được tự động kích hoạt lên ACTIVE, lưu DB, trả về username và không tiêu thụ token")
-    void validateResetToken_WhenInactive_ShouldActivateUserAndReturnUsername() {
-        RecoveryToken recoveryToken = new RecoveryToken(inactiveUser, "tok-inactive", "inactive@example.com");
-        when(accountRecoveryService.resolve("tok-inactive")).thenReturn(recoveryToken);
-
-        Response<String> response = userService.validateResetToken("tok-inactive");
-
-        assertNotNull(response);
-        assertEquals(200, response.getStatus().getCode());
-        assertEquals("inactive_user", response.getData());
-        assertEquals("Tài khoản của bạn đã được kích hoạt thành công. Vui lòng thiết lập mật khẩu mới.", response.getStatus().getMessage());
-        assertEquals(ActiveStatus.ACTIVE, inactiveUser.getStatus());
-        verify(userRepository).save(inactiveUser);
-        verify(accountRecoveryService, never()).consume(any());
+    @DisplayName("validateResetToken: Phải được cấu hình @Transactional(readOnly = true)")
+    void validateResetToken_ShouldBeConfiguredWithReadOnlyTransaction() throws NoSuchMethodException {
+        var method = UserService.class.getMethod("validateResetToken", String.class);
+        var transactional = method.getAnnotation(org.springframework.transaction.annotation.Transactional.class);
+        assertNotNull(transactional, "Phải có annotation @Transactional");
+        assertTrue(transactional.readOnly(), "validateResetToken không ghi database nên transaction phải là readOnly = true");
     }
 
     @Test
@@ -270,33 +282,12 @@ class UserServiceRecoveryTest {
     }
 
     @Test
-    @DisplayName("changeUsername: Ném lỗi ACCESS_DENIED khi cố gắng sử dụng recovery token để đổi username")
-    void changeUsername_WhenUsingRecoveryToken_ShouldThrowAccessDenied() {
-        ChangeUsernameRequest request = new ChangeUsernameRequest();
-        request.setToken("tok-recovery");
-        request.setNewUsername("new_name");
-
-        when(credentialChangeAuthorization.resolveFromRecoveryTokenOrSession("tok-recovery"))
-                .thenThrow(new BusinessException(ErrorCode.ACCESS_DENIED, "Mã khôi phục không có quyền thay đổi tên đăng nhập."));
-
-        BusinessException ex = assertThrows(BusinessException.class, () ->
-                userService.changeUsername(request));
-
-        assertEquals(ErrorCode.ACCESS_DENIED, ex.getErrorCode());
-        assertTrue(ex.getMessage().contains("không có quyền thay đổi"));
-        verify(userRepository, never()).save(any());
-    }
-
-    @Test
     @DisplayName("changeUsername với Session đăng nhập: Kiểm tra và áp dụng cooldown 30 ngày")
     void changeUsername_WhenUsingSession_ShouldApplyCooldown() {
         var auth = CredentialChangeAuthorization.Authorization.session(activeUser);
+        ChangeUsernameRequest request = new ChangeUsernameRequest("new_active_username");
 
-        ChangeUsernameRequest request = new ChangeUsernameRequest();
-        request.setToken(null);
-        request.setNewUsername("new_active_username");
-
-        when(credentialChangeAuthorization.resolveFromRecoveryTokenOrSession(null)).thenReturn(auth);
+        when(credentialChangeAuthorization.resolveFromSession()).thenReturn(auth);
         when(redisService.hasKey(RedisTable.AUTH_GUARD_COOLDOWN, 10L)).thenReturn(false);
         when(userRepository.findByName("new_active_username")).thenReturn(Optional.empty());
 
@@ -314,12 +305,9 @@ class UserServiceRecoveryTest {
     @DisplayName("changeUsername: Ném ngoại lệ khi tên đăng nhập mới đã tồn tại")
     void changeUsername_WhenUsernameExists_ShouldThrowInvalidCredentials() {
         var auth = CredentialChangeAuthorization.Authorization.session(activeUser);
+        ChangeUsernameRequest request = new ChangeUsernameRequest("already_taken");
 
-        ChangeUsernameRequest request = new ChangeUsernameRequest();
-        request.setToken(null);
-        request.setNewUsername("already_taken");
-
-        when(credentialChangeAuthorization.resolveFromRecoveryTokenOrSession(null)).thenReturn(auth);
+        when(credentialChangeAuthorization.resolveFromSession()).thenReturn(auth);
         when(userRepository.findByName("already_taken")).thenReturn(Optional.of(activeUser));
 
         BusinessException ex = assertThrows(BusinessException.class, () ->
@@ -346,7 +334,7 @@ class UserServiceRecoveryTest {
         request.setConfirmPassword("newPass123");
 
         BusinessException ex = assertThrows(BusinessException.class, () ->
-                userService.resetPassword(null, request));
+                userService.resetPassword(request));
 
         assertEquals(ErrorCode.ACCESS_DENIED, ex.getErrorCode());
         assertTrue(ex.getMessage().contains("chưa được kích hoạt"));
@@ -355,31 +343,17 @@ class UserServiceRecoveryTest {
     }
 
     @Test
-    @DisplayName("verifyEmail: Kích hoạt tài khoản thành công khi mã OTP trong Redis hợp lệ")
-    void verifyEmail_WhenValidCode_ShouldActivateUser() {
-        when(redisService.getValue(RedisTable.AUTH_OTP_VERIFICATION, "otp-valid")).thenReturn("inactive@example.com");
-        when(userRepository.findByEmail("inactive@example.com")).thenReturn(Optional.of(inactiveUser));
+    @DisplayName("verifyEmail: Kích hoạt tài khoản thành công qua AccountVerificationService")
+    void verifyEmail_WhenValidCode_ShouldDelegateToAccountVerificationService() {
+        VerificationToken verificationToken = new VerificationToken(inactiveUser, "otp-valid", "inactive@example.com");
+        when(accountVerificationService.verify("otp-valid")).thenReturn(verificationToken);
 
         Response<String> response = userService.verifyEmail("otp-valid");
 
         assertNotNull(response);
         assertEquals(200, response.getStatus().getCode());
-        assertEquals(ActiveStatus.ACTIVE, inactiveUser.getStatus());
-        verify(userRepository).save(inactiveUser);
-        verify(redisService).delete(RedisTable.AUTH_OTP_VERIFICATION, "otp-valid");
-    }
-
-    @Test
-    @DisplayName("verifyEmail: Ném lỗi INVALID_CREDENTIALS khi mã OTP không tồn tại trong Redis hoặc hết hạn")
-    void verifyEmail_WhenInvalidCode_ShouldThrowInvalidCredentials() {
-        when(redisService.getValue(RedisTable.AUTH_OTP_VERIFICATION, "otp-invalid")).thenReturn(null);
-
-        BusinessException ex = assertThrows(BusinessException.class, () ->
-                userService.verifyEmail("otp-invalid"));
-
-        assertEquals(ErrorCode.INVALID_CREDENTIALS, ex.getErrorCode());
-        assertTrue(ex.getMessage().contains("không hợp lệ hoặc đã hết hạn"));
-        verify(userRepository, never()).save(any());
+        assertTrue(response.getStatus().getMessage().contains("kích hoạt"));
+        verify(accountVerificationService).verify("otp-valid");
     }
 
     @Test
@@ -389,7 +363,112 @@ class UserServiceRecoveryTest {
                 userService.verifyEmail("   "));
 
         assertEquals(ErrorCode.INVALID_CREDENTIALS, ex.getErrorCode());
-        verify(redisService, never()).getValue(any(), any());
+        verifyNoInteractions(accountVerificationService);
+    }
+
+    @Test
+    @DisplayName("resendVerificationEmail: Thành công, thiết lập rate limit và phát hành VerificationEmailEvent")
+    void resendVerificationEmail_WhenInactiveUser_ShouldIssueTokenAndPublishEvent() {
+        when(helper.isEmailFormat("inactive@example.com")).thenReturn(true);
+        when(userRepository.findByEmail("inactive@example.com")).thenReturn(Optional.of(inactiveUser));
+        VerificationToken verificationToken = new VerificationToken(inactiveUser, "verify-tok", "inactive@example.com");
+        when(accountVerificationService.issue("inactive@example.com")).thenReturn(verificationToken);
+        when(helper.maskEmail("inactive@example.com")).thenReturn("i***@example.com");
+        when(redisService.increment(RedisTable.AUTH_VERIFICATION_QUOTA, "inactive@example.com")).thenReturn(1L);
+
+        ResendVerificationRequest request = new ResendVerificationRequest("inactive@example.com");
+        Response<String> response = userService.resendVerificationEmail(request);
+
+        assertNotNull(response);
+        assertEquals(200, response.getStatus().getCode());
+        assertEquals("Nếu email tồn tại trên hệ thống và chưa được kích hoạt, liên kết xác thực mới đã được gửi đến i***@example.com. Vui lòng kiểm tra.", response.getStatus().getMessage());
+
+        verify(redisService).setValueWithExpiry(eq(RedisTable.AUTH_VERIFICATION_COOLDOWN), eq("inactive@example.com"), eq("true"), eq(60L), any());
+        verify(redisService).increment(RedisTable.AUTH_VERIFICATION_QUOTA, "inactive@example.com");
+        verify(redisService).expire(eq(RedisTable.AUTH_VERIFICATION_QUOTA), eq("inactive@example.com"), eq(3600L), any());
+        verify(accountVerificationService).issue("inactive@example.com");
+    }
+
+    @Test
+    @DisplayName("resendVerificationEmail (Anti-Enumeration): Email không tồn tại vẫn trả về 200 OK nhưng không cấp token hay phát event")
+    void resendVerificationEmail_WhenUserNotFound_ShouldReturnGeneric200AndNotPublishEvent() {
+        when(helper.isEmailFormat("nonexistent@example.com")).thenReturn(true);
+        when(userRepository.findByEmail("nonexistent@example.com")).thenReturn(Optional.empty());
+        when(helper.maskEmail("nonexistent@example.com")).thenReturn("n***@example.com");
+
+        ResendVerificationRequest request = new ResendVerificationRequest("nonexistent@example.com");
+        Response<String> response = userService.resendVerificationEmail(request);
+
+        assertNotNull(response);
+        assertEquals(200, response.getStatus().getCode());
+        assertEquals("Nếu email tồn tại trên hệ thống và chưa được kích hoạt, liên kết xác thực mới đã được gửi đến n***@example.com. Vui lòng kiểm tra.", response.getStatus().getMessage());
+
+        verify(accountVerificationService, never()).issue(any());
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    @DisplayName("resendVerificationEmail (Anti-Enumeration): User ACTIVE vẫn trả về 200 OK nhưng không cấp token hay phát event")
+    void resendVerificationEmail_WhenUserIsActive_ShouldReturnGeneric200AndNotPublishEvent() {
+        when(helper.isEmailFormat("active@example.com")).thenReturn(true);
+        when(userRepository.findByEmail("active@example.com")).thenReturn(Optional.of(activeUser));
+        when(helper.maskEmail("active@example.com")).thenReturn("a***@example.com");
+
+        ResendVerificationRequest request = new ResendVerificationRequest("active@example.com");
+        Response<String> response = userService.resendVerificationEmail(request);
+
+        assertNotNull(response);
+        assertEquals(200, response.getStatus().getCode());
+        assertEquals("Nếu email tồn tại trên hệ thống và chưa được kích hoạt, liên kết xác thực mới đã được gửi đến a***@example.com. Vui lòng kiểm tra.", response.getStatus().getMessage());
+
+        verify(accountVerificationService, never()).issue(any());
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    @DisplayName("resendVerificationEmail (Rate Limit): Ném TOO_MANY_REQUESTS khi đang trong thời gian Cooldown 60s")
+    void resendVerificationEmail_WhenCooldownActive_ShouldThrowTooManyRequests() {
+        when(helper.isEmailFormat("inactive@example.com")).thenReturn(true);
+        when(redisService.hasKey(RedisTable.AUTH_VERIFICATION_COOLDOWN, "inactive@example.com")).thenReturn(true);
+
+        ResendVerificationRequest request = new ResendVerificationRequest("inactive@example.com");
+        BusinessException ex = assertThrows(BusinessException.class, () ->
+                userService.resendVerificationEmail(request));
+
+        assertEquals(ErrorCode.TOO_MANY_REQUESTS, ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("quá nhanh"));
+        verify(userRepository, never()).findByEmail(any());
+        verify(accountVerificationService, never()).issue(any());
+    }
+
+    @Test
+    @DisplayName("resendVerificationEmail (Rate Limit): Ném TOO_MANY_REQUESTS khi vượt quá hạn ngạch 5 lần/giờ")
+    void resendVerificationEmail_WhenQuotaExceeded_ShouldThrowTooManyRequests() {
+        when(helper.isEmailFormat("inactive@example.com")).thenReturn(true);
+        when(redisService.hasKey(RedisTable.AUTH_VERIFICATION_COOLDOWN, "inactive@example.com")).thenReturn(false);
+        when(redisService.increment(RedisTable.AUTH_VERIFICATION_QUOTA, "inactive@example.com")).thenReturn(6L);
+
+        ResendVerificationRequest request = new ResendVerificationRequest("inactive@example.com");
+        BusinessException ex = assertThrows(BusinessException.class, () ->
+                userService.resendVerificationEmail(request));
+
+        assertEquals(ErrorCode.TOO_MANY_REQUESTS, ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("1 giờ"));
+        verify(userRepository, never()).findByEmail(any());
+        verify(accountVerificationService, never()).issue(any());
+    }
+
+    @Test
+    @DisplayName("resendVerificationEmail: Ném INVALID_FORMAT khi email không đúng định dạng")
+    void resendVerificationEmail_WhenInvalidEmailFormat_ShouldThrowInvalidFormat() {
+        when(helper.isEmailFormat("bad-email")).thenReturn(false);
+
+        ResendVerificationRequest request = new ResendVerificationRequest("bad-email");
+        BusinessException ex = assertThrows(BusinessException.class, () ->
+                userService.resendVerificationEmail(request));
+
+        assertEquals(ErrorCode.INVALID_FORMAT, ex.getErrorCode());
+        verify(redisService, never()).hasKey(any(), any());
     }
 
     @Test
@@ -402,10 +481,11 @@ class UserServiceRecoveryTest {
         when(passwordEncoder.encode("newPass123")).thenReturn("encoded_new_pass");
 
         AccountVerificationRequest request = new AccountVerificationRequest();
+        request.setToken("tok-active");
         request.setNewPassword("newPass123");
         request.setConfirmPassword("newPass123");
 
-        Response<String> response = userService.resetPassword("tok-active", request);
+        Response<String> response = userService.resetPassword(request);
 
         assertNotNull(response);
         assertEquals(200, response.getStatus().getCode());

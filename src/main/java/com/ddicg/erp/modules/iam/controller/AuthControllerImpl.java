@@ -5,6 +5,7 @@ import com.ddicg.erp.core.common.dto.request.PagingRequest;
 import com.ddicg.erp.modules.iam.dto.request.AccountVerificationRequest;
 import com.ddicg.erp.modules.iam.dto.request.ChangeUsernameRequest;
 import com.ddicg.erp.modules.iam.dto.request.RefreshTokenRequest;
+import com.ddicg.erp.modules.iam.dto.request.ResendVerificationRequest;
 import com.ddicg.erp.modules.iam.dto.request.UpdateProfileRequest;
 import com.ddicg.erp.modules.iam.dto.request.UserLoginRequest;
 import com.ddicg.erp.modules.iam.dto.request.UserRegisterRequest;
@@ -39,18 +40,19 @@ public class AuthControllerImpl implements AuthController {
     }
 
     @Override
-    public Response<String> verifyEmail(final String token, final String code) {
-        String resolvedToken = org.springframework.util.StringUtils.hasText(token) ? token : code;
-        return userService.verifyEmail(resolvedToken);
+    public Response<String> verifyEmail(final String token) {
+        String sanitizedToken = token != null ? token.trim() : null;
+        return userService.verifyEmail(sanitizedToken);
+    }
+    @Override
+    public Response<String> resendVerificationEmail(final ResendVerificationRequest body) {
+        return userService.resendVerificationEmail(body);
     }
 
     @Override
-    public Response<String> resetPassword(
-            final String code,
-            final AccountVerificationRequest body) {
-        return userService.resetPassword(code, body);
+    public Response<String> resetPassword(final AccountVerificationRequest body) {
+        return userService.resetPassword(body);
     }
-
     @Override
     public Response<String> validateResetToken(final String token) {
         return userService.validateResetToken(token);
