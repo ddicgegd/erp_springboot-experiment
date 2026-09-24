@@ -88,4 +88,17 @@ class AuthControllerRecoveryTest {
         assertEquals(200, response.getStatus().getCode());
         verify(userService).changeUsername(request);
     }
+
+    @Test
+    @DisplayName("GET /api/auth/verify-email?token={token} ủy quyền đúng cho userService.verifyEmail")
+    void verifyEmail_ShouldDelegateToUserService() {
+        String token = "otp-token-xyz";
+        when(userService.verifyEmail(token)).thenReturn(Response.ok("Active"));
+
+        Response<String> response = authController.verifyEmail(token);
+
+        assertNotNull(response);
+        assertEquals(200, response.getStatus().getCode());
+        verify(userService).verifyEmail(token);
+    }
 }
