@@ -121,12 +121,16 @@ class CredentialChangeAuthorizationTest {
     }
 
     @Test
-    @DisplayName("validatePasswordResetPermission: Cho phép token tiếp tục đổi mật khẩu ngay cả khi tài khoản chưa kích hoạt")
-    void validatePasswordResetPermission_WhenPendingActivation_ShouldPass() {
+    @DisplayName("validatePasswordResetPermission: Ném lỗi ACCESS_DENIED khi tài khoản chưa kích hoạt (INACTIVE)")
+    void validatePasswordResetPermission_WhenPendingActivation_ShouldThrowAccessDenied() {
         RecoveryToken recoveryToken = new RecoveryToken(inactiveUser, "token-inactive", "inactive@example.com");
         var auth = CredentialChangeAuthorization.Authorization.recovery(recoveryToken);
 
-        assertDoesNotThrow(() -> authorizationService.validatePasswordResetPermission(auth));
+        BusinessException ex = assertThrows(BusinessException.class, () ->
+                authorizationService.validatePasswordResetPermission(auth));
+
+        assertEquals(ErrorCode.ACCESS_DENIED, ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("chưa được kích hoạt"));
     }
 
     @Test

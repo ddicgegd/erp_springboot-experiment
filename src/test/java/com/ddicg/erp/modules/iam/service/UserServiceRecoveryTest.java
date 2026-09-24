@@ -331,28 +331,65 @@ class UserServiceRecoveryTest {
     }
 
     @Test
-    @DisplayName("resetPassword nhận token qua Request Body: Kích hoạt safeguard nếu user INACTIVE, đổi mật khẩu và thu hồi token")
-    void resetPassword_WhenTokenInBodyAndUserInactive_ShouldActivateUserAndUpdatePassword() {
+    @DisplayName("resetPassword: Ném lỗi ACCESS_DENIED khi tài khoản INACTIVE cố đổi mật khẩu")
+    void resetPassword_WhenTokenInBodyAndUserInactive_ShouldThrowAccessDenied() {
         RecoveryToken recoveryToken = new RecoveryToken(inactiveUser, "tok-body", "inactive@example.com");
         var auth = CredentialChangeAuthorization.Authorization.recovery(recoveryToken);
 
         when(credentialChangeAuthorization.resolveFromRecoveryToken("tok-body")).thenReturn(auth);
-        when(passwordEncoder.encode("newPass123")).thenReturn("encoded_new_pass");
+        doThrow(new BusinessException(ErrorCode.ACCESS_DENIED, "Tài khoản chưa được kích hoạt. Vui lòng kích hoạt tài khoản trước khi đổi mật khẩu."))
+                .when(credentialChangeAuthorization).validatePasswordResetPermission(auth);
 
         AccountVerificationRequest request = new AccountVerificationRequest();
         request.setToken("tok-body");
         request.setNewPassword("newPass123");
         request.setConfirmPassword("newPass123");
 
-        Response<String> response = userService.resetPassword(null, request);
+        BusinessException ex = assertThrows(BusinessException.class, () ->
+                userService.resetPassword(null, request));
+
+        assertEquals(ErrorCode.ACCESS_DENIED, ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("chưa được kích hoạt"));
+        verify(userRepository, never()).save(any());
+        verify(credentialChangeAuthorization, never()).consumeRecoveryToken(any());
+    }
+
+    @Test
+    @DisplayName("verifyEmail: Kích hoạt tài khoản thành công khi mã OTP trong Redis hợp lệ")
+    void verifyEmail_WhenValidCode_ShouldActivateUser() {
+        when(redisService.getValue(RedisTable.AUTH_OTP_VERIFICATION, "otp-valid")).thenReturn("inactive@example.com");
+        when(userRepository.findByEmail("inactive@example.com")).thenReturn(Optional.of(inactiveUser));
+
+        Response<String> response = userService.verifyEmail("otp-valid");
 
         assertNotNull(response);
         assertEquals(200, response.getStatus().getCode());
-        assertEquals("encoded_new_pass", inactiveUser.getPassword());
         assertEquals(ActiveStatus.ACTIVE, inactiveUser.getStatus());
         verify(userRepository).save(inactiveUser);
-        verify(credentialChangeAuthorization).consumeRecoveryToken(auth);
-        verify(refreshTokenService).revokeAllUserTokens(20L);
+        verify(redisService).delete(RedisTable.AUTH_OTP_VERIFICATION, "otp-valid");
+    }
+
+    @Test
+    @DisplayName("verifyEmail: Ném lỗi INVALID_CREDENTIALS khi mã OTP không tồn tại trong Redis hoặc hết hạn")
+    void verifyEmail_WhenInvalidCode_ShouldThrowInvalidCredentials() {
+        when(redisService.getValue(RedisTable.AUTH_OTP_VERIFICATION, "otp-invalid")).thenReturn(null);
+
+        BusinessException ex = assertThrows(BusinessException.class, () ->
+                userService.verifyEmail("otp-invalid"));
+
+        assertEquals(ErrorCode.INVALID_CREDENTIALS, ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("không hợp lệ hoặc đã hết hạn"));
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("verifyEmail: Ném lỗi INVALID_CREDENTIALS khi mã token rỗng hoặc null")
+    void verifyEmail_WhenBlankCode_ShouldThrowInvalidCredentials() {
+        BusinessException ex = assertThrows(BusinessException.class, () ->
+                userService.verifyEmail("   "));
+
+        assertEquals(ErrorCode.INVALID_CREDENTIALS, ex.getErrorCode());
+        verify(redisService, never()).getValue(any(), any());
     }
 
     @Test

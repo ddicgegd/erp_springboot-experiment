@@ -31,7 +31,9 @@ public interface AuthController {
 
         @GetMapping("/verify-email")
         @ResponseStatus(HttpStatus.OK)
-        Response<String> verifyEmail(@RequestParam("token") final String code);
+        Response<String> verifyEmail(
+                @RequestParam(value = "token", required = false) final String token,
+                @RequestParam(value = "code", required = false) final String code);
 
         @PostMapping("/reset-password")
         @ResponseStatus(HttpStatus.OK)

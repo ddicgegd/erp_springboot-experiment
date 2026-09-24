@@ -222,7 +222,12 @@ public class UserService implements iUser {
 
   @Override
   @Transactional
-  public Response<String> verifyEmail(@NonNull final String code) {
+  public Response<String> verifyEmail(final String code) {
+    if (!org.springframework.util.StringUtils.hasText(code)) {
+      throw new BusinessException(ErrorCode.INVALID_CREDENTIALS,
+          "Mã xác thực email không hợp lệ hoặc đã hết hạn.");
+    }
+
     String email = (String) redisService.getValue(RedisTable.AUTH_OTP_VERIFICATION, code);
     if (email == null) {
       throw new BusinessException(ErrorCode.INVALID_CREDENTIALS,
@@ -257,9 +262,6 @@ public class UserService implements iUser {
     credentialChangeAuthorization.validatePasswordResetPermission(authorization);
     User user = authorization.user();
 
-    if (user.getStatus() == ActiveStatus.INACTIVE) {
-      user.setStatus(ActiveStatus.ACTIVE);
-    }
     changePassword(user, request);
 
     credentialChangeAuthorization.consumeRecoveryToken(authorization);

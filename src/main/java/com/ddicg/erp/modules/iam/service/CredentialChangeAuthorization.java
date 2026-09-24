@@ -1,5 +1,6 @@
 package com.ddicg.erp.modules.iam.service;
 
+import com.ddicg.erp.core.common.model.enums.ActiveStatus;
 import com.ddicg.erp.modules.iam.model.User;
 import com.ddicg.erp.modules.iam.service.AccountRecoveryService;
 import com.ddicg.erp.modules.iam.service.RecoveryToken;
@@ -43,7 +44,10 @@ public class CredentialChangeAuthorization {
   }
 
   public void validatePasswordResetPermission(Authorization authorization) {
-    // Unactivated accounts are activated during validateResetToken or resetPassword
+    if (authorization.user().getStatus() == ActiveStatus.INACTIVE) {
+      throw new BusinessException(ErrorCode.ACCESS_DENIED,
+          "Tài khoản chưa được kích hoạt. Vui lòng kích hoạt tài khoản trước khi đổi mật khẩu.");
+    }
   }
 
   public record Authorization(

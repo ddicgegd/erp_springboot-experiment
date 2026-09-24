@@ -39,8 +39,9 @@ public class AuthControllerImpl implements AuthController {
     }
 
     @Override
-    public Response<String> verifyEmail(final String code) {
-        return userService.verifyEmail(code);
+    public Response<String> verifyEmail(final String token, final String code) {
+        String resolvedToken = org.springframework.util.StringUtils.hasText(token) ? token : code;
+        return userService.verifyEmail(resolvedToken);
     }
 
     @Override

@@ -95,10 +95,23 @@ class AuthControllerRecoveryTest {
         String token = "otp-token-xyz";
         when(userService.verifyEmail(token)).thenReturn(Response.ok("Active"));
 
-        Response<String> response = authController.verifyEmail(token);
+        Response<String> response = authController.verifyEmail(token, null);
 
         assertNotNull(response);
         assertEquals(200, response.getStatus().getCode());
         verify(userService).verifyEmail(token);
+    }
+
+    @Test
+    @DisplayName("GET /api/auth/verify-email?code={code} fallback ủy quyền đúng khi không có token")
+    void verifyEmail_WhenOnlyCodeProvided_ShouldFallbackToCode() {
+        String code = "otp-code-999";
+        when(userService.verifyEmail(code)).thenReturn(Response.ok("Active"));
+
+        Response<String> response = authController.verifyEmail(null, code);
+
+        assertNotNull(response);
+        assertEquals(200, response.getStatus().getCode());
+        verify(userService).verifyEmail(code);
     }
 }
