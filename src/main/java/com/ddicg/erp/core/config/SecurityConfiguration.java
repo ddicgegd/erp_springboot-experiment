@@ -51,7 +51,8 @@ public class SecurityConfiguration {
             "/api/auth/logout",
             "/api/auth/recover-account/**",
             "/api/auth/validate-reset-token",
-            "/api/auth/reset-password"
+            "/api/auth/reset-password",
+            "/api/auth/credential-change/activate"
     };
 
     // 3. Nhóm nghiệp vụ E-Commerce & Core Banking công khai
