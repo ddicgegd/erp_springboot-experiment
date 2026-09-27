@@ -18,13 +18,14 @@ import com.ddicg.erp.core.common.service.RedisService;
 import com.ddicg.erp.core.config.RedisConfiguration.RedisTable;
 import com.ddicg.erp.modules.iam.service.AccountRecoveryService;
 import com.ddicg.erp.modules.iam.dto.request.AccountVerificationRequest;
-import com.ddicg.erp.modules.iam.dto.request.ChangeUsernameRequest;
 import com.ddicg.erp.modules.iam.dto.request.RefreshTokenRequest;
 import com.ddicg.erp.modules.iam.dto.request.ResendVerificationRequest;
+import com.ddicg.erp.modules.iam.dto.request.UpdateCredentialsRequest;
 import com.ddicg.erp.modules.iam.dto.request.UpdateProfileRequest;
 import com.ddicg.erp.modules.iam.dto.request.UserLoginRequest;
 import com.ddicg.erp.modules.iam.dto.request.UserRegisterRequest;
 import com.ddicg.erp.modules.iam.dto.response.AuthResponse;
+import com.ddicg.erp.modules.iam.dto.response.CredentialActiveStatusResponse;
 import com.ddicg.erp.modules.iam.dto.response.DeviceInfoResponse;
 import com.ddicg.erp.modules.iam.dto.response.MyProfileResponse;
 import com.ddicg.erp.modules.iam.dto.response.RegisterResponse;
@@ -52,8 +53,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
+import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.concurrent.TimeUnit;
+import org.springframework.util.StringUtils;
+import com.ddicg.erp.modules.notification.kafka.producer.NotificationEventProducer;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
@@ -79,6 +84,8 @@ public class UserService implements iUser {
   private static final SecureRandom SECURE_RANDOM = new SecureRandom();
   @Value("${frontend.url}")
   private String frontendUrl;
+  @Value("${server.url}")
+  private String serverUrl;
   private static final String RECOVERY_GENERIC_MESSAGE =
       "Nếu email tồn tại trên hệ thống, liên kết khôi phục tài khoản đã được gửi đến %s. Vui lòng kiểm tra.";
   private static final String ACTIVATION_SUCCESS_MESSAGE =
@@ -95,6 +102,8 @@ public class UserService implements iUser {
   private final CredentialChangeAuthorization credentialChangeAuthorization;
   private final AccountRecoveryService accountRecoveryService;
   private final AccountVerificationService accountVerificationService;
+  private final CredentialTokenStore credentialTokenStore;
+  private final NotificationEventProducer notificationEventProducer;
   @Override
   @Transactional
   public Response<RegisterResponse> createUser(UserRegisterRequest body) {
@@ -488,18 +497,7 @@ public class UserService implements iUser {
     User user = userRepository.findByEmail(email)
         .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND, "Người dùng không tồn tại."));
 
-    return Response.ok(MyProfileResponse.builder()
-        .username(user.getName())
-        .fullName(user.getFullName())
-        .email(user.getEmail())
-        .phoneNumber(user.getPhoneNumber())
-        .avatarUrl(user.getAvatarUrl())
-        .dateOfBirth(user.getDateOfBirth())
-        .gender(user.getGender())
-        .rank(user.getRank())
-        .status(user.getStatus())
-        .roles(user.getRoles())
-        .build());
+    return Response.ok(buildMyProfileResponse(user));
   }
 
   @Override
@@ -517,7 +515,24 @@ public class UserService implements iUser {
       user.setPhoneNumber(request.getPhoneNumber());
     }
     if (request.getDateOfBirth() != null) {
-      user.setDateOfBirth(request.getDateOfBirth());
+      LocalDate newDob = request.getDateOfBirth();
+      LocalDate today = LocalDate.now();
+
+      if (newDob.isAfter(today.minusYears(10)) || newDob.isBefore(today.minusYears(120))) {
+        throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Ngày sinh không hợp lệ hoặc độ tuổi phải từ 10 đến 120 tuổi.");
+      }
+
+      if (user.getDateOfBirth() != null && !user.getDateOfBirth().equals(newDob)) {
+        if (user.getDobUpdatedAt() != null && user.getDobUpdatedAt().isAfter(LocalDateTime.now().minusDays(365))) {
+          throw new BusinessException(ErrorCode.INVALID_CREDENTIALS,
+              "Bạn chỉ được phép cập nhật ngày sinh tối đa 1 lần mỗi năm. Vui lòng liên hệ CSKH nếu cần hỗ trợ.");
+        }
+        user.setDobUpdatedAt(LocalDateTime.now());
+      } else if (user.getDateOfBirth() == null) {
+        user.setDobUpdatedAt(LocalDateTime.now());
+      }
+
+      user.setDateOfBirth(newDob);
     }
     if (request.getGender() != null) {
       user.setGender(request.getGender());
@@ -529,18 +544,37 @@ public class UserService implements iUser {
     userRepository.save(user);
     log.info("Cập nhật thông tin profile thành công cho user: {}", user.getUsername());
 
-    return Response.ok(MyProfileResponse.builder()
+    return Response.ok(buildMyProfileResponse(user));
+  }
+
+  private MyProfileResponse buildMyProfileResponse(User user) {
+    // Kiểm tra Hạn đổi Username (khóa 1 tháng lưu trên Redis: AUTH_GUARD_COOLDOWN)
+    LocalDateTime usernameCooldownUntil = null;
+    if (user.getId() != null && redisService != null) {
+      try {
+        Long ttlSeconds = redisService.getExpireSeconds(RedisTable.AUTH_GUARD_COOLDOWN.key(user.getId()));
+        if (ttlSeconds != null && ttlSeconds > 0) {
+          usernameCooldownUntil = LocalDateTime.now().plusSeconds(ttlSeconds);
+        }
+      } catch (Exception e) {
+        log.warn("Không thể lấy hạn đổi username từ Redis: {}", e.getMessage());
+      }
+    }
+
+    return MyProfileResponse.builder()
+        .id(user.getId() != null ? String.valueOf(user.getId()) : null)
         .username(user.getName())
         .fullName(user.getFullName())
         .email(user.getEmail())
         .phoneNumber(user.getPhoneNumber())
+        .usernameCooldownUntil(usernameCooldownUntil)
         .avatarUrl(user.getAvatarUrl())
         .dateOfBirth(user.getDateOfBirth())
         .gender(user.getGender())
         .rank(user.getRank())
         .status(user.getStatus())
         .roles(user.getRoles())
-        .build());
+        .build();
   }
 
   @Override
@@ -587,45 +621,127 @@ public class UserService implements iUser {
     user.setAvatarUrl(newAvatarName);
     userRepository.save(user);
     log.info("Cập nhật avatar thành công cho user: {}, file mới: {}", user.getUsername(), newAvatarName);
+    return Response.ok(buildMyProfileResponse(user), "Cập nhật ảnh đại diện thành công.");
+  }
 
-    return Response.ok(MyProfileResponse.builder()
-        .username(user.getName())
-        .fullName(user.getFullName())
-        .email(user.getEmail())
-        .phoneNumber(user.getPhoneNumber())
-        .avatarUrl(user.getAvatarUrl())
-        .dateOfBirth(user.getDateOfBirth())
-        .gender(user.getGender())
-        .rank(user.getRank())
-        .status(user.getStatus())
-        .roles(user.getRoles())
-        .build(), "Cập nhật ảnh đại diện thành công.");
+  @Override
+  @Transactional(readOnly = true)
+  public Response<String> requestCredentialChange() {
+    User user = securityUtil.getCurrentUser()
+        .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND, "Người dùng chưa đăng nhập."));
+
+    if (user.getStatus() != ActiveStatus.ACTIVE) {
+      throw new BusinessException(ErrorCode.INVALID_CREDENTIALS, "Tài khoản chưa được kích hoạt hoặc đang bị khóa.");
+    }
+
+    // Chống spam: khóa 5 phút đồng bộ
+    if (credentialTokenStore.isRequestLocked(user.getId())) {
+      throw new BusinessException(ErrorCode.TOO_MANY_REQUESTS,
+          "Yêu cầu xác thực trước đó của bạn vẫn đang có hiệu lực. Vui lòng kiểm tra hộp thư hoặc thử lại sau.");
+    }
+
+    String rawToken = UUID.randomUUID().toString();
+    credentialTokenStore.issueToken(user.getId(), user.getEmail(), rawToken, Duration.ofMinutes(5));
+
+    String activationUrl = serverUrl + "/api/auth/credential-change/activate?token=" + rawToken;
+    notificationEventProducer.sendCredentialChangeEmail(user.getEmail(), user.getName(), activationUrl, rawToken);
+
+    log.info("Đã phát hành token xác thực đổi credentials cho user: {}", user.getUsername());
+    return Response.ok(String.format("Liên kết xác thực thay đổi thông tin đăng nhập đã được gửi đến %s. Vui lòng kiểm tra hộp thư.", helper.maskEmail(user.getEmail())));
   }
 
   @Override
   @Transactional
-  public Response<String> changeUsername(@NonNull final ChangeUsernameRequest request) {
-    var authorization = credentialChangeAuthorization.resolveFromSession();
-    User user = authorization.user();
-
-    if (redisService.hasKey(RedisTable.AUTH_GUARD_COOLDOWN, user.getId())) {
-      throw new BusinessException(ErrorCode.INVALID_CREDENTIALS,
-          "Bạn chỉ được đổi tên đăng nhập tối đa 1 lần mỗi tháng. Vui lòng quay lại sau.");
+  public Response<String> activateCredentialToken(@NonNull final String token) {
+    String trimmedToken = token.trim();
+    if (trimmedToken.isBlank()) {
+      throw new BusinessException(ErrorCode.INVALID_CREDENTIALS, "Token xác thực không được để trống.");
     }
 
-    String newUsername = request.getNewUsername();
-    if (userRepository.findByName(newUsername).isPresent()) {
+    // Kích hoạt quyền trên Redis (0 DB Query)
+    credentialTokenStore.activateToken(trimmedToken)
+        .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_CREDENTIALS,
+            "Liên kết xác thực không hợp lệ hoặc đã hết hạn."));
+
+    return Response.ok("Kích hoạt quyền đổi thông tin thành công. Bạn có 5 phút để cập nhật.");
+  }
+
+  @Override
+  public Response<CredentialActiveStatusResponse> getCredentialChangeStatus() {
+    User user = securityUtil.getCurrentUser()
+        .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND, "Người dùng chưa đăng nhập."));
+
+    // 100% In-Memory Redis Check (0 DB Query)
+    Long remainingSeconds = credentialTokenStore.getActiveRemainingSeconds(user.getId());
+    if (remainingSeconds == null || remainingSeconds <= 0) {
       throw new BusinessException(ErrorCode.INVALID_CREDENTIALS,
-          "Tên đăng nhập mới đã tồn tại trên hệ thống.");
+          "Phiên xác thực chưa được kích hoạt hoặc đã hết hạn.");
     }
 
-    user.setName(newUsername);
+    return Response.ok(CredentialActiveStatusResponse.builder()
+        .status("ACTIVE")
+        .remainingSeconds(remainingSeconds)
+        .expiresAt(LocalDateTime.now().plusSeconds(remainingSeconds))
+        .build(), "Phiên đổi thông tin đang hoạt động.");
+  }
+
+  @Override
+  @Transactional
+  public Response<String> updateCredentials(@NonNull final UpdateCredentialsRequest request) {
+    User user = securityUtil.getCurrentUser()
+        .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND, "Người dùng chưa đăng nhập."));
+
+    // 1. Fast Guard: Kiểm tra quyền ACTIVE trên Redis (0 DB Query if invalid)
+    if (!credentialTokenStore.isUserActive(user.getId())) {
+      throw new BusinessException(ErrorCode.INVALID_CREDENTIALS,
+          "Bạn chưa xác thực qua email hoặc phiên đổi thông tin đã hết hạn.");
+    }
+
+    boolean hasNewUsername = StringUtils.hasText(request.getNewUsername());
+    boolean hasNewPassword = StringUtils.hasText(request.getNewPassword());
+
+    if (!hasNewUsername && !hasNewPassword) {
+      throw new BusinessException(ErrorCode.VALIDATION_FAILED,
+          "Vui lòng cung cấp ít nhất Tên đăng nhập mới hoặc Mật khẩu mới cần thay đổi.");
+    }
+
+    // 2. Xử lý đổi Username nếu có
+    if (hasNewUsername) {
+      String newUsername = request.getNewUsername().trim();
+      if (newUsername.contains("@")) {
+        throw new BusinessException(ErrorCode.INVALID_FORMAT, "Tên đăng nhập không được chứa ký tự '@'.");
+      }
+      if (redisService.hasKey(RedisTable.AUTH_GUARD_COOLDOWN, user.getId())) {
+        throw new BusinessException(ErrorCode.INVALID_CREDENTIALS,
+            "Bạn chỉ được đổi tên đăng nhập tối đa 1 lần mỗi tháng. Vui lòng quay lại sau.");
+      }
+      if (userRepository.findByName(newUsername).isPresent()) {
+        throw new BusinessException(ErrorCode.INVALID_CREDENTIALS,
+            "Tên đăng nhập mới đã tồn tại trên hệ thống.");
+      }
+      user.setName(newUsername);
+      redisService.setValueWithExpiry(RedisTable.AUTH_GUARD_COOLDOWN, user.getId(), "true", 30, TimeUnit.DAYS);
+    }
+
+    // 3. Xử lý đổi Password nếu có
+    if (hasNewPassword) {
+      String newPassword = request.getNewPassword();
+      String confirmPassword = request.getConfirmPassword();
+      if (confirmPassword == null || !newPassword.equals(confirmPassword)) {
+        throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Mật khẩu xác nhận không trùng khớp.");
+      }
+      user.setPassword(passwordEncoder.encode(newPassword));
+    }
+
     userRepository.save(user);
 
-    redisService.setValueWithExpiry(RedisTable.AUTH_GUARD_COOLDOWN, user.getId(), "true", 30, TimeUnit.DAYS);
-    refreshTokenService.revokeAllUserTokens(user.getId());
-    log.info("Người dùng ID {} đã đổi tên đăng nhập thành công sang {}", user.getId(), newUsername);
+    // 4. Single-action: Thu hồi ngay quyền ACTIVE và LOCK trên Redis
+    credentialTokenStore.consumeActiveGrant(user.getId());
 
-    return Response.ok("Đổi tên đăng nhập thành công. Vui lòng đăng nhập lại.");
+    // 5. Thu hồi mọi phiên đăng nhập cũ
+    refreshTokenService.revokeAllUserTokens(user.getId());
+    log.info("Cập nhật credentials thành công cho user: {}", user.getUsername());
+
+    return Response.ok("Cập nhật thông tin đăng nhập thành công. Vui lòng đăng nhập lại.");
   }
 }
