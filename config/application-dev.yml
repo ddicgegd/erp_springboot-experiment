@@ -120,7 +120,7 @@ server:
   url: ${SERVER_URL:http://localhost:8080}
 
 frontend:
-  url: ${FRONTEND_URL:http://localhost:5173/berry-vue}
+  url: ${FRONTEND_URL:http://localhost:3000}
 
 # MCP (Model Context Protocol) Configuration
 mcp:
