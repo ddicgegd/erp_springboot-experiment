@@ -1,13 +1,14 @@
 package com.ddicg.erp.modules.iam.controller;
 
 import com.ddicg.erp.modules.iam.dto.request.AccountVerificationRequest;
-import com.ddicg.erp.modules.iam.dto.request.ChangeUsernameRequest;
 import com.ddicg.erp.modules.iam.dto.request.RefreshTokenRequest;
 import com.ddicg.erp.modules.iam.dto.request.ResendVerificationRequest;
+import com.ddicg.erp.modules.iam.dto.request.UpdateCredentialsRequest;
 import com.ddicg.erp.modules.iam.dto.request.UpdateProfileRequest;
 import com.ddicg.erp.modules.iam.dto.request.UserLoginRequest;
 import com.ddicg.erp.modules.iam.dto.request.UserRegisterRequest;
 import com.ddicg.erp.modules.iam.dto.response.AuthResponse;
+import com.ddicg.erp.modules.iam.dto.response.CredentialActiveStatusResponse;
 import com.ddicg.erp.modules.iam.dto.response.MyProfileResponse;
 import com.ddicg.erp.modules.iam.dto.response.RegisterResponse;
 import com.ddicg.erp.modules.iam.dto.UserDto;
@@ -67,8 +68,21 @@ public interface AuthController {
         @ResponseStatus(HttpStatus.OK)
         Response<MyProfileResponse> uploadAvatar(@RequestParam("file") org.springframework.web.multipart.MultipartFile file);
 
-        @PutMapping("/change-username")
+        @PostMapping("/credential-change/request")
         @ResponseStatus(HttpStatus.OK)
         @PreAuthorize("isAuthenticated()")
-        Response<String> changeUsername(@Valid @RequestBody final ChangeUsernameRequest body);
+        Response<String> requestCredentialChange();
+
+        @GetMapping("/credential-change/activate")
+        ResponseEntity<String> activateCredentialToken(@RequestParam("token") final String token);
+
+        @GetMapping("/credential-change/status")
+        @ResponseStatus(HttpStatus.OK)
+        @PreAuthorize("isAuthenticated()")
+        Response<CredentialActiveStatusResponse> getCredentialChangeStatus();
+
+        @PutMapping("/update-credentials")
+        @ResponseStatus(HttpStatus.OK)
+        @PreAuthorize("isAuthenticated()")
+        Response<String> updateCredentials(@Valid @RequestBody final UpdateCredentialsRequest body);
 }

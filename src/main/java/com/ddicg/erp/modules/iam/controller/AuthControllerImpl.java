@@ -3,11 +3,13 @@ import com.ddicg.erp.core.common.dto.request.PagingRequest;
 
 
 import com.ddicg.erp.modules.iam.dto.request.AccountVerificationRequest;
-import com.ddicg.erp.modules.iam.dto.request.ChangeUsernameRequest;
 import com.ddicg.erp.modules.iam.dto.request.RefreshTokenRequest;
 import com.ddicg.erp.modules.iam.dto.request.ResendVerificationRequest;
+import com.ddicg.erp.modules.iam.dto.request.UpdateCredentialsRequest;
 import com.ddicg.erp.modules.iam.dto.request.UpdateProfileRequest;
 import com.ddicg.erp.modules.iam.dto.request.UserLoginRequest;
+import com.ddicg.erp.modules.iam.dto.request.UserRegisterRequest;
+import com.ddicg.erp.modules.iam.dto.response.CredentialActiveStatusResponse;
 import com.ddicg.erp.modules.iam.dto.request.UserRegisterRequest;
 import com.ddicg.erp.modules.iam.dto.response.*;
 import com.ddicg.erp.modules.merchandise.dto.response.*;
@@ -16,10 +18,14 @@ import com.ddicg.erp.core.common.dto.response.Response;
 import com.ddicg.erp.modules.iam.dto.UserDto;
 import com.ddicg.erp.modules.iam.service.iUser;
 import com.ddicg.erp.modules.iam.controller.AuthController;
+import com.ddicg.erp.core.exception.BusinessException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
+import org.thymeleaf.TemplateEngine;
+import org.thymeleaf.context.Context;
 
 import java.util.Map;
 
@@ -28,6 +34,7 @@ import java.util.Map;
 public class AuthControllerImpl implements AuthController {
 
     private final iUser userService;
+    private final TemplateEngine templateEngine;
 
     @Override
     public Response<AuthResponse> login(final UserLoginRequest body) {
@@ -107,7 +114,35 @@ public class AuthControllerImpl implements AuthController {
     }
 
     @Override
-    public Response<String> changeUsername(final ChangeUsernameRequest body) {
-        return userService.changeUsername(body);
+    public Response<String> requestCredentialChange() {
+        return userService.requestCredentialChange();
+    }
+
+    @Override
+    public ResponseEntity<String> activateCredentialToken(final String token) {
+        Context ctx = new Context();
+        try {
+            userService.activateCredentialToken(token);
+            ctx.setVariables(Map.of("success", true));
+        } catch (BusinessException ex) {
+            ctx.setVariables(Map.of(
+                "success", false,
+                "errorMessage", ex.getDetail()
+            ));
+        }
+        String html = templateEngine.process("auth/credential-change-activate", ctx);
+        return ResponseEntity.ok()
+                .contentType(MediaType.TEXT_HTML)
+                .body(html);
+    }
+
+    @Override
+    public Response<CredentialActiveStatusResponse> getCredentialChangeStatus() {
+        return userService.getCredentialChangeStatus();
+    }
+
+    @Override
+    public Response<String> updateCredentials(final UpdateCredentialsRequest body) {
+        return userService.updateCredentials(body);
     }
 }
