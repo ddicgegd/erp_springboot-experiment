@@ -12,7 +12,6 @@ import com.ddicg.erp.core.exception.ErrorCode;
 import com.ddicg.erp.core.security.SecurityUtil;
 import com.ddicg.erp.modules.iam.dto.UserDto;
 import com.ddicg.erp.modules.iam.dto.request.AccountVerificationRequest;
-import com.ddicg.erp.modules.iam.dto.request.ChangeUsernameRequest;
 import com.ddicg.erp.modules.iam.dto.request.ResendVerificationRequest;
 import com.ddicg.erp.modules.iam.model.User;
 import com.ddicg.erp.modules.iam.repository.UserRepository;
@@ -279,43 +278,6 @@ class UserServiceRecoveryTest {
         assertEquals("Mã token hợp lệ. Vui lòng thiết lập mật khẩu mới.", response.getStatus().getMessage());
         verify(userRepository, never()).save(any());
         verify(accountRecoveryService, never()).consume(any());
-    }
-
-    @Test
-    @DisplayName("changeUsername với Session đăng nhập: Kiểm tra và áp dụng cooldown 30 ngày")
-    void changeUsername_WhenUsingSession_ShouldApplyCooldown() {
-        var auth = CredentialChangeAuthorization.Authorization.session(activeUser);
-        ChangeUsernameRequest request = new ChangeUsernameRequest("new_active_username");
-
-        when(credentialChangeAuthorization.resolveFromSession()).thenReturn(auth);
-        when(redisService.hasKey(RedisTable.AUTH_GUARD_COOLDOWN, 10L)).thenReturn(false);
-        when(userRepository.findByName("new_active_username")).thenReturn(Optional.empty());
-
-        Response<String> response = userService.changeUsername(request);
-
-        assertNotNull(response);
-        assertEquals(200, response.getStatus().getCode());
-        assertEquals("new_active_username", activeUser.getName());
-        verify(userRepository).save(activeUser);
-        verify(redisService).setValueWithExpiry(eq(RedisTable.AUTH_GUARD_COOLDOWN), eq(10L), eq("true"), eq(30L), any());
-        verify(refreshTokenService).revokeAllUserTokens(10L);
-    }
-
-    @Test
-    @DisplayName("changeUsername: Ném ngoại lệ khi tên đăng nhập mới đã tồn tại")
-    void changeUsername_WhenUsernameExists_ShouldThrowInvalidCredentials() {
-        var auth = CredentialChangeAuthorization.Authorization.session(activeUser);
-        ChangeUsernameRequest request = new ChangeUsernameRequest("already_taken");
-
-        when(credentialChangeAuthorization.resolveFromSession()).thenReturn(auth);
-        when(userRepository.findByName("already_taken")).thenReturn(Optional.of(activeUser));
-
-        BusinessException ex = assertThrows(BusinessException.class, () ->
-                userService.changeUsername(request));
-
-        assertEquals(ErrorCode.INVALID_CREDENTIALS, ex.getErrorCode());
-        assertTrue(ex.getMessage().contains("đã tồn tại"));
-        verify(userRepository, never()).save(any());
     }
 
     @Test

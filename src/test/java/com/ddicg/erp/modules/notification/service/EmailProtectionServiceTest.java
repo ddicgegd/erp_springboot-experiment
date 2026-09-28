@@ -104,4 +104,32 @@ class EmailProtectionServiceTest {
         boolean result = emailProtectionService.allowDeliveryRate("user@example.com", 5);
         assertTrue(result, "Cơ chế Fail-Open phải trả về true khi Redis gặp sự cố");
     }
+
+    @Test
+    @DisplayName("allowDeliveryRate - tự động đặt expire khi phát hiện key bị rò rỉ không có TTL (ttl < 0)")
+    void testAllowDeliveryRate_FixesLeakedKeyWithoutTtl() {
+        String key = RedisTable.NOTIFICATION_RATELIMIT.key("leaked@example.com");
+        when(valueOperations.increment(eq(key))).thenReturn(2L);
+        when(redisTemplate.getExpire(eq(key), eq(TimeUnit.SECONDS))).thenReturn(-1L);
+
+        boolean result = emailProtectionService.allowDeliveryRate("leaked@example.com", 5);
+        assertTrue(result);
+        verify(redisTemplate).expire(eq(key), eq(Duration.ofMinutes(1)));
+    }
+
+    @Test
+    @DisplayName("releaseDeduplicationLock - xóa key trên Redis khi giải phóng lock")
+    void testReleaseDeduplicationLock_Success() {
+        String key = RedisTable.NOTIFICATION_DEDUP.key("release-key");
+        emailProtectionService.releaseDeduplicationLock("release-key");
+        verify(redisTemplate).delete(eq(key));
+    }
+
+    @Test
+    @DisplayName("releaseDeduplicationLock - bỏ qua khi key rỗng hoặc null")
+    void testReleaseDeduplicationLock_EmptyKey() {
+        emailProtectionService.releaseDeduplicationLock(null);
+        emailProtectionService.releaseDeduplicationLock("   ");
+        verify(redisTemplate, never()).delete(anyString());
+    }
 }

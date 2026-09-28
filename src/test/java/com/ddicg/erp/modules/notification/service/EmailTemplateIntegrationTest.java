@@ -141,4 +141,66 @@ class EmailTemplateIntegrationTest {
         assertTrue(html.contains("phamvand"));
         assertTrue(html.contains("Khôi phục thông tin tài khoản"));
     }
+    @Test
+    @DisplayName("Biên dịch thực tế template CREDENTIAL_CHANGE với đầy đủ biến")
+    void testRealRender_CredentialChange_Success() {
+        Map<String, String> variables = Map.of(
+                "subject", "Xác thực thay đổi thông tin đăng nhập",
+                "username", "user_change",
+                "email", "user_change@gmail.com",
+                "token", "CHANGE_TOKEN_789",
+                "activationUrl", "https://erp.annoeye.com/credential-change/activate?token=CHANGE_TOKEN_789"
+        );
+
+        String html = emailTemplateService.renderHtml(TemplateCode.CREDENTIAL_CHANGE.name(), variables);
+
+        assertNotNull(html, "HTML kết quả không được null");
+        assertFalse(html.isBlank(), "HTML kết quả không được rỗng");
+
+        try {
+            java.nio.file.Path dir = java.nio.file.Paths.get("target/rendered-emails");
+            java.nio.file.Files.createDirectories(dir);
+            java.nio.file.Files.writeString(dir.resolve("credential-change-preview.html"), html);
+        } catch (Exception ignored) {}
+
+        assertTrue(html.contains("user_change"), "HTML phải chứa username");
+        assertTrue(html.contains("user_change@gmail.com"), "HTML phải chứa email");
+        assertTrue(html.contains("CHANGE_TOKEN_789"), "HTML phải chứa token");
+        assertTrue(html.contains("btn-bevel"), "HTML phải chứa class btn-bevel");
+        assertTrue(html.contains("#4F46E5"), "HTML phải chứa màu tím Indigo #4F46E5");
+        assertTrue(html.contains("KÍCH HOẠT QUYỀN ĐỔI THÔNG TIN"), "HTML phải chứa nhãn nút");
+        assertTrue(html.contains("5 phút"), "HTML phải chứa thông báo 5 phút");
+    }
+
+    @Test
+    @DisplayName("Biên dịch thực tế template BIRTHDAY_GREETING với đầy đủ biến")
+    void testRealRender_BirthdayGreeting_Success() {
+        Map<String, String> variables = Map.of(
+                "subject", "Chúc mừng sinh nhật bạn!",
+                "username", "bday_user",
+                "email", "bday_user@gmail.com",
+                "discountPercent", "20",
+                "voucherCode", "BDAY-2026-VIP",
+                "giftUrl", "https://erp.annoeye.com/profile?voucher=BDAY-2026-VIP"
+        );
+
+        String html = emailTemplateService.renderHtml(TemplateCode.BIRTHDAY_GREETING.name(), variables);
+
+        assertNotNull(html, "HTML kết quả không được null");
+        assertFalse(html.isBlank(), "HTML kết quả không được rỗng");
+
+        try {
+            java.nio.file.Path dir = java.nio.file.Paths.get("target/rendered-emails");
+            java.nio.file.Files.createDirectories(dir);
+            java.nio.file.Files.writeString(dir.resolve("birthday-preview.html"), html);
+        } catch (Exception ignored) {}
+
+        assertTrue(html.contains("bday_user"), "HTML phải chứa username");
+        assertTrue(html.contains("bday_user@gmail.com"), "HTML phải chứa email");
+        assertTrue(html.contains("20"), "HTML phải chứa discount percent 20%");
+        assertTrue(html.contains("BDAY-2026-VIP"), "HTML phải chứa mã voucher");
+        assertTrue(html.contains("Quà tặng sinh nhật độc quyền"), "HTML phải chứa tiêu đề voucher");
+        assertTrue(html.contains("#D97706"), "HTML phải chứa màu hổ phách #D97706");
+        assertFalse(html.contains("SỬ DỤNG QUÀ TẶNG"), "HTML không chứa nút sử dụng quà tặng đã được loại bỏ");
+    }
 }

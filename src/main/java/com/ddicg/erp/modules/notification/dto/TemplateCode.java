@@ -11,7 +11,9 @@ import lombok.RequiredArgsConstructor;
 public enum TemplateCode {
 
     VERIFICATION_EMAIL("mail/verification-email", "Xác thực tài khoản"),
-    ACCOUNT_RECOVERY("mail/account-recovery-email", "Khôi phục thông tin tài khoản");
+    ACCOUNT_RECOVERY("mail/account-recovery-email", "Khôi phục thông tin tài khoản"),
+    BIRTHDAY_GREETING("mail/birthday-email", "Chúc mừng sinh nhật quý khách!"),
+    CREDENTIAL_CHANGE("mail/credential-change-email", "Xác thực thay đổi thông tin đăng nhập");
 
     private final String templateFile;
     private final String defaultSubject;

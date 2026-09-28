@@ -45,8 +45,17 @@ public class EmailPreviewController {
 
         if (code == TemplateCode.ACCOUNT_RECOVERY) {
             vars.put("resetUrl", url);
+            vars.put("expiryMinutes", "20");
+        } else if (code == TemplateCode.CREDENTIAL_CHANGE) {
+            vars.put("activationUrl", url);
+            vars.put("expiryMinutes", "5");
+        } else if (code == TemplateCode.BIRTHDAY_GREETING) {
+            vars.put("giftUrl", url);
+            vars.put("voucherCode", "BDAY-2026-PREVIEW");
+            vars.put("discountPercent", "15");
         } else {
             vars.put("verificationUrl", url);
+            vars.put("expiryMinutes", "15");
         }
 
         String renderedHtml = emailTemplateService.renderHtml(templateCode, vars);

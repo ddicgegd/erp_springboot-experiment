@@ -37,6 +37,21 @@ public class EmailProtectionServiceImpl implements EmailProtectionService {
     }
 
     @Override
+    public void releaseDeduplicationLock(String dedupKey) {
+        if (dedupKey == null || dedupKey.trim().isEmpty()) {
+            return;
+        }
+
+        String fullKey = RedisTable.NOTIFICATION_DEDUP.key(dedupKey.trim());
+        try {
+            redisTemplate.delete(fullKey);
+            log.info("[EmailProtection] Đã giải phóng deduplication lock cho key: {}", dedupKey);
+        } catch (Exception e) {
+            log.error("[EmailProtection] Lỗi khi giải phóng deduplication lock {}: {}", dedupKey, e.getMessage(), e);
+        }
+    }
+
+    @Override
     public boolean allowDeliveryRate(String recipient, int maxPerMinute) {
         if (recipient == null || recipient.trim().isEmpty() || maxPerMinute <= 0) {
             return true;
@@ -49,6 +64,11 @@ public class EmailProtectionServiceImpl implements EmailProtectionService {
             Long count = redisTemplate.opsForValue().increment(fullKey);
             if (count != null && count == 1) {
                 redisTemplate.expire(fullKey, Duration.ofMinutes(1));
+            } else {
+                Long ttl = redisTemplate.getExpire(fullKey, TimeUnit.SECONDS);
+                if (ttl != null && ttl < 0) {
+                    redisTemplate.expire(fullKey, Duration.ofMinutes(1));
+                }
             }
 
             if (count != null && count > maxPerMinute) {

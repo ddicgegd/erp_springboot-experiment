@@ -24,4 +24,11 @@ public interface EmailProtectionService {
      * @return true nếu trong ngưỡng cho phép; false nếu vượt quá rate limit
      */
     boolean allowDeliveryRate(String recipient, int maxPerMinute);
+
+    /**
+     * Giải phóng deduplication lock khi gửi thất bại hoặc cần retry.
+     *
+     * @param dedupKey Khóa định danh tác vụ gửi mail cần giải phóng
+     */
+    void releaseDeduplicationLock(String dedupKey);
 }

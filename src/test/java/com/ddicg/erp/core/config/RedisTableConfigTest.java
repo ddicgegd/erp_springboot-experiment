@@ -49,6 +49,9 @@ class RedisTableConfigTest {
         assertThat(RedisTable.AUTH_VERIFICATION_EMAIL.isImmutable()).isTrue();
         assertThat(RedisTable.AUTH_VERIFICATION_COOLDOWN.isImmutable()).isFalse();
         assertThat(RedisTable.AUTH_VERIFICATION_QUOTA.isImmutable()).isFalse();
+        assertThat(RedisTable.AUTH_CREDENTIAL_TOKEN.isImmutable()).isTrue();
+        assertThat(RedisTable.AUTH_CREDENTIAL_ACTIVE.isImmutable()).isTrue();
+        assertThat(RedisTable.AUTH_CREDENTIAL_LOCK.isImmutable()).isFalse();
         assertThat(RedisTable.fromKey("auth:action:recovery:cooldown:test@example.com")).contains(RedisTable.AUTH_RECOVERY_COOLDOWN);
         assertThat(RedisTable.fromKey("auth:action:recovery:quota:test@example.com")).contains(RedisTable.AUTH_RECOVERY_QUOTA);
         assertThat(RedisTable.fromKey("auth:action:verification:token:tok123")).contains(RedisTable.AUTH_VERIFICATION_TOKEN);
@@ -60,6 +63,9 @@ class RedisTableConfigTest {
         assertThat(RedisTable.fromKey("cart:guest:items:guest123")).contains(RedisTable.CART_GUEST_ITEMS);
         assertThat(RedisTable.fromKey("bookmark:saved:user1:SKU-1")).contains(RedisTable.BOOKMARK_SAVED);
         assertThat(RedisTable.fromKey("bookmark:staging:user1:SKU-1")).contains(RedisTable.BOOKMARK_STAGING);
+        assertThat(RedisTable.fromKey("auth:action:credential:token:tok123")).contains(RedisTable.AUTH_CREDENTIAL_TOKEN);
+        assertThat(RedisTable.fromKey("auth:action:credential:active:100")).contains(RedisTable.AUTH_CREDENTIAL_ACTIVE);
+        assertThat(RedisTable.fromKey("auth:action:credential:lock:100")).contains(RedisTable.AUTH_CREDENTIAL_LOCK);
         assertThat(RedisTable.fromKey("unknown:key")).isEmpty();
         assertThat(RedisTable.fromKey(null)).isEmpty();
 

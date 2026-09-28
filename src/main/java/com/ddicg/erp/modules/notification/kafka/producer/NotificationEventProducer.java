@@ -71,7 +71,7 @@ public class NotificationEventProducer {
         params.put("recipient", recipient);
         params.put("verificationUrl", verificationUrl);
         params.put("token", resolvedToken);
-        params.put("expiryMinutes", "5");
+        params.put("expiryMinutes", "15");
 
         EmailDispatchPayload payload = EmailDispatchPayload.builder()
                 .messageId(UUID.randomUUID().toString())
@@ -106,7 +106,7 @@ public class NotificationEventProducer {
         params.put("recipient", recipient);
         params.put("resetUrl", resetUrl);
         params.put("token", resolvedToken);
-        params.put("expiryMinutes", "10");
+        params.put("expiryMinutes", "20");
 
         EmailDispatchPayload payload = EmailDispatchPayload.builder()
                 .messageId(UUID.randomUUID().toString())
@@ -115,6 +115,68 @@ public class NotificationEventProducer {
                 .templateCode(TemplateCode.ACCOUNT_RECOVERY.name())
                 .params(params)
                 .deduplicationKey("RECOVERY:" + recipient + ":" + (resolvedToken != null ? resolvedToken : resetUrl))
+                .priority(1)
+                .requestedAt(LocalDateTime.now())
+                .build();
+
+        dispatchEmail(payload);
+    }
+
+    /**
+     * Tiện ích gửi email chúc mừng sinh nhật kèm mã Voucher tri ân.
+     */
+    public void sendBirthdayGreetingEmail(String recipient, String username, String voucherCode, Integer discountPercent, String giftUrl) {
+        Map<String, String> params = new HashMap<>();
+        params.put("subject", TemplateCode.BIRTHDAY_GREETING.getDefaultSubject());
+        params.put("username", username != null ? username : "Quý khách");
+        params.put("email", recipient);
+        params.put("recipient", recipient);
+        params.put("voucherCode", voucherCode != null ? voucherCode : "BIRTHDAYGIFT");
+        params.put("discountPercent", discountPercent != null ? String.valueOf(discountPercent) : "15");
+        params.put("giftUrl", giftUrl != null ? giftUrl : "http://localhost:3000/profile");
+
+        EmailDispatchPayload payload = EmailDispatchPayload.builder()
+                .messageId(UUID.randomUUID().toString())
+                .recipient(recipient)
+                .subject(TemplateCode.BIRTHDAY_GREETING.getDefaultSubject())
+                .templateCode(TemplateCode.BIRTHDAY_GREETING.name())
+                .params(params)
+                .deduplicationKey("BIRTHDAY:" + recipient + ":" + LocalDateTime.now().getYear())
+                .priority(2)
+                .requestedAt(LocalDateTime.now())
+                .build();
+
+        dispatchEmail(payload);
+    }
+
+    /**
+     * Tiện ích gửi email xác thực thay đổi username / password.
+     */
+    public void sendCredentialChangeEmail(String recipient, String username, String activationUrl, String token) {
+        String resolvedToken = token;
+        if ((resolvedToken == null || resolvedToken.isBlank()) && activationUrl != null && activationUrl.contains("token=")) {
+            resolvedToken = activationUrl.substring(activationUrl.indexOf("token=") + 6);
+            if (resolvedToken.contains("&")) {
+                resolvedToken = resolvedToken.substring(0, resolvedToken.indexOf("&"));
+            }
+        }
+
+        Map<String, String> params = new HashMap<>();
+        params.put("subject", TemplateCode.CREDENTIAL_CHANGE.getDefaultSubject());
+        params.put("username", username != null ? username : "Quý khách");
+        params.put("email", recipient);
+        params.put("recipient", recipient);
+        params.put("activationUrl", activationUrl != null ? activationUrl : "#");
+        params.put("token", resolvedToken != null ? resolvedToken : "");
+        params.put("expiryMinutes", "5");
+
+        EmailDispatchPayload payload = EmailDispatchPayload.builder()
+                .messageId(UUID.randomUUID().toString())
+                .recipient(recipient)
+                .subject(TemplateCode.CREDENTIAL_CHANGE.getDefaultSubject())
+                .templateCode(TemplateCode.CREDENTIAL_CHANGE.name())
+                .params(params)
+                .deduplicationKey("CREDENTIAL_CHANGE:" + recipient + ":" + (resolvedToken != null ? resolvedToken : activationUrl))
                 .priority(1)
                 .requestedAt(LocalDateTime.now())
                 .build();

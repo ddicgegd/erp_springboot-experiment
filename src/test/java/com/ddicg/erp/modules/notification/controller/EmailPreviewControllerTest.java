@@ -57,4 +57,38 @@ class EmailPreviewControllerTest {
         assertNotNull(response.getBody());
         assertTrue(response.getBody().contains("Mock Recovery HTML"));
     }
+
+    @Test
+    @DisplayName("previewByGet - truyền đúng activationUrl và expiryMinutes cho CREDENTIAL_CHANGE")
+    void testPreviewByGet_CredentialChange() {
+        org.mockito.ArgumentCaptor<Map<String, String>> mapCaptor = org.mockito.ArgumentCaptor.forClass(Map.class);
+        when(emailTemplateService.resolveDefaultSubject("CREDENTIAL_CHANGE")).thenReturn("Xác thực thay đổi thông tin đăng nhập");
+        when(emailTemplateService.renderHtml(eq("CREDENTIAL_CHANGE"), mapCaptor.capture()))
+                .thenReturn("<html><body>Credential Change HTML</body></html>");
+
+        ResponseEntity<String> response = controller.previewByGet("CREDENTIAL_CHANGE", "User Demo", "http://server.url/activate?token=ABC123XYZ");
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        Map<String, String> capturedVars = mapCaptor.getValue();
+        assertEquals("http://server.url/activate?token=ABC123XYZ", capturedVars.get("activationUrl"));
+        assertEquals("5", capturedVars.get("expiryMinutes"));
+        assertEquals("ABC123XYZ", capturedVars.get("token"));
+    }
+
+    @Test
+    @DisplayName("previewByGet - truyền đầy đủ voucherCode, discountPercent, giftUrl cho BIRTHDAY_GREETING")
+    void testPreviewByGet_BirthdayGreeting() {
+        org.mockito.ArgumentCaptor<Map<String, String>> mapCaptor = org.mockito.ArgumentCaptor.forClass(Map.class);
+        when(emailTemplateService.resolveDefaultSubject("BIRTHDAY_GREETING")).thenReturn("Chúc mừng sinh nhật!");
+        when(emailTemplateService.renderHtml(eq("BIRTHDAY_GREETING"), mapCaptor.capture()))
+                .thenReturn("<html><body>Birthday HTML</body></html>");
+
+        ResponseEntity<String> response = controller.previewByGet("BIRTHDAY_GREETING", "User Birthday", "http://gift.url");
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        Map<String, String> capturedVars = mapCaptor.getValue();
+        assertEquals("BDAY-2026-PREVIEW", capturedVars.get("voucherCode"));
+        assertEquals("15", capturedVars.get("discountPercent"));
+        assertEquals("http://gift.url", capturedVars.get("giftUrl"));
+    }
 }

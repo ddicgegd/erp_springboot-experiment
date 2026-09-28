@@ -61,7 +61,11 @@ public class RedisConfiguration {
     AUTH_VERIFICATION_TOKEN("auth:action:verification:token:", true, 0),
     AUTH_VERIFICATION_EMAIL("auth:action:verification:email:", true, 0),
     AUTH_VERIFICATION_COOLDOWN("auth:action:verification:cooldown:", false, 0),
-    AUTH_VERIFICATION_QUOTA("auth:action:verification:quota:", false, 0);
+    AUTH_VERIFICATION_QUOTA("auth:action:verification:quota:", false, 0),
+
+    AUTH_CREDENTIAL_TOKEN("auth:action:credential:token:", true, 0),
+    AUTH_CREDENTIAL_ACTIVE("auth:action:credential:active:", true, 0),
+    AUTH_CREDENTIAL_LOCK("auth:action:credential:lock:", false, 0);
 
     private final String prefix;
     private final boolean immutable;

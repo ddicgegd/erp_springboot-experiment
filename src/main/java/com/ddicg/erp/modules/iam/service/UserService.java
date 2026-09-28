@@ -643,7 +643,7 @@ public class UserService implements iUser {
     String rawToken = UUID.randomUUID().toString();
     credentialTokenStore.issueToken(user.getId(), user.getEmail(), rawToken, Duration.ofMinutes(5));
 
-    String activationUrl = serverUrl + "/api/auth/credential-change/activate?token=" + rawToken;
+    String activationUrl = frontendUrl + "/credential-change/activate?token=" + rawToken;
     notificationEventProducer.sendCredentialChangeEmail(user.getEmail(), user.getName(), activationUrl, rawToken);
 
     log.info("Đã phát hành token xác thực đổi credentials cho user: {}", user.getUsername());

@@ -2,13 +2,14 @@ package com.ddicg.erp.modules.iam.service;
 
 
 import com.ddicg.erp.modules.iam.dto.request.AccountVerificationRequest;
-import com.ddicg.erp.modules.iam.dto.request.ChangeUsernameRequest;
 import com.ddicg.erp.modules.iam.dto.request.RefreshTokenRequest;
 import com.ddicg.erp.modules.iam.dto.request.ResendVerificationRequest;
+import com.ddicg.erp.modules.iam.dto.request.UpdateCredentialsRequest;
 import com.ddicg.erp.modules.iam.dto.request.UpdateProfileRequest;
 import com.ddicg.erp.modules.iam.dto.request.UserLoginRequest;
 import com.ddicg.erp.modules.iam.dto.request.UserRegisterRequest;
 import com.ddicg.erp.modules.iam.dto.response.AuthResponse;
+import com.ddicg.erp.modules.iam.dto.response.CredentialActiveStatusResponse;
 import com.ddicg.erp.modules.iam.dto.response.MyProfileResponse;
 import com.ddicg.erp.modules.iam.dto.response.RegisterResponse;
 import com.ddicg.erp.modules.iam.dto.UserDto;
@@ -30,5 +31,8 @@ public interface iUser {
     Response<MyProfileResponse> getMyProfile();
     Response<MyProfileResponse> updateMyProfile(final UpdateProfileRequest request);
     Response<MyProfileResponse> uploadAvatar(final org.springframework.web.multipart.MultipartFile file);
-    Response<String> changeUsername(final ChangeUsernameRequest request);
+    Response<String> requestCredentialChange();
+    Response<String> activateCredentialToken(final String token);
+    Response<CredentialActiveStatusResponse> getCredentialChangeStatus();
+    Response<String> updateCredentials(final UpdateCredentialsRequest request);
 }

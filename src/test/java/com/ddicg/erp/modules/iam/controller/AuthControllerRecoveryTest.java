@@ -1,11 +1,14 @@
 package com.ddicg.erp.modules.iam.controller;
 
 import com.ddicg.erp.core.common.dto.response.Response;
+import com.ddicg.erp.core.exception.BusinessException;
+import com.ddicg.erp.core.exception.ErrorCode;
 import com.ddicg.erp.core.common.model.enums.ActiveStatus;
 import com.ddicg.erp.modules.iam.dto.UserDto;
 import com.ddicg.erp.modules.iam.dto.request.AccountVerificationRequest;
-import com.ddicg.erp.modules.iam.dto.request.ChangeUsernameRequest;
 import com.ddicg.erp.modules.iam.dto.request.ResendVerificationRequest;
+import com.ddicg.erp.modules.iam.dto.request.UpdateCredentialsRequest;
+import com.ddicg.erp.modules.iam.dto.response.CredentialActiveStatusResponse;
 import com.ddicg.erp.modules.iam.service.iUser;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -73,19 +76,80 @@ class AuthControllerRecoveryTest {
         verify(userService).resetPassword(request);
     }
     @Test
-    @DisplayName("PUT /api/auth/change-username ủy quyền đúng cho userService.changeUsername")
-    void changeUsername_ShouldDelegateToUserService() {
-        ChangeUsernameRequest request = new ChangeUsernameRequest();
-        request.setNewUsername("brand_new_name");
+    @DisplayName("POST /api/auth/credential-change/request ủy quyền đúng cho userService.requestCredentialChange")
+    void requestCredentialChange_ShouldDelegateToUserService() {
+        when(userService.requestCredentialChange())
+                .thenReturn(Response.ok("Đã gửi email"));
 
-        when(userService.changeUsername(request))
-                .thenReturn(Response.ok("Đổi tên đăng nhập thành công. Vui lòng đăng nhập lại."));
-
-        Response<String> response = authController.changeUsername(request);
+        Response<String> response = authController.requestCredentialChange();
 
         assertNotNull(response);
         assertEquals(200, response.getStatus().getCode());
-        verify(userService).changeUsername(request);
+        verify(userService).requestCredentialChange();
+    }
+
+    @Test
+    @DisplayName("GET /api/auth/credential-change/activate ủy quyền đúng cho userService.activateCredentialToken")
+    void activateCredentialToken_ShouldDelegateToUserService() {
+        when(userService.activateCredentialToken("raw-token-123"))
+                .thenReturn(Response.ok("Kích hoạt thành công"));
+
+        Response<String> response = authController.activateCredentialToken("raw-token-123");
+
+        assertNotNull(response);
+        assertEquals(200, response.getStatus().getCode());
+        assertEquals("Kích hoạt thành công", response.getStatus().getMessage());
+        verify(userService).activateCredentialToken("raw-token-123");
+    }
+
+    @Test
+    @DisplayName("GET /api/auth/credential-change/activate ném BusinessException khi token không hợp lệ hoặc đã hết hạn")
+    void activateCredentialToken_WhenInvalidOrExpired_ShouldPropagateException() {
+        when(userService.activateCredentialToken("invalid-token"))
+                .thenThrow(new BusinessException(ErrorCode.INVALID_CREDENTIALS,
+                        "Liên kết xác thực không hợp lệ hoặc đã hết hạn."));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> authController.activateCredentialToken("invalid-token"));
+
+        assertEquals(ErrorCode.INVALID_CREDENTIALS, ex.getErrorCode());
+        assertEquals("Liên kết xác thực không hợp lệ hoặc đã hết hạn.", ex.getDetail());
+        verify(userService).activateCredentialToken("invalid-token");
+    }
+    @Test
+    @DisplayName("GET /api/auth/credential-change/status ủy quyền đúng cho userService.getCredentialChangeStatus")
+    void getCredentialChangeStatus_ShouldDelegateToUserService() {
+        CredentialActiveStatusResponse statusResponse = CredentialActiveStatusResponse.builder()
+                .status("ACTIVE")
+                .remainingSeconds(280L)
+                .build();
+
+        when(userService.getCredentialChangeStatus())
+                .thenReturn(Response.ok(statusResponse));
+
+        Response<CredentialActiveStatusResponse> response = authController.getCredentialChangeStatus();
+
+        assertNotNull(response);
+        assertEquals(200, response.getStatus().getCode());
+        assertEquals("ACTIVE", response.getData().getStatus());
+        verify(userService).getCredentialChangeStatus();
+    }
+
+    @Test
+    @DisplayName("PUT /api/auth/update-credentials ủy quyền đúng cho userService.updateCredentials")
+    void updateCredentials_ShouldDelegateToUserService() {
+        UpdateCredentialsRequest request = UpdateCredentialsRequest.builder()
+                .newUsername("new_name")
+                .build();
+
+        when(userService.updateCredentials(request))
+                .thenReturn(Response.ok("Cập nhật thành công"));
+
+        Response<String> response = authController.updateCredentials(request);
+
+        assertNotNull(response);
+        assertEquals(200, response.getStatus().getCode());
+        verify(userService).updateCredentials(request);
     }
 
     @Test

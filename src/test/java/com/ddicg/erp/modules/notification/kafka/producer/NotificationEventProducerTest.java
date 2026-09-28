@@ -45,6 +45,7 @@ class NotificationEventProducerTest {
         assertEquals("VERIFY:user@example.com:token123", payload.getDeduplicationKey());
         assertEquals("user1", payload.getParams().get("username"));
         assertEquals("http://verify.url", payload.getParams().get("verificationUrl"));
+        assertEquals("15", payload.getParams().get("expiryMinutes"));
     }
 
     @Test
@@ -62,6 +63,7 @@ class NotificationEventProducerTest {
         assertEquals("ACCOUNT_RECOVERY", payload.getTemplateCode());
         assertEquals("RECOVERY:user@example.com:tokenXYZ", payload.getDeduplicationKey());
         assertEquals("http://reset.url", payload.getParams().get("resetUrl"));
+        assertEquals("20", payload.getParams().get("expiryMinutes"));
     }
 
     @Test
@@ -69,5 +71,23 @@ class NotificationEventProducerTest {
     void testDispatchEmail_NullPayload() {
         producer.dispatchEmail(null);
         verifyNoInteractions(kafkaTemplate);
+    }
+
+    @Test
+    @DisplayName("sendCredentialChangeEmail - phát event đúng topic với expiryMinutes 5 phút")
+    void testSendCredentialChangeEmail() throws Exception {
+        producer.sendCredentialChangeEmail("user@example.com", "user1", "http://activate.url?token=CRED123", "CRED123");
+
+        ArgumentCaptor<String> messageCaptor = ArgumentCaptor.forClass(String.class);
+        verify(kafkaTemplate).send(eq(KafkaTopics.NOTIFICATION_EMAIL_TOPIC), eq("user@example.com"), messageCaptor.capture());
+
+        String json = messageCaptor.getValue();
+        EmailDispatchPayload payload = objectMapper.readValue(json, EmailDispatchPayload.class);
+
+        assertEquals("user@example.com", payload.getRecipient());
+        assertEquals("CREDENTIAL_CHANGE", payload.getTemplateCode());
+        assertEquals("CREDENTIAL_CHANGE:user@example.com:CRED123", payload.getDeduplicationKey());
+        assertEquals("http://activate.url?token=CRED123", payload.getParams().get("activationUrl"));
+        assertEquals("5", payload.getParams().get("expiryMinutes"));
     }
 }

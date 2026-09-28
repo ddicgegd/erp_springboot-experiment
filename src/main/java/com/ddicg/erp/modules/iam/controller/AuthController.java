@@ -73,8 +73,9 @@ public interface AuthController {
         @PreAuthorize("isAuthenticated()")
         Response<String> requestCredentialChange();
 
-        @GetMapping("/credential-change/activate")
-        ResponseEntity<String> activateCredentialToken(@RequestParam("token") final String token);
+        @GetMapping(value = "/credential-change/activate", produces = org.springframework.http.MediaType.APPLICATION_JSON_VALUE)
+        @ResponseStatus(HttpStatus.OK)
+        Response<String> activateCredentialToken(@RequestParam("token") final String token);
 
         @GetMapping("/credential-change/status")
         @ResponseStatus(HttpStatus.OK)

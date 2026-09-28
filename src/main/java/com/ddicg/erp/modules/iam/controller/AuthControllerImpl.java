@@ -18,14 +18,10 @@ import com.ddicg.erp.core.common.dto.response.Response;
 import com.ddicg.erp.modules.iam.dto.UserDto;
 import com.ddicg.erp.modules.iam.service.iUser;
 import com.ddicg.erp.modules.iam.controller.AuthController;
-import com.ddicg.erp.core.exception.BusinessException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
-import org.thymeleaf.TemplateEngine;
-import org.thymeleaf.context.Context;
 
 import java.util.Map;
 
@@ -34,7 +30,6 @@ import java.util.Map;
 public class AuthControllerImpl implements AuthController {
 
     private final iUser userService;
-    private final TemplateEngine templateEngine;
 
     @Override
     public Response<AuthResponse> login(final UserLoginRequest body) {
@@ -119,21 +114,8 @@ public class AuthControllerImpl implements AuthController {
     }
 
     @Override
-    public ResponseEntity<String> activateCredentialToken(final String token) {
-        Context ctx = new Context();
-        try {
-            userService.activateCredentialToken(token);
-            ctx.setVariables(Map.of("success", true));
-        } catch (BusinessException ex) {
-            ctx.setVariables(Map.of(
-                "success", false,
-                "errorMessage", ex.getDetail()
-            ));
-        }
-        String html = templateEngine.process("auth/credential-change-activate", ctx);
-        return ResponseEntity.ok()
-                .contentType(MediaType.TEXT_HTML)
-                .body(html);
+    public Response<String> activateCredentialToken(final String token) {
+        return userService.activateCredentialToken(token);
     }
 
     @Override

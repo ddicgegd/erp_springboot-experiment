@@ -17,6 +17,8 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -53,7 +55,10 @@ public class User extends BaseEntity<Long> implements UserDetails {
     String email;
 
     @Column(name = "date_of_birth")
-    Date dateOfBirth;
+    LocalDate dateOfBirth;
+
+    @Column(name = "dob_updated_at")
+    LocalDateTime dobUpdatedAt;
 
     @Column(name = "avatar_url")
     String avatarUrl;
@@ -85,31 +90,11 @@ public class User extends BaseEntity<Long> implements UserDetails {
     @Builder.Default
     UserRank rank = UserRank.MEMBER;
 
-    public String getName() { return name; }
-    public void setName(String name) { this.name = name; }
-
-    public String getFullName() { return fullName; }
-    public void setFullName(String fullName) { this.fullName = fullName; }
-
-    public String getEmail() { return email; }
-    public void setEmail(String email) { this.email = email; }
-
-    public String getPassword() { return password; }
-    public void setPassword(String password) { this.password = password; }
-
-    public String getPhoneNumber() { return phoneNumber; }
-    public void setPhoneNumber(String phoneNumber) { this.phoneNumber = phoneNumber; }
-
-    public Set<RoleType> getRoles() { return roles; }
-    public void setRoles(Set<RoleType> roles) { this.roles = roles; }
-
-    public ActiveStatus getStatus() { return status; }
-    public void setStatus(ActiveStatus status) { this.status = status; }
-
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        if (roles == null || roles.isEmpty())
+        if (roles == null || roles.isEmpty()) {
             return Collections.emptyList();
+        }
         return roles.stream()
                 .map(role -> new SimpleGrantedAuthority("ROLE_" + role.name()))
                 .collect(Collectors.toList());
@@ -129,23 +114,23 @@ public class User extends BaseEntity<Long> implements UserDetails {
     @Override
     public boolean isEnabled() { return status == ActiveStatus.ACTIVE; }
 
-    public String getAvatarUrl() { return avatarUrl; }
-    public void setAvatarUrl(String avatarUrl) { this.avatarUrl = avatarUrl; }
-    public Date getDateOfBirth() { return dateOfBirth; }
-    public void setDateOfBirth(Date dateOfBirth) { this.dateOfBirth = dateOfBirth; }
-    public String getGender() { return gender != null ? gender.name() : null; }
-    public void setGender(Gender gender) { this.gender = gender; }
-    public String getRank() { return rank != null ? rank.name() : null; }
-    public UserRank getUserRank() { return rank; }
-    public void setRank(UserRank rank) { this.rank = rank; }
+    public String getGender() {
+        return gender != null ? gender.name() : null;
+    }
 
-
-    public String getFineractClientId() { return fineractClientId; }
-    public void setFineractClientId(String fineractClientId) { this.fineractClientId = fineractClientId; }
-    public void setGender(String gender) {
-        if (gender != null) {
-            try { this.gender = Gender.valueOf(gender.toUpperCase()); } catch (Exception ignored) {}
+    public void setGender(String genderStr) {
+        if (genderStr != null) {
+            try {
+                this.gender = Gender.valueOf(genderStr.toUpperCase());
+            } catch (Exception ignored) {}
         }
     }
 
+    public String getRank() {
+        return rank != null ? rank.name() : null;
+    }
+
+    public UserRank getUserRank() {
+        return rank;
+    }
 }

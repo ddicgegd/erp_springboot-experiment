@@ -1,7 +1,7 @@
 package com.ddicg.erp.modules.notification.kafka.consumer;
 
 import com.ddicg.erp.core.common.constants.KafkaTopics;
-import com.ddicg.erp.modules.notification.config.NotificationEmailConfig;
+import com.ddicg.erp.modules.notification.exception.EmailDeliveryException;
 import com.ddicg.erp.modules.notification.dto.EmailDeliveryResult;
 import com.ddicg.erp.modules.notification.dto.EmailDispatchPayload;
 import com.ddicg.erp.modules.notification.service.EmailProtectionService;
@@ -16,6 +16,7 @@ import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Consumer lắng nghe sự kiện từ notification-email-topic và điều phối quy trình gửi email.
@@ -51,8 +52,10 @@ public class NotificationEventConsumer {
                 log.warn("[NotificationConsumer] Bỏ qua message không hợp lệ hoặc thiếu recipient: {}", msg);
                 return;
             }
-
             processEmailDispatch(payload);
+        } catch (EmailDeliveryException e) {
+            log.error("[NotificationConsumer] Lỗi gửi email: {}", e.getMessage(), e);
+            throw e;
         } catch (Exception e) {
             log.error("[NotificationConsumer] Lỗi khi xử lý Kafka event gửi email: {}", e.getMessage(), e);
             throw new RuntimeException("Lỗi gửi email Kafka", e);
@@ -62,40 +65,54 @@ public class NotificationEventConsumer {
     /**
      * Pipeline xử lý gửi email đồng bộ/bất đồng bộ sau khi nhận từ queue.
      */
-    @Async(NotificationEmailConfig.NOTIFICATION_TASK_EXECUTOR)
     public EmailDeliveryResult processEmailDispatch(EmailDispatchPayload payload) {
         String recipient = payload.getRecipient().trim();
         String messageId = payload.getMessageId();
         String dedupKey = payload.getDeduplicationKey();
 
-        // 1. Kiểm tra Deduplication trên Redis
+        // 1. Kiểm tra Rate Limiting trên Redis trước (tối đa 5 mail / phút / người nhận)
+        boolean allowed = emailProtectionService.allowDeliveryRate(recipient, 5);
+        if (!allowed) {
+            log.warn("[NotificationConsumer] Bỏ qua gửi email do vượt ngưỡng rate limit tới {}", recipient);
+            return EmailDeliveryResult.rateLimited(messageId, recipient);
+        }
+
+        // 2. Tính TTL cho Deduplication Lock dựa theo loại tác vụ
+        long dedupTtlMinutes = resolveDedupTtl(dedupKey);
+
+        // 3. Kiểm tra Deduplication trên Redis
+        boolean lockAcquired = false;
         if (dedupKey != null && !dedupKey.isBlank()) {
-            boolean acquired = emailProtectionService.acquireDeduplicationLock(dedupKey, 10);
-            if (!acquired) {
+            lockAcquired = emailProtectionService.acquireDeduplicationLock(dedupKey, dedupTtlMinutes);
+            if (!lockAcquired) {
+                log.info("[NotificationConsumer] Bỏ qua message trùng lặp dedupKey={}", dedupKey);
                 return EmailDeliveryResult.duplicate(messageId, recipient, dedupKey);
             }
         }
 
-        // 2. Kiểm tra Rate Limiting trên Redis (tối đa 5 mail / phút / người nhận)
-        boolean allowed = emailProtectionService.allowDeliveryRate(recipient, 5);
-        if (!allowed) {
-            return EmailDeliveryResult.rateLimited(messageId, recipient);
-        }
-
-        // 3. Render HTML template
+        // 4. Render HTML template và gửi qua SMTP
         try {
             String htmlContent = emailTemplateService.renderHtml(payload.getTemplateCode(), payload.getParams());
             String subject = (payload.getSubject() != null && !payload.getSubject().isBlank())
                     ? payload.getSubject()
                     : emailTemplateService.resolveDefaultSubject(payload.getTemplateCode());
 
-            // 4. Gửi email qua SMTP
             emailSenderService.sendHtmlEmail(recipient, subject, htmlContent);
             return EmailDeliveryResult.success(messageId, recipient);
         } catch (Exception e) {
+            if (lockAcquired && dedupKey != null && !dedupKey.isBlank()) {
+                emailProtectionService.releaseDeduplicationLock(dedupKey);
+            }
             log.error("[NotificationConsumer] Gửi email thất bại cho messageId={} recipient={}: {}", messageId, recipient, e.getMessage(), e);
-            return EmailDeliveryResult.failed(messageId, recipient, e.getMessage());
+            throw new EmailDeliveryException("Gửi email thất bại tới " + recipient + ": " + e.getMessage(), e);
         }
+    }
+
+    private long resolveDedupTtl(String dedupKey) {
+        if (dedupKey != null && dedupKey.startsWith("BIRTHDAY:")) {
+            return TimeUnit.DAYS.toMinutes(365);
+        }
+        return 10L;
     }
 
     private EmailDispatchPayload parsePayload(Object msg) throws Exception {
