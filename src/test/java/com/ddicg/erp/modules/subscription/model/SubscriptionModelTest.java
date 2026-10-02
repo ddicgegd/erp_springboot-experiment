@@ -1,6 +1,6 @@
 package com.ddicg.erp.modules.subscription.model;
 
-import com.ddicg.erp.modules.subscription.model.enums.GoogleNotificationType;
+import com.ddicg.erp.modules.payment.model.CustomerPaymentProfile;
 import com.ddicg.erp.modules.subscription.model.enums.SubscriptionState;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -13,13 +13,13 @@ import static org.junit.jupiter.api.Assertions.*;
 class SubscriptionModelTest {
 
     @Test
-    @DisplayName("Test SubscriptionPlan creation and defaults")
+    @DisplayName("SubscriptionPlan should hold correct values")
     void testSubscriptionPlan() {
         SubscriptionPlan plan = SubscriptionPlan.builder()
-                .planCode("VIP_3M")
-                .googleProductId("sub_vip")
-                .basePlanId("plan-3-months")
-                .targetRank("VIP")
+                .id(1L)
+                .planCode("GOLD_3M")
+                .name("Gold 3M")
+                .targetRank("GOLD")
                 .billingPeriodMonths(3)
                 .freeTrialDays(30)
                 .priceAmount(BigDecimal.valueOf(299000))
@@ -27,20 +27,22 @@ class SubscriptionModelTest {
                 .isActive(true)
                 .build();
 
-        assertEquals("VIP_3M", plan.getPlanCode());
+        assertEquals("GOLD_3M", plan.getPlanCode());
+        assertEquals("GOLD", plan.getTargetRank());
         assertEquals(3, plan.getBillingPeriodMonths());
         assertEquals(30, plan.getFreeTrialDays());
         assertTrue(plan.getIsActive());
     }
 
     @Test
-    @DisplayName("Test UserSubscription state and trial transitions")
+    @DisplayName("UserSubscription state transitions and payment profile link")
     void testUserSubscription() {
         LocalDateTime now = LocalDateTime.now();
         UserSubscription sub = UserSubscription.builder()
-                .userId(100L)
-                .purchaseToken("sample_token_xyz")
-                .orderId("GPA.1234-5678")
+                .id(100L)
+                .userId(1L)
+                .planId(1L)
+                .paymentProfileId("prof_123")
                 .subscriptionState(SubscriptionState.TRIALING)
                 .isTrial(true)
                 .startTime(now)
@@ -48,17 +50,13 @@ class SubscriptionModelTest {
                 .autoRenewing(true)
                 .build();
 
-        assertEquals(SubscriptionState.TRIALING, sub.getSubscriptionState());
         assertTrue(sub.getIsTrial());
-        assertTrue(sub.getAutoRenewing());
-    }
+        assertEquals(SubscriptionState.TRIALING, sub.getSubscriptionState());
+        assertEquals("prof_123", sub.getPaymentProfileId());
 
-    @Test
-    @DisplayName("Test GoogleNotificationType mapping")
-    void testGoogleNotificationType() {
-        assertEquals(SubscriptionState.ACTIVE, GoogleNotificationType.SUBSCRIPTION_RENEWED.getMappedState());
-        assertEquals(SubscriptionState.IN_GRACE_PERIOD, GoogleNotificationType.SUBSCRIPTION_IN_GRACE_PERIOD.getMappedState());
-        assertEquals(SubscriptionState.ON_HOLD, GoogleNotificationType.SUBSCRIPTION_ON_HOLD.getMappedState());
-        assertEquals(SubscriptionState.EXPIRED, GoogleNotificationType.SUBSCRIPTION_EXPIRED.getMappedState());
+        sub.setSubscriptionState(SubscriptionState.ACTIVE);
+        sub.setIsTrial(false);
+        assertEquals(SubscriptionState.ACTIVE, sub.getSubscriptionState());
+        assertFalse(sub.getIsTrial());
     }
 }

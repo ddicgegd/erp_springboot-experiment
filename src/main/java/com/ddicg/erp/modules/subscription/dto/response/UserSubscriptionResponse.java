@@ -6,15 +6,18 @@ import lombok.experimental.FieldDefaults;
 
 import java.time.LocalDateTime;
 
-@Data
-@Builder
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class UserSubscriptionResponse {
     Long id;
     Long userId;
+    Long planId;
     String planCode;
+    String planName;
     String targetRank;
     Integer billingPeriodMonths;
     SubscriptionState subscriptionState;
@@ -22,5 +25,5 @@ public class UserSubscriptionResponse {
     LocalDateTime startTime;
     LocalDateTime expiryTime;
     Boolean autoRenewing;
-    String orderId;
+    String paymentProfileId;
 }

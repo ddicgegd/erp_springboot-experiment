@@ -4,7 +4,6 @@ import com.ddicg.erp.core.common.model.base.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
-import lombok.experimental.SuperBuilder;
 
 import java.math.BigDecimal;
 
@@ -12,22 +11,23 @@ import java.math.BigDecimal;
 @Table(name = "subscription_plans")
 @Getter
 @Setter
-@SuperBuilder
-@AllArgsConstructor
 @NoArgsConstructor
+@AllArgsConstructor
+@Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class SubscriptionPlan extends BaseEntity<Long> {
 
-    @Column(name = "plan_code", unique = true, nullable = false, length = 50)
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    Long id;
+
+    @Column(name = "plan_code", length = 50, nullable = false, unique = true)
     String planCode;
 
-    @Column(name = "google_product_id", nullable = false, length = 100)
-    String googleProductId;
+    @Column(name = "name", length = 100, nullable = false)
+    String name;
 
-    @Column(name = "base_plan_id", nullable = false, length = 50)
-    String basePlanId;
-
-    @Column(name = "target_rank", nullable = false, length = 20)
+    @Column(name = "target_rank", length = 30, nullable = false)
     String targetRank;
 
     @Column(name = "billing_period_months", nullable = false)
@@ -37,14 +37,17 @@ public class SubscriptionPlan extends BaseEntity<Long> {
     @Builder.Default
     Integer freeTrialDays = 30;
 
-    @Column(name = "price_amount", nullable = false, precision = 15, scale = 2)
+    @Column(name = "price_amount", precision = 15, scale = 2, nullable = false)
     BigDecimal priceAmount;
 
-    @Column(name = "currency", nullable = false, length = 10)
+    @Column(name = "currency", length = 10, nullable = false)
     @Builder.Default
     String currency = "VND";
 
     @Column(name = "is_active", nullable = false)
     @Builder.Default
     Boolean isActive = true;
+
+    @Column(name = "description", length = 500)
+    String description;
 }

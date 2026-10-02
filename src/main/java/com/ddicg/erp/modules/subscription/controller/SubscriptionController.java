@@ -1,14 +1,18 @@
 package com.ddicg.erp.modules.subscription.controller;
 
 import com.ddicg.erp.core.common.dto.response.Response;
-import com.ddicg.erp.modules.subscription.dto.request.GooglePurchaseVerifyRequest;
+import com.ddicg.erp.core.security.SecurityUtil;
+import com.ddicg.erp.modules.subscription.dto.request.GooglePayWebRegisterRequest;
 import com.ddicg.erp.modules.subscription.dto.response.UserSubscriptionResponse;
 import com.ddicg.erp.modules.subscription.model.SubscriptionPlan;
-import com.ddicg.erp.modules.subscription.service.GooglePlayVerificationService;
+import com.ddicg.erp.modules.subscription.service.GooglePayWebService;
+import com.ddicg.erp.modules.subscription.service.SubscriptionBillingService;
 import com.ddicg.erp.modules.subscription.service.SubscriptionService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -16,32 +20,44 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/subscriptions")
 @RequiredArgsConstructor
+@Tag(name = "Subscriptions", description = "APIs quản lý gói dịch vụ và thanh toán định kỳ Google Pay Web")
 public class SubscriptionController {
 
-    private final GooglePlayVerificationService verificationService;
     private final SubscriptionService subscriptionService;
+    private final GooglePayWebService googlePayWebService;
+    private final SubscriptionBillingService billingService;
+    private final SecurityUtil securityUtil;
 
     @GetMapping("/plans")
-    @ResponseStatus(HttpStatus.OK)
-    public Response<List<SubscriptionPlan>> getActivePlans() {
-        return Response.ok(subscriptionService.getAllActivePlans(), "Lấy danh sách gói thành công");
-    }
-
-    @PostMapping("/google/verify")
-    @ResponseStatus(HttpStatus.OK)
-    public Response<UserSubscriptionResponse> verifyGooglePurchase(
-            @RequestHeader(value = "X-User-Id", defaultValue = "1") Long userId,
-            @Valid @RequestBody GooglePurchaseVerifyRequest request) {
-        UserSubscriptionResponse response = verificationService.verifyAndActivate(userId, request);
-        return Response.ok(response, "Kích hoạt gói Google Play thành công");
+    @Operation(summary = "Lấy danh sách các gói Subscription đang hoạt động")
+    public ResponseEntity<Response<List<SubscriptionPlan>>> getActivePlans() {
+        List<SubscriptionPlan> plans = subscriptionService.getActivePlans();
+        return ResponseEntity.ok(Response.ok(plans, "Lấy danh sách gói thành công"));
     }
 
     @GetMapping("/my")
-    @ResponseStatus(HttpStatus.OK)
-    public Response<UserSubscriptionResponse> getMySubscription(
-            @RequestHeader(value = "X-User-Id", defaultValue = "1") Long userId) {
-        return subscriptionService.getLatestSubscriptionForUser(userId)
-                .map(res -> Response.ok(res, "Lấy thông tin gói thành công"))
-                .orElseGet(() -> Response.ok(null, "Chưa đăng ký gói nào"));
+    @Operation(summary = "Xem thông tin gói Subscription hiện tại của user đang đăng nhập")
+    public ResponseEntity<Response<UserSubscriptionResponse>> getMySubscription() {
+        String userIdStr = securityUtil.getCurrentUserId();
+        Long currentUserId = userIdStr != null ? Long.parseLong(userIdStr) : null;
+        UserSubscriptionResponse response = subscriptionService.getMySubscription(currentUserId);
+        return ResponseEntity.ok(Response.ok(response, "Lấy thông tin gói thành công"));
+    }
+
+    @PostMapping("/google-pay/register")
+    @Operation(summary = "Đăng ký gói Subscription bằng Google Pay Web Token (Lưu Vault thẻ & Kích hoạt 30 ngày Free Trial)")
+    public ResponseEntity<Response<UserSubscriptionResponse>> registerGooglePayWebSubscription(
+            @Valid @RequestBody GooglePayWebRegisterRequest request) {
+        String userIdStr = securityUtil.getCurrentUserId();
+        Long currentUserId = userIdStr != null ? Long.parseLong(userIdStr) : 1L;
+        UserSubscriptionResponse response = googlePayWebService.registerTrialSubscription(currentUserId, request);
+        return ResponseEntity.ok(Response.ok(response, "Đăng ký gói dùng thử Google Pay Web thành công"));
+    }
+
+    @PostMapping("/{id}/renew")
+    @Operation(summary = "Kích hoạt gia hạn trừ tiền định kỳ MIT và hạch toán tự động vào Fineract")
+    public ResponseEntity<Response<Boolean>> triggerRenewal(@PathVariable("id") Long subscriptionId) {
+        boolean renewed = billingService.processRecurringRenewal(subscriptionId);
+        return ResponseEntity.ok(Response.ok(renewed, renewed ? "Gia hạn và hạch toán Fineract thành công" : "Gia hạn thất bại"));
     }
 }
