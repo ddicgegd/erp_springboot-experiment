@@ -16,12 +16,12 @@ public class MockPaymentGatewayClient implements PaymentGatewayClient {
     @Override
     public CustomerPaymentProfile vaultPaymentMethod(Long userId, String googlePayToken, String cardNetwork, String lastFour) {
         log.info("MockPaymentGatewayClient: Vaulting Google Pay token for user {}", userId);
-        String profileId = "prof_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+        String profileCode = "prof_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
         String multiUseToken = "vault_tok_" + UUID.randomUUID().toString().replace("-", "");
         String citTxnId = "cit_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
 
         return CustomerPaymentProfile.builder()
-                .id(profileId)
+                .profileCode(profileCode)
                 .userId(userId)
                 .gateway("GOOGLE_PAY_INTERNAL")
                 .multiUseToken(multiUseToken)

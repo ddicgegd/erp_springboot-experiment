@@ -9,5 +9,6 @@ import java.util.List;
 @Repository
 public interface SubscriptionAuditLogRepository extends JpaRepository<SubscriptionAuditLog, Long> {
     List<SubscriptionAuditLog> findBySubscriptionId(Long subscriptionId);
-    List<SubscriptionAuditLog> findByPurchaseToken(String purchaseToken);
+    List<SubscriptionAuditLog> findByUserId(Long userId);
+    List<SubscriptionAuditLog> findByEventType(String eventType);
 }

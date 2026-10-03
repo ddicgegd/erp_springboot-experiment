@@ -48,7 +48,7 @@ public class SubscriptionBillingService {
         SubscriptionPlan plan = planRepository.findById(sub.getPlanId())
                 .orElseThrow(() -> new BusinessException("Không tìm thấy Gói dịch vụ với ID: " + sub.getPlanId()));
 
-        CustomerPaymentProfile profile = profileRepository.findById(sub.getPaymentProfileId())
+        CustomerPaymentProfile profile = profileRepository.findByProfileCode(sub.getPaymentProfileId())
                 .orElseThrow(() -> new BusinessException("Không tìm thấy Payment Profile: " + sub.getPaymentProfileId()));
 
         SubscriptionState oldState = sub.getSubscriptionState();

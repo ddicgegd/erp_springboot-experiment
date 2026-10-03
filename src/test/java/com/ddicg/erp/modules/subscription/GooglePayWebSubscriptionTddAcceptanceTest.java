@@ -95,7 +95,8 @@ class GooglePayWebSubscriptionTddAcceptanceTest {
                 .build();
 
         profile = CustomerPaymentProfile.builder()
-                .id("prof_77_vault")
+                .id(1L)
+                .profileCode("prof_77_vault")
                 .userId(77L)
                 .gateway("GOOGLE_PAY_INTERNAL")
                 .multiUseToken("vault_tok_platinum_77")
@@ -158,7 +159,7 @@ class GooglePayWebSubscriptionTddAcceptanceTest {
 
         when(userSubscriptionRepository.findById(7701L)).thenReturn(Optional.of(sub));
         when(planRepository.findById(3L)).thenReturn(Optional.of(plan12M));
-        when(profileRepository.findById("prof_77_vault")).thenReturn(Optional.of(profile));
+        when(profileRepository.findByProfileCode("prof_77_vault")).thenReturn(Optional.of(profile));
         when(userRepository.findById(77L)).thenReturn(Optional.of(user));
 
         when(paymentGatewayClient.chargeRecurringMit(eq("vault_tok_platinum_77"), eq(BigDecimal.valueOf(990000)), eq("VND"), anyString()))
@@ -204,7 +205,7 @@ class GooglePayWebSubscriptionTddAcceptanceTest {
 
         when(userSubscriptionRepository.findById(7701L)).thenReturn(Optional.of(sub));
         when(planRepository.findById(3L)).thenReturn(Optional.of(plan12M));
-        when(profileRepository.findById("prof_77_vault")).thenReturn(Optional.of(profile));
+        when(profileRepository.findByProfileCode("prof_77_vault")).thenReturn(Optional.of(profile));
 
         when(paymentGatewayClient.chargeRecurringMit(eq("vault_tok_platinum_77"), eq(BigDecimal.valueOf(990000)), eq("VND"), anyString()))
                 .thenReturn(new PaymentGatewayClient.MitChargeResult(false, null, "INSUFFICIENT_FUNDS", "Không đủ tiền"));

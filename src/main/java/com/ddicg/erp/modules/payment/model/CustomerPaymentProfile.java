@@ -4,20 +4,20 @@ import com.ddicg.erp.core.common.model.base.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
+import lombok.experimental.SuperBuilder;
 
 @Entity
 @Table(name = "customer_payment_profiles")
 @Getter
 @Setter
-@NoArgsConstructor
+@SuperBuilder
 @AllArgsConstructor
-@Builder
+@NoArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class CustomerPaymentProfile extends BaseEntity<String> {
+public class CustomerPaymentProfile extends BaseEntity<Long> {
 
-    @Id
-    @Column(name = "id", length = 64, nullable = false)
-    String id;
+    @Column(name = "profile_code", length = 64, nullable = false, unique = true)
+    String profileCode;
 
     @Column(name = "user_id", nullable = false)
     Long userId;

@@ -86,7 +86,8 @@ class SubscriptionAccountingServiceTest {
                 .build();
 
         profile = CustomerPaymentProfile.builder()
-                .id("prof_20")
+                .id(1L)
+                .profileCode("prof_20")
                 .userId(20L)
                 .gateway("GOOGLE_PAY_INTERNAL")
                 .multiUseToken("vault_tok_active_20")
@@ -113,7 +114,7 @@ class SubscriptionAccountingServiceTest {
     void testProcessRenewal_Success_AutoAccounting() {
         when(userSubscriptionRepository.findById(1001L)).thenReturn(Optional.of(trialSubscription));
         when(planRepository.findById(1L)).thenReturn(Optional.of(plan3M));
-        when(profileRepository.findById("prof_20")).thenReturn(Optional.of(profile));
+        when(profileRepository.findByProfileCode("prof_20")).thenReturn(Optional.of(profile));
         when(userRepository.findById(20L)).thenReturn(Optional.of(user));
 
         when(paymentGatewayClient.chargeRecurringMit(eq("vault_tok_active_20"), eq(BigDecimal.valueOf(299000)), eq("VND"), anyString()))
@@ -147,7 +148,7 @@ class SubscriptionAccountingServiceTest {
     void testProcessRenewal_Failure_NoAccounting() {
         when(userSubscriptionRepository.findById(1001L)).thenReturn(Optional.of(trialSubscription));
         when(planRepository.findById(1L)).thenReturn(Optional.of(plan3M));
-        when(profileRepository.findById("prof_20")).thenReturn(Optional.of(profile));
+        when(profileRepository.findByProfileCode("prof_20")).thenReturn(Optional.of(profile));
 
         when(paymentGatewayClient.chargeRecurringMit(eq("vault_tok_active_20"), eq(BigDecimal.valueOf(299000)), eq("VND"), anyString()))
                 .thenReturn(new PaymentGatewayClient.MitChargeResult(false, null, "CARD_DECLINED", "Thẻ bị từ chối"));

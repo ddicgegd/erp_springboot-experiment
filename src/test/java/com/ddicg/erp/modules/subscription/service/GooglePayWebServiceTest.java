@@ -26,6 +26,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -86,7 +87,8 @@ class GooglePayWebServiceTest {
                 .build();
 
         CustomerPaymentProfile createdProfile = CustomerPaymentProfile.builder()
-                .id("prof_user10_001")
+                .id(1L)
+                .profileCode("prof_user10_001")
                 .userId(10L)
                 .gateway("GOOGLE_PAY_INTERNAL")
                 .multiUseToken("vault_tok_test_123")

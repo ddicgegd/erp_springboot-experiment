@@ -8,7 +8,8 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface CustomerPaymentProfileRepository extends JpaRepository<CustomerPaymentProfile, String> {
+public interface CustomerPaymentProfileRepository extends JpaRepository<CustomerPaymentProfile, Long> {
+    Optional<CustomerPaymentProfile> findByProfileCode(String profileCode);
     List<CustomerPaymentProfile> findByUserId(Long userId);
     Optional<CustomerPaymentProfile> findByUserIdAndStatus(Long userId, String status);
 }

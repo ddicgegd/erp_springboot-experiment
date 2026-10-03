@@ -67,7 +67,7 @@ public class GooglePayWebService {
         UserSubscription sub = UserSubscription.builder()
                 .userId(userId)
                 .planId(plan.getId())
-                .paymentProfileId(profile.getId())
+                .paymentProfileId(profile.getProfileCode())
                 .subscriptionState(SubscriptionState.TRIALING)
                 .isTrial(true)
                 .startTime(now)
@@ -96,7 +96,7 @@ public class GooglePayWebService {
                 .startTime(sub.getStartTime())
                 .expiryTime(sub.getExpiryTime())
                 .autoRenewing(sub.getAutoRenewing())
-                .paymentProfileId(profile.getId())
+                .paymentProfileId(profile.getProfileCode())
                 .build();
     }
 

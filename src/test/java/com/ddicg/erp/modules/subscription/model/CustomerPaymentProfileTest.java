@@ -5,7 +5,6 @@ import com.ddicg.erp.modules.subscription.model.enums.SubscriptionState;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -16,7 +15,8 @@ class CustomerPaymentProfileTest {
     @DisplayName("Should create CustomerPaymentProfile and link to user")
     void testCustomerPaymentProfileCreation() {
         CustomerPaymentProfile profile = CustomerPaymentProfile.builder()
-                .id("profile_12345")
+                .id(1L)
+                .profileCode("profile_12345")
                 .userId(101L)
                 .gateway("GOOGLE_PAY_INTERNAL")
                 .multiUseToken("vault_tok_abcdef98765")
@@ -28,13 +28,14 @@ class CustomerPaymentProfileTest {
 
         assertNotNull(profile);
         assertEquals(101L, profile.getUserId());
+        assertEquals("profile_12345", profile.getProfileCode());
         assertEquals("vault_tok_abcdef98765", profile.getMultiUseToken());
         assertEquals("ACTIVE", profile.getStatus());
         assertEquals("4242", profile.getFpanLastFour());
     }
 
     @Test
-    @DisplayName("UserSubscription should reference CustomerPaymentProfile id and plan")
+    @DisplayName("UserSubscription should reference CustomerPaymentProfile profileCode")
     void testUserSubscriptionLinkingPaymentProfile() {
         UserSubscription sub = UserSubscription.builder()
                 .id(1L)

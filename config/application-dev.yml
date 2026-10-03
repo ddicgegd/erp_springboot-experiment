@@ -18,9 +18,6 @@ spring:
 
   main:
     allow-bean-definition-overriding: true
-  flyway:
-    repair-on-migrate: true
-    validate-on-migrate: false
 
   jackson:
     default-property-inclusion: non_null
@@ -83,6 +80,7 @@ spring:
     locations: classpath:db/migration
     out-of-order: false
     repair-on-migrate: true
+    validate-on-migrate: false
 
   data:
     redis:
