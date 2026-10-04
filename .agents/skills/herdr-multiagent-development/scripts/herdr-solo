@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# Handle Small scope tasks with a single worker. NO Censor overhead.
+#
+# Usage:
+#   herdr-solo create <TASK_NUMBER>
+#   herdr-solo close <TASK_NUMBER>
+set -euo pipefail
+
+test "${HERDR_ENV:-}" = 1 || { echo "Error: Not running inside Herdr environment" >&2; exit 1; }
+
+ACTION=${1:-}
+N=${2:-}
+
+[ -n "$ACTION" ] && [ -n "$N" ] || { echo "Usage: $0 {create|close} <TASK_NUMBER>" >&2; exit 2; }
+
+WORKSPACE_DIR=$(git rev-parse --show-toplevel)/.superpowers/sdd
+STATE_FILE="$WORKSPACE_DIR/solo-task-${N}.json"
+WORKTREE_DIR="$(git rev-parse --show-toplevel)/.worktrees/task-${N}"
+
+mkdir -p "$WORKSPACE_DIR" "$(dirname "$WORKTREE_DIR")"
+
+case "$ACTION" in
+  create)
+    echo ">> [Herdr Solo] Initializing fast-track worktree for Small Task ${N}..."
+    BASE_SHA=$(git rev-parse HEAD)
+    
+    if [ -d "$WORKTREE_DIR" ]; then
+      git worktree remove --force "$WORKTREE_DIR" || true
+      git branch -D "task-${N}" || true
+    fi
+    git worktree add -b "task-${N}" "$WORKTREE_DIR" "$BASE_SHA"
+    
+    # Create ONLY ONE pane for the worker. No Censor.
+    PANE_W=$(herdr pane split --current --direction down --cwd "$WORKTREE_DIR" --no-focus | jq -r '.result.pane.pane_id')
+    herdr agent start "worker-${N}" --kind omp --pane "$PANE_W"
+    
+    jq -n --arg pane "$PANE_W" '{worker: {pane_id: $pane}}' > "$STATE_FILE"
+    echo ">> [Herdr Solo] Provisioned Task ${N} successfully. NO Censor overhead."
+    ;;
+    
+  close)
+    echo ">> [Herdr Solo] Tearing down Task ${N}..."
+    if [ -f "$STATE_FILE" ]; then
+      PANE_W=$(jq -r '.worker.pane_id' "$STATE_FILE")
+      herdr pane close "$PANE_W" 2>/dev/null || true
+      rm -f "$STATE_FILE"
+    fi
+    if [ -d "$WORKTREE_DIR" ]; then git worktree remove --force "$WORKTREE_DIR" || true; fi
+    git branch -D "task-${N}" 2>/dev/null || true
+    echo ">> [Herdr Solo] Cleaned up."
+    ;;
+esac

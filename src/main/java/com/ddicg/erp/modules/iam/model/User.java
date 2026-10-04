@@ -63,6 +63,13 @@ public class User extends BaseEntity<Long> implements UserDetails {
     @Column(name = "avatar_url")
     String avatarUrl;
 
+    @Column(name = "google_id", unique = true)
+    String googleId;
+
+    @Column(name = "auth_provider")
+    @Builder.Default
+    String authProvider = "LOCAL";
+
     @Column(name = "fineract_client_id")
     String fineractClientId;
 

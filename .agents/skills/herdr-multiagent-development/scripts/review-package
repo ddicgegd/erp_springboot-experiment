@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# Generate a review package: commit list, stat summary, and the net diff 
+# comparing the Wave Baseline with the Worker's Worktree Branch.
+#
+# Usage: review-package PLAN_FILE BASE_SHA TASK_NUMBER [OUTFILE]
+set -euo pipefail
+
+if [ $# -lt 3 ] || [ $# -gt 4 ]; then
+  echo "usage: review-package PLAN_FILE BASE_SHA TASK_NUMBER [OUTFILE]" >&2
+  exit 2
+fi
+
+plan=$1
+base=$2
+task_n=$3
+[ -f "$plan" ] || { echo "no such plan file: $plan" >&2; exit 2; }
+
+WORKTREE_DIR="$(git rev-parse --show-toplevel)/.worktrees/task-${task_n}"
+if [ ! -d "$WORKTREE_DIR" ]; then
+  echo "Error: Worktree for task $task_n not found at $WORKTREE_DIR" >&2
+  exit 3
+fi
+
+head=$(git -C "$WORKTREE_DIR" rev-parse HEAD)
+
+if [ $# -eq 4 ]; then
+  out=$4
+else
+  dir=$("${BASH:-bash}" "$(cd "$(dirname "$0")" && pwd)/sdd-workspace" "$plan")
+  out="$dir/review-task-${task_n}-$(git rev-parse --short "$base")..$(git -C "$WORKTREE_DIR" rev-parse --short "$head").diff"
+fi
+
+{
+  echo "# Review package for Task ${task_n} (Worktree Branch)"
+  echo
+  echo "## Commits in task-${task_n} branch"
+  git -C "$WORKTREE_DIR" log --oneline "${base}..${head}" || true
+  echo
+  echo "## Files changed"
+  git -C "$WORKTREE_DIR" diff --stat "${base}..${head}"
+  echo
+  echo "## Diff"
+  git -C "$WORKTREE_DIR" diff -U10 "${base}..${head}"
+} > "$out"
+
+commits=$(git -C "$WORKTREE_DIR" rev-list --count "${base}..${head}" || echo 0)
+echo "wrote ${out}: ${commits} commit(s), $(wc -c < "$out" | tr -d ' ') bytes"

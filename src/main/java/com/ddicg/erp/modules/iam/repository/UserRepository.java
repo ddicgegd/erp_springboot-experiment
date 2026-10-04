@@ -18,6 +18,8 @@ public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificat
 
     Optional<User> findByEmail(String email);
 
+    Optional<User> findByGoogleId(String googleId);
+
     @Query("SELECT u FROM User u WHERE u.name = :name")
     Optional<User> findByName(@Param("name") String name);
 

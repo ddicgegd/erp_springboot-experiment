@@ -238,7 +238,7 @@
             <version>1.0.0</version>
             <scope>compile</scope>
         </dependency>
-        
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-testcontainers</artifactId>
@@ -335,11 +335,13 @@
                 </dependencies>
             </plugin>
         </plugins>
-    </build><repositories>
+    </build>
+    <repositories>
         <repository>
             <id>confluent</id>
             <name>Confluent</name>
             <url>https://packages.confluent.io/maven/</url>
-        </repository></repositories>
+        </repository>
+    </repositories>
 
 </project>

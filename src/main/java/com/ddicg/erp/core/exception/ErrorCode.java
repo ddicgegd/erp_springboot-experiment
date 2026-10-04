@@ -30,6 +30,10 @@ public enum ErrorCode {
     USER_PROFILE_INCOMPLETE("Thông tin hồ sơ người dùng chưa đầy đủ (yêu cầu họ và tên thực tế)", HttpStatus.BAD_REQUEST),
     FINERACT_CLIENT_NOT_SYNCED("Tài khoản chưa được đồng bộ với hệ thống tài chính Fineract", HttpStatus.BAD_REQUEST),
     LOAN_NOT_FOUND("Khoản vay không tồn tại hoặc không thuộc về người dùng", HttpStatus.NOT_FOUND),
+    INVALID_OAUTH_STATE_MISMATCH("State đối soát CSRF không khớp", HttpStatus.FORBIDDEN),
+    EXPIRED_OR_REPLAYED_STATE("State đã hết hạn hoặc bị sử dụng lại", HttpStatus.FORBIDDEN),
+    UNVERIFIED_GOOGLE_EMAIL("Email Google chưa được xác minh", HttpStatus.BAD_REQUEST),
+    INVALID_OR_EXPIRED_TICKET("Ticket không hợp lệ hoặc đã hết hạn", HttpStatus.UNAUTHORIZED),
     TOO_MANY_REQUESTS("Yêu cầu quá nhiều lần. Vui lòng thử lại sau.", HttpStatus.TOO_MANY_REQUESTS);
 
     private final String message;

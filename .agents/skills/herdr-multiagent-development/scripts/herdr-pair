@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+# Manage 1-1 Worker-N and Censor-N pair lifecycles using Git Worktrees.
+#
+# Usage:
+#   herdr-pair create <TASK_NUMBER>
+#   herdr-pair close <TASK_NUMBER>
+set -euo pipefail
+
+test "${HERDR_ENV:-}" = 1 || { echo "Error: Not running inside Herdr environment (HERDR_ENV != 1)" >&2; exit 1; }
+
+ACTION=${1:-}
+N=${2:-}
+
+[ -n "$ACTION" ] && [ -n "$N" ] || {
+  echo "Usage: $0 {create|close} <TASK_NUMBER>" >&2
+  exit 2
+}
+
+WORKSPACE_DIR=$(git rev-parse --show-toplevel)/.superpowers/sdd
+PAIR_STATE_FILE="$WORKSPACE_DIR/pair-task-${N}.json"
+WORKTREE_DIR="$(git rev-parse --show-toplevel)/.worktrees/task-${N}"
+
+mkdir -p "$WORKSPACE_DIR"
+mkdir -p "$(dirname "$WORKTREE_DIR")"
+
+case "$ACTION" in
+  create)
+    echo ">> [Herdr Pair] Initializing pair and worktree for Task ${N}..."
+    BASE_SHA=$(git rev-parse HEAD)
+    
+    # 1. Create Git Worktree
+    if [ -d "$WORKTREE_DIR" ]; then
+      echo "Warning: Worktree $WORKTREE_DIR already exists. Cleaning up first..."
+      git worktree remove --force "$WORKTREE_DIR" || true
+      git branch -D "task-${N}" || true
+    fi
+    git worktree add -b "task-${N}" "$WORKTREE_DIR" "$BASE_SHA"
+    
+    # 2. Create pane for Worker-N inside the worktree
+    PANE_W=$(herdr pane split --current --direction down --cwd "$WORKTREE_DIR" --no-focus | jq -r '.result.pane.pane_id')
+    herdr agent start "worker-${N}" --kind omp --pane "$PANE_W"
+    
+    # 3. Create pane for paired Censor-N (Censor stays in worktree to run tests if needed)
+    PANE_C=$(herdr pane split --pane "$PANE_W" --direction right --cwd "$WORKTREE_DIR" --no-focus | jq -r '.result.pane.pane_id')
+    herdr agent start "censor-${N}" --kind omp --pane "$PANE_C"
+    
+    # Record metadata
+    jq -n \
+      --arg task "$N" \
+      --arg pane_w "$PANE_W" \
+      --arg agent_w "worker-${N}" \
+      --arg pane_c "$PANE_C" \
+      --arg agent_c "censor-${N}" \
+      --arg wt "$WORKTREE_DIR" \
+      '{task: $task, worktree: $wt, worker: {pane_id: $pane_w, name: $agent_w}, censor: {pane_id: $pane_c, name: $agent_c}}' \
+      > "$PAIR_STATE_FILE"
+      
+    echo ">> [Herdr Pair] Provisioned successfully:"
+    echo "   Worktree: $WORKTREE_DIR (Branch: task-${N})"
+    echo "   Worker: worker-${N} (Pane: $PANE_W)"
+    echo "   Censor: censor-${N} (Pane: $PANE_C)"
+    ;;
+    
+  close)
+    echo ">> [Herdr Pair] Tearing down pair and worktree for Task ${N}..."
+    if [ -f "$PAIR_STATE_FILE" ]; then
+      PANE_W=$(jq -r '.worker.pane_id' "$PAIR_STATE_FILE")
+      PANE_C=$(jq -r '.censor.pane_id' "$PAIR_STATE_FILE")
+      
+      herdr pane close "$PANE_W" 2>/dev/null || true
+      herdr pane close "$PANE_C" 2>/dev/null || true
+      rm -f "$PAIR_STATE_FILE"
+    fi
+
+    # Cleanup Worktree and Branch (Supervisor MUST have merged before calling this)
+    if [ -d "$WORKTREE_DIR" ]; then
+        git worktree remove --force "$WORKTREE_DIR" || true
+    fi
+    git branch -D "task-${N}" 2>/dev/null || true
+    
+    echo ">> [Herdr Pair] Successfully cleaned up panes and worktree for Task ${N}."
+    ;;
+    
+  *)
+    echo "Invalid command: $ACTION. Expected 'create' or 'close'." >&2
+    exit 2
+    ;;
+esac

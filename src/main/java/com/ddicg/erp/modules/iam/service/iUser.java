@@ -35,4 +35,6 @@ public interface iUser {
     Response<String> activateCredentialToken(final String token);
     Response<CredentialActiveStatusResponse> getCredentialChangeStatus();
     Response<String> updateCredentials(final UpdateCredentialsRequest request);
+    com.ddicg.erp.modules.iam.model.User processOAuth2User(com.ddicg.erp.modules.iam.dto.GoogleUserInfo userInfo);
+    com.ddicg.erp.modules.iam.dto.response.OAuth2TokenResponse issueTokensFromTicket(String ticket);
 }

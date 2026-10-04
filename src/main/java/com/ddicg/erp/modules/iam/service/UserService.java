@@ -78,6 +78,7 @@ public class UserService implements iUser {
   private final DeviceInfoService deviceInfoService;
   private final RefreshTokenService refreshTokenService;
   private final UserDetailsService userDetailsService;
+  private final AuthTicketStore authTicketStore;
   private static final int OTP_LENGTH = 6;
   private static final int OTP_UPPER_BOUND = (int) Math.pow(10, OTP_LENGTH);
   private static final String OTP_FORMAT_PATTERN = "%0" + OTP_LENGTH + "d";
@@ -743,5 +744,63 @@ public class UserService implements iUser {
     log.info("Cập nhật credentials thành công cho user: {}", user.getUsername());
 
     return Response.ok("Cập nhật thông tin đăng nhập thành công. Vui lòng đăng nhập lại.");
+  }
+
+  @Override
+  @org.springframework.transaction.annotation.Transactional
+  public com.ddicg.erp.modules.iam.model.User processOAuth2User(com.ddicg.erp.modules.iam.dto.GoogleUserInfo userInfo) {
+    java.util.Optional<com.ddicg.erp.modules.iam.model.User> existingByGoogleId = userRepository.findByGoogleId(userInfo.getSub());
+    if (existingByGoogleId.isPresent()) {
+        com.ddicg.erp.modules.iam.model.User user = existingByGoogleId.get();
+        user.setAvatarUrl(userInfo.getPicture());
+        return userRepository.save(user);
+    }
+    
+    java.util.Optional<com.ddicg.erp.modules.iam.model.User> existingByEmail = userRepository.findByEmail(userInfo.getEmail());
+    if (existingByEmail.isPresent()) {
+        com.ddicg.erp.modules.iam.model.User user = existingByEmail.get();
+        user.setGoogleId(userInfo.getSub());
+        user.setAvatarUrl(userInfo.getPicture());
+        user.setAuthProvider("GOOGLE");
+        return userRepository.save(user);
+    }
+    
+    com.ddicg.erp.modules.iam.model.User newUser = com.ddicg.erp.modules.iam.model.User.builder()
+        .name(userInfo.getEmail())
+        .email(userInfo.getEmail())
+        .fullName(userInfo.getName())
+        .avatarUrl(userInfo.getPicture())
+        .googleId(userInfo.getSub())
+        .authProvider("GOOGLE")
+        .status(com.ddicg.erp.core.common.model.enums.ActiveStatus.ACTIVE)
+        .roles(java.util.Set.of(com.ddicg.erp.core.common.model.enums.RoleType.USER))
+        .password(passwordEncoder.encode(java.util.UUID.randomUUID().toString()))
+        .build();
+        
+    return userRepository.save(newUser);
+  }
+
+  @Override
+  public com.ddicg.erp.modules.iam.dto.response.OAuth2TokenResponse issueTokensFromTicket(String ticket) {
+      Long userId = authTicketStore.consumeTicket(ticket);
+      User user = userRepository.findById(userId)
+              .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+              
+      var userDetails = userDetailsService.loadUserByUsername(user.getUsername());
+      
+      // Access token expiration: 1 hour (3600000 ms)
+      long accessTokenExpiryMs = 3600000L;
+      String accessToken = jwtService.generateToken(userDetails, accessTokenExpiryMs);
+      
+      // Refresh token expiration: 30 days
+      long refreshTokenExpiryMs = 30L * 24 * 60 * 60 * 1000L;
+      String refreshToken = jwtService.generateToken(userDetails, refreshTokenExpiryMs);
+      
+      return com.ddicg.erp.modules.iam.dto.response.OAuth2TokenResponse.builder()
+              .accessToken(accessToken)
+              .refreshToken(refreshToken)
+              .tokenType("Bearer")
+              .expiresIn(3600L) // in seconds
+              .build();
   }
 }
