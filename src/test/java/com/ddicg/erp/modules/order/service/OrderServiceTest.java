@@ -75,6 +75,10 @@ class OrderServiceTest {
     private OrderDiscountProcessor orderDiscountProcessor;
     @Mock
     private VoucherReservationService voucherReservationService;
+    @Mock
+    private com.ddicg.erp.modules.order.repository.OrderFulfillmentEventRepository fulfillmentEventRepository;
+    @Mock
+    private OrderFulfillmentSimulationService simulationService;
 
     @InjectMocks
     private OrderService orderService;
