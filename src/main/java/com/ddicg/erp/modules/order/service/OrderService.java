@@ -26,8 +26,12 @@ import com.ddicg.erp.modules.merchandise.repository.AttributesRepository;
 import com.ddicg.erp.modules.merchandise.repository.ProductRepository;
 import com.ddicg.erp.modules.order.dto.OrderDto;
 import com.ddicg.erp.modules.order.dto.request.*;
+import com.ddicg.erp.modules.order.dto.response.DeliveryStepResponse;
 import com.ddicg.erp.modules.order.dto.response.MyOrderDetailResponse;
 import com.ddicg.erp.modules.order.dto.response.MyOrderListResponse;
+import com.ddicg.erp.modules.order.dto.response.NextStatusSimulationResponse;
+import com.ddicg.erp.modules.order.model.OrderFulfillmentEvent;
+import com.ddicg.erp.modules.order.repository.OrderFulfillmentEventRepository;
 import com.ddicg.erp.modules.order.model.CustomerInfo;
 import com.ddicg.erp.modules.order.model.Order;
 import com.ddicg.erp.modules.order.model.OrderItem;
@@ -74,6 +78,8 @@ public class OrderService implements iOrder {
     private final RedisService redisService;
     private final OrderDiscountProcessor orderDiscountProcessor;
     private final VoucherReservationService voucherReservationService;
+    private final OrderFulfillmentEventRepository fulfillmentEventRepository;
+    private final OrderFulfillmentSimulationService simulationService;
 
     @Override
     @Transactional
@@ -209,7 +215,61 @@ public class OrderService implements iOrder {
             throw new BusinessException(ErrorCode.FORBIDDEN, "Bạn không có quyền xem đơn hàng này");
         }
 
-        return Response.ok(orderMapper.toMyOrderDetailResponse(order));
+        MyOrderDetailResponse res = orderMapper.toMyOrderDetailResponse(order);
+
+        List<OrderFulfillmentEvent> events = fulfillmentEventRepository.findByOrderIdOrderByEventTimeAsc(order.getId());
+        List<DeliveryStepResponse> steps = new ArrayList<>();
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+
+        for (OrderFulfillmentEvent ev : events) {
+            boolean isLast = ev.getStatus() == order.getCurrentStatus();
+            boolean isActive = isLast;
+            boolean isCompleted = !isLast;
+            // If multiple events share the same status, last one in list is active; earlier ones are completed
+            steps.add(DeliveryStepResponse.builder()
+                    .stepKey(ev.getStageKey())
+                    .title(ev.getStageTitle())
+                    .diagnosticDescription(ev.getDiagnosticMessage())
+                    .timestamp(ev.getEventTime())
+                    .formattedTime(ev.getEventTime().format(fmt))
+                    .completed(isCompleted)
+                    .active(isActive)
+                    .simulated(false)
+                    .confidenceRate(1.0)
+                    .riskLevel("NONE")
+                    .build());
+        }
+        // Mark only the last step with matching currentStatus as active; all before as completed
+        for (int i = 0; i < steps.size() - 1; i++) {
+            steps.get(i).setCompleted(true);
+            steps.get(i).setActive(false);
+        }
+        if (!steps.isEmpty()) {
+            steps.get(steps.size() - 1).setActive(true);
+            steps.get(steps.size() - 1).setCompleted(false);
+        }
+
+        NextStatusSimulationResponse sim = simulationService.simulateNextStatus(order, LocalDateTime.now());
+        if (sim != null) {
+            res.setNextStatusSimulation(sim);
+            steps.add(DeliveryStepResponse.builder()
+                    .stepKey("SIMULATED_" + sim.getPredictedStatus().name())
+                    .title(sim.getPredictedStatusTitle())
+                    .diagnosticDescription(sim.getDiagnosticPrediction())
+                    .timestamp(sim.getEstimatedAt())
+                    .formattedTime(sim.getFormattedEstimatedTime())
+                    .completed(false)
+                    .active(false)
+                    .simulated(true)
+                    .confidenceRate(sim.getProbabilityScore())
+                    .riskLevel(sim.getRiskSeverity())
+                    .riskReason(sim.getRiskWarningMessage())
+                    .estimatedDeviationMinutes(0)
+                    .build());
+        }
+
+        res.setDeliverySteps(steps);
+        return Response.ok(res);
     }
 
     @Override

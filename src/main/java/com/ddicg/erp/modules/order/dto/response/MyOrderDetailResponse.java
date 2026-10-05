@@ -74,4 +74,9 @@ public class MyOrderDetailResponse {
     LocalDateTime createdAt;
 
     AuditInfoDto auditInfo;
+
+    // Fulfillment journey
+    List<DeliveryStepResponse> deliverySteps;
+
+    NextStatusSimulationResponse nextStatusSimulation;
 }
