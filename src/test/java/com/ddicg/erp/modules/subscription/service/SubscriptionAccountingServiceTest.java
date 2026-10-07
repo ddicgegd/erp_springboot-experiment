@@ -132,6 +132,11 @@ class SubscriptionAccountingServiceTest {
         assertEquals(SubscriptionState.ACTIVE, trialSubscription.getSubscriptionState());
         assertFalse(trialSubscription.getIsTrial());
         assertNotNull(trialSubscription.getLastPaymentTime());
+        // Xác minh gia hạn thời gian thêm 3 tháng
+        assertTrue(trialSubscription.getExpiryTime().isAfter(LocalDateTime.now().plusMonths(2)));
+        // Xác minh duy trì rank GOLD cho User
+        assertEquals(UserRank.GOLD, user.getUserRank());
+        verify(userRepository).save(user);
 
         // Xác minh Fineract tự động hạch toán ghi nhận doanh thu
         verify(fineractJournalService).recordSale(

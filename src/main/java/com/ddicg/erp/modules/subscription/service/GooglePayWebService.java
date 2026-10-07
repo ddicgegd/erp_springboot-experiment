@@ -1,9 +1,12 @@
 package com.ddicg.erp.modules.subscription.service;
 
+import com.ddicg.erp.core.common.model.enums.PaymentMethod;
 import com.ddicg.erp.core.common.model.enums.UserRank;
 import com.ddicg.erp.core.exception.BusinessException;
+import com.ddicg.erp.modules.fineract.service.FineractJournalService;
 import com.ddicg.erp.modules.iam.model.User;
 import com.ddicg.erp.modules.iam.repository.UserRepository;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.ddicg.erp.modules.payment.model.CustomerPaymentProfile;
 import com.ddicg.erp.modules.payment.repository.CustomerPaymentProfileRepository;
 import com.ddicg.erp.modules.payment.service.client.PaymentGatewayClient;
@@ -32,6 +35,7 @@ public class GooglePayWebService {
     private final SubscriptionPlanRepository planRepository;
     private final UserSubscriptionRepository userSubscriptionRepository;
     private final UserRepository userRepository;
+    private final FineractJournalService fineractJournalService;
 
     @Transactional
     public UserSubscriptionResponse registerTrialSubscription(Long userId, GooglePayWebRegisterRequest request) {
@@ -59,24 +63,62 @@ public class GooglePayWebService {
         );
         profile = profileRepository.save(profile);
 
-        // 3. Khởi tạo UserSubscription với trạng thái TRIALING (30 ngày dùng thử miễn phí)
+        // 3. Khởi tạo UserSubscription: Nếu có free trial (Ánh Kim 7d) -> TRIALING; nếu không (Ma Thuật) -> thu tiền ngay & ACTIVE
         LocalDateTime now = LocalDateTime.now();
-        int trialDays = plan.getFreeTrialDays() != null ? plan.getFreeTrialDays() : 30;
-        LocalDateTime expiryTime = now.plusDays(trialDays);
+        int trialDays = plan.getFreeTrialDays() != null ? plan.getFreeTrialDays() : 0;
+        boolean hasTrial = trialDays > 0;
+        LocalDateTime expiryTime = hasTrial
+                ? now.plusDays(trialDays)
+                : now.plusMonths(plan.getBillingPeriodMonths() != null ? plan.getBillingPeriodMonths() : 1);
+        SubscriptionState initState = hasTrial ? SubscriptionState.TRIALING : SubscriptionState.ACTIVE;
+
+        String fineractJournalId = null;
+        if (!hasTrial) {
+            String referenceId = "INIT-SUB-" + userId + "-" + System.currentTimeMillis();
+            PaymentGatewayClient.MitChargeResult chargeResult = paymentGatewayClient.chargeRecurringMit(
+                    profile.getMultiUseToken(),
+                    plan.getPriceAmount(),
+                    plan.getCurrency(),
+                    referenceId
+            );
+            if (!chargeResult.success()) {
+                throw new BusinessException("Thanh toán kích hoạt gói " + plan.getName() + " thất bại: " + chargeResult.errorMessage());
+            }
+
+            try {
+                String note = "Thanh toán kích hoạt gói " + plan.getPlanCode() + " cho User " + userId;
+                JsonNode fineractResp = fineractJournalService.recordSale(
+                        referenceId,
+                        plan.getPriceAmount(),
+                        note,
+                        PaymentMethod.CREDIT_CARD
+                );
+                if (fineractResp != null && fineractResp.has("entryNumber")) {
+                    fineractJournalId = fineractResp.get("entryNumber").asText();
+                } else if (fineractResp != null && fineractResp.has("resourceId")) {
+                    fineractJournalId = fineractResp.get("resourceId").asText();
+                } else {
+                    fineractJournalId = "JE-" + referenceId;
+                }
+            } catch (Exception e) {
+                log.error("Lỗi hạch toán Fineract cho gói kích hoạt ngay của User [{}]: {}", userId, e.getMessage());
+            }
+        }
 
         UserSubscription sub = UserSubscription.builder()
                 .userId(userId)
                 .planId(plan.getId())
                 .paymentProfileId(profile.getProfileCode())
-                .subscriptionState(SubscriptionState.TRIALING)
-                .isTrial(true)
+                .subscriptionState(initState)
+                .isTrial(hasTrial)
                 .startTime(now)
                 .expiryTime(expiryTime)
                 .autoRenewing(true)
+                .lastPaymentTime(!hasTrial ? now : null)
+                .lastFineractJournalId(fineractJournalId)
                 .build();
 
         sub = userSubscriptionRepository.save(sub);
-
         // 4. Nâng cấp rank cho User theo targetRank của plan
         updateUserRank(user, plan.getTargetRank());
 

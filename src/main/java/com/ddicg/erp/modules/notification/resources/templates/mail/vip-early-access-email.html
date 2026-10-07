@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org" style="color-scheme: light dark;">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${subject} ?: 'Đặc quyền Early Access dành riêng cho Hội viên VIP'">Đặc quyền Early Access VIP</title>
+</head>
+<body style="margin: 0; padding: 48px 16px; background-color: #F8FAFC; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #0F172A;">
+    <div style="max-width: 600px; margin: 0 auto; background: #FFFFFF; border-radius: 16px; padding: 40px; border: 1px solid #E2E8F0;">
+        <h2 style="color: #D97706; margin-top: 0;">👑 Đặc quyền Hội viên VIP</h2>
+        <p>Xin chào <strong th:text="${username} ?: 'Quý khách'">Quý khách</strong>,</p>
+        <p>Bạn nhận được đặc quyền mở bán sớm (Early Access) cho sự kiện đặc biệt <strong th:text="${eventName} ?: 'VIP Special Event'">Sự kiện VIP</strong>.</p>
+        <p>Thời gian áp dụng: <span th:text="${eventTime} ?: 'Ngay hôm nay'">Ngay hôm nay</span>.</p>
+        <p th:if="${voucherCode != null}">Mã ưu đãi độc quyền: <strong style="color: #2563EB;" th:text="${voucherCode}">VIPPRO</strong></p>
+        <div style="margin-top: 32px; text-align: center;">
+            <a th:href="${actionUrl} ?: '#'" style="display: inline-block; padding: 12px 28px; background-color: #D97706; color: #FFFFFF; text-decoration: none; border-radius: 8px; font-weight: bold;">Khám phá ngay</a>
+        </div>
+        <hr style="border: none; border-top: 1px solid #E2E8F0; margin: 32px 0 16px;">
+        <p style="font-size: 12px; color: #64748B; text-align: center;">Email này được gửi tự động từ hệ thống ERP.</p>
+    </div>
+</body>
+</html>

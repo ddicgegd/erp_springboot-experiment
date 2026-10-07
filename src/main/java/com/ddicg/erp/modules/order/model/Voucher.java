@@ -3,6 +3,7 @@ package com.ddicg.erp.modules.order.model;
 import com.ddicg.erp.core.common.model.base.BaseEntity;
 import com.ddicg.erp.core.common.model.enums.DiscountType;
 import com.ddicg.erp.core.common.model.enums.VoucherType;
+import com.ddicg.erp.core.common.model.enums.UserRank;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
@@ -72,6 +73,16 @@ public class Voucher extends BaseEntity<Long> {
     @Column(name = "is_active")
     @Builder.Default
     Boolean isActive = true;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "min_required_rank", length = 50)
+    @Builder.Default
+    UserRank minRequiredRank = UserRank.MEMBER;
+
+    @Convert(converter = NumericBooleanConverter.class)
+    @Column(name = "is_exclusive")
+    @Builder.Default
+    Boolean isExclusive = false;
 
     public boolean isCurrentlyValid() {
         if (Boolean.FALSE.equals(isActive)) return false;

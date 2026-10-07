@@ -1,6 +1,7 @@
 package com.ddicg.erp.modules.cart.service;
 
 import com.ddicg.erp.core.common.dto.response.Response;
+import com.ddicg.erp.core.common.model.enums.UserRank;
 import com.ddicg.erp.core.common.model.enums.StockStatus;
 import com.ddicg.erp.core.common.service.RedisService;
 import com.ddicg.erp.core.config.RedisConfiguration.RedisTable;
@@ -139,10 +140,12 @@ public class ShoppingCartServiceImpl implements ShoppingCartService {
         Set<String> incomingSkus = items.stream().map(CartItemRequest::getSku).collect(Collectors.toSet());
         Set<String> combinedSkus = new HashSet<>(existingSkus);
         combinedSkus.addAll(incomingSkus);
-
-        if (combinedSkus.size() > MAX_DISTINCT_ITEMS_PER_CART) {
-            throw new BusinessException(ErrorCode.VALIDATION_FAILED,
-                    "Giỏ hàng chỉ chứa tối đa " + MAX_DISTINCT_ITEMS_PER_CART + " loại sản phẩm khác nhau");
+        int maxAllowed = resolveMaxDistinctItems(ctx);
+        if (combinedSkus.size() > maxAllowed) {
+            String limitMsg = (maxAllowed == 100)
+                    ? "Giỏ hàng của gói Ánh Kim chỉ chứa tối đa 100 loại sản phẩm khác nhau. Nâng cấp lên gói Ma Thuật để không giới hạn!"
+                    : "Giỏ hàng chỉ chứa tối đa " + maxAllowed + " loại sản phẩm khác nhau. Nâng cấp gói hội viên để mở rộng giỏ hàng!";
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, limitMsg);
         }
 
         // 2. Fetch và validate Attributes từ DB
@@ -535,5 +538,23 @@ public class ShoppingCartServiceImpl implements ShoppingCartService {
                 .totalDiscount(0.0)
                 .finalAmount(0.0)
                 .build();
+    }
+    private int resolveMaxDistinctItems(CartContext ctx) {
+        if (ctx == null || ctx.isGuest() || ctx.getUser() == null) {
+            return MAX_DISTINCT_ITEMS_PER_CART;
+        }
+        UserRank userRank = ctx.getUser().getUserRank();
+        if (userRank == null && ctx.getUser().getRank() != null) {
+            try {
+                userRank = UserRank.valueOf(ctx.getUser().getRank().toUpperCase());
+            } catch (Exception ignored) {}
+        }
+        if (userRank == UserRank.DIAMOND) {
+            return Integer.MAX_VALUE; // Gói Ma Thuật: Không giới hạn
+        }
+        if (userRank != null && userRank.ordinal() >= UserRank.SILVER.ordinal()) {
+            return 100; // Gói Ánh Kim: Giới hạn 100
+        }
+        return MAX_DISTINCT_ITEMS_PER_CART;
     }
 }

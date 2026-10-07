@@ -4,6 +4,7 @@ import com.ddicg.erp.core.common.model.embedded.Promotion;
 import com.ddicg.erp.core.common.model.embedded.SkuInfo;
 import com.ddicg.erp.core.common.model.enums.DiscountType;
 import com.ddicg.erp.core.common.model.enums.ShippingMethod;
+import com.ddicg.erp.core.common.model.enums.UserRank;
 import com.ddicg.erp.core.common.model.enums.VoucherType;
 import com.ddicg.erp.modules.merchandise.model.Attributes;
 import com.ddicg.erp.modules.order.dto.VoucherCacheDto;
@@ -248,6 +249,323 @@ class DefaultOrderDiscountProcessorTest {
         assertTrue(result.getAppliedDiscountCodes().contains("V_SHIP"));
         assertTrue(result.getAppliedDiscountCodes().contains("V_ITEM_A"));
         assertTrue(result.getAppliedDiscountCodes().contains("V_GLOBAL"));
+    }
+
+    @Test
+    @DisplayName("Voucher yêu cầu hạng GOLD: User hạng MEMBER bị bỏ qua, User hạng GOLD được áp dụng")
+    void testRankGating_MemberSkipped_GoldApplied() {
+        VoucherCacheDto goldGlobalVoucher = VoucherCacheDto.builder()
+                .code("GOLD_GLOBAL")
+                .voucherType(VoucherType.GLOBAL_ORDER)
+                .discountType(DiscountType.PERCENTAGE)
+                .discountValue(20.0)
+                .minRequiredRank(UserRank.GOLD)
+                .isActive(true)
+                .build();
+
+        when(voucherRedisService.getValidVouchers(anyList()))
+                .thenReturn(Map.of("GOLD_GLOBAL", goldGlobalVoucher));
+
+        CreateOrderRequest.OrderItemRequest itemReq = CreateOrderRequest.OrderItemRequest.builder()
+                .attributesSku("SKU-A")
+                .quantity(1)
+                .build();
+
+        // 1. User hạng MEMBER -> Bị bỏ qua
+        OrderDiscountContext memberContext = OrderDiscountContext.builder()
+                .items(List.of(itemReq))
+                .attributesList(List.of(attrA))
+                .discountCodes(List.of("GOLD_GLOBAL"))
+                .rawShippingFee(0.0)
+                .shippingMethod(ShippingMethod.DELIVERY)
+                .userRank(UserRank.MEMBER)
+                .build();
+
+        DiscountEvaluationResult memberResult = processor.evaluateDiscount(memberContext);
+        assertEquals(0.0, memberResult.getGlobalDiscountAmount());
+        assertFalse(memberResult.getAppliedDiscountCodes().contains("GOLD_GLOBAL"));
+
+        // 2. User hạng GOLD -> Được áp dụng
+        OrderDiscountContext goldContext = OrderDiscountContext.builder()
+                .items(List.of(itemReq))
+                .attributesList(List.of(attrA))
+                .discountCodes(List.of("GOLD_GLOBAL"))
+                .rawShippingFee(0.0)
+                .shippingMethod(ShippingMethod.DELIVERY)
+                .userRank(UserRank.GOLD)
+                .build();
+
+        DiscountEvaluationResult goldResult = processor.evaluateDiscount(goldContext);
+        assertEquals(36000.0, goldResult.getGlobalDiscountAmount());
+        assertTrue(goldResult.getAppliedDiscountCodes().contains("GOLD_GLOBAL"));
+    }
+
+    @Test
+    @DisplayName("Nhánh 3 Shipping: User MEMBER bị bỏ qua voucher ship yêu cầu GOLD, User GOLD được áp dụng")
+    void testShippingVoucherRankGating_MemberSkipped_GoldApplied() {
+        VoucherCacheDto vipShip = VoucherCacheDto.builder()
+                .code("VIP_SHIP")
+                .voucherType(VoucherType.SHIPPING)
+                .discountType(DiscountType.FIXED_AMOUNT)
+                .discountValue(30000.0)
+                .minRequiredRank(UserRank.GOLD)
+                .build();
+
+        when(voucherRedisService.getValidVouchers(anyList()))
+                .thenReturn(Map.of("VIP_SHIP", vipShip));
+
+        CreateOrderRequest.OrderItemRequest itemReq = CreateOrderRequest.OrderItemRequest.builder()
+                .attributesSku("SKU-A")
+                .quantity(1)
+                .build();
+
+        // 1. User MEMBER -> Bị bỏ qua
+        OrderDiscountContext memberCtx = OrderDiscountContext.builder()
+                .items(List.of(itemReq))
+                .attributesList(List.of(attrA))
+                .discountCodes(List.of("VIP_SHIP"))
+                .rawShippingFee(30000.0)
+                .shippingMethod(ShippingMethod.DELIVERY)
+                .userRank(UserRank.MEMBER)
+                .build();
+
+        DiscountEvaluationResult memberRes = processor.evaluateDiscount(memberCtx);
+        assertEquals(0.0, memberRes.getShippingDiscountAmount());
+        assertFalse(memberRes.getAppliedDiscountCodes().contains("VIP_SHIP"));
+
+        // 2. User GOLD -> Được áp dụng
+        OrderDiscountContext goldCtx = OrderDiscountContext.builder()
+                .items(List.of(itemReq))
+                .attributesList(List.of(attrA))
+                .discountCodes(List.of("VIP_SHIP"))
+                .rawShippingFee(30000.0)
+                .shippingMethod(ShippingMethod.DELIVERY)
+                .userRank(UserRank.GOLD)
+                .build();
+
+        DiscountEvaluationResult goldRes = processor.evaluateDiscount(goldCtx);
+        assertEquals(30000.0, goldRes.getShippingDiscountAmount());
+        assertTrue(goldRes.getAppliedDiscountCodes().contains("VIP_SHIP"));
+    }
+
+    @Test
+    @DisplayName("Nhánh 2 Product Item: User MEMBER bị bỏ qua voucher món yêu cầu SILVER, User SILVER được áp dụng")
+    void testProductItemVoucherRankGating_MemberSkipped_SilverApplied() {
+        VoucherCacheDto vipItem = VoucherCacheDto.builder()
+                .code("VIP_ITEM")
+                .voucherType(VoucherType.PRODUCT_ITEM)
+                .discountType(DiscountType.FIXED_AMOUNT)
+                .discountValue(20000.0)
+                .applicableSkus(List.of("SKU-B"))
+                .minRequiredRank(UserRank.SILVER)
+                .build();
+
+        when(voucherRedisService.getValidVouchers(anyList()))
+                .thenReturn(Map.of("VIP_ITEM", vipItem));
+
+        CreateOrderRequest.OrderItemRequest itemReq = CreateOrderRequest.OrderItemRequest.builder()
+                .attributesSku("SKU-B")
+                .quantity(1)
+                .build();
+
+        // 1. User MEMBER -> Bị bỏ qua
+        OrderDiscountContext memberCtx = OrderDiscountContext.builder()
+                .items(List.of(itemReq))
+                .attributesList(List.of(attrB))
+                .discountCodes(List.of("VIP_ITEM"))
+                .rawShippingFee(0.0)
+                .shippingMethod(ShippingMethod.DELIVERY)
+                .userRank(UserRank.MEMBER)
+                .build();
+
+        DiscountEvaluationResult memberRes = processor.evaluateDiscount(memberCtx);
+        assertEquals(0.0, memberRes.getItemLevelDiscountAmount());
+        assertFalse(memberRes.getAppliedDiscountCodes().contains("VIP_ITEM"));
+
+        // 2. User SILVER -> Được áp dụng
+        OrderDiscountContext silverCtx = OrderDiscountContext.builder()
+                .items(List.of(itemReq))
+                .attributesList(List.of(attrB))
+                .discountCodes(List.of("VIP_ITEM"))
+                .rawShippingFee(0.0)
+                .shippingMethod(ShippingMethod.DELIVERY)
+                .userRank(UserRank.SILVER)
+                .build();
+
+        DiscountEvaluationResult silverRes = processor.evaluateDiscount(silverCtx);
+        assertEquals(20000.0, silverRes.getItemLevelDiscountAmount());
+        assertEquals(20000.0, silverRes.getItemDiscounts().get("SKU-B"), 0.001);
+        assertTrue(silverRes.getAppliedDiscountCodes().contains("VIP_ITEM"));
+    }
+
+    @Test
+    @DisplayName("Graceful Fallback: Bỏ qua mã DIAMOND không đủ rank và tự động áp dụng mã MEMBER tiếp theo trong chuỗi")
+    void testFallbackVoucherChain_HigherRankSkipped_LowerRankApplied() {
+        VoucherCacheDto diamondGlobal = VoucherCacheDto.builder()
+                .code("DIAMOND_GLOBAL")
+                .voucherType(VoucherType.GLOBAL_ORDER)
+                .discountType(DiscountType.PERCENTAGE)
+                .discountValue(50.0)
+                .minRequiredRank(UserRank.DIAMOND)
+                .build();
+
+        VoucherCacheDto memberGlobal = VoucherCacheDto.builder()
+                .code("MEMBER_GLOBAL")
+                .voucherType(VoucherType.GLOBAL_ORDER)
+                .discountType(DiscountType.PERCENTAGE)
+                .discountValue(10.0)
+                .minRequiredRank(UserRank.MEMBER)
+                .build();
+
+        when(voucherRedisService.getValidVouchers(anyList()))
+                .thenReturn(Map.of(
+                        "DIAMOND_GLOBAL", diamondGlobal,
+                        "MEMBER_GLOBAL", memberGlobal
+                ));
+
+        CreateOrderRequest.OrderItemRequest itemReq = CreateOrderRequest.OrderItemRequest.builder()
+                .attributesSku("SKU-A")
+                .quantity(1)
+                .build();
+
+        // SKU-A giá 200k, Flash sale 10% (20k) -> Net SKU-A = 180k
+        // Mã MEMBER_GLOBAL giảm 10% trên 180k = 18k
+        OrderDiscountContext memberCtx = OrderDiscountContext.builder()
+                .items(List.of(itemReq))
+                .attributesList(List.of(attrA))
+                .discountCodes(List.of("DIAMOND_GLOBAL", "MEMBER_GLOBAL"))
+                .rawShippingFee(0.0)
+                .shippingMethod(ShippingMethod.DELIVERY)
+                .userRank(UserRank.MEMBER)
+                .build();
+
+        DiscountEvaluationResult res = processor.evaluateDiscount(memberCtx);
+        assertEquals(18000.0, res.getGlobalDiscountAmount(), 0.001);
+        assertTrue(res.getAppliedDiscountCodes().contains("MEMBER_GLOBAL"));
+        assertFalse(res.getAppliedDiscountCodes().contains("DIAMOND_GLOBAL"));
+    }
+
+    @Test
+    @DisplayName("Null Safety: Khách vãng lai (userRank = null) được coi là MEMBER, áp dụng voucher MEMBER và bỏ qua voucher GOLD")
+    void testNullSafety_GuestUser_TreatedAsMember_AllowsMemberRejectsVip() {
+        VoucherCacheDto memberShip = VoucherCacheDto.builder()
+                .code("MEMBER_SHIP")
+                .voucherType(VoucherType.SHIPPING)
+                .discountType(DiscountType.FIXED_AMOUNT)
+                .discountValue(15000.0)
+                .minRequiredRank(UserRank.MEMBER)
+                .build();
+
+        VoucherCacheDto goldGlobal = VoucherCacheDto.builder()
+                .code("GOLD_GLOBAL")
+                .voucherType(VoucherType.GLOBAL_ORDER)
+                .discountType(DiscountType.PERCENTAGE)
+                .discountValue(20.0)
+                .minRequiredRank(UserRank.GOLD)
+                .build();
+
+        when(voucherRedisService.getValidVouchers(anyList()))
+                .thenReturn(Map.of(
+                        "MEMBER_SHIP", memberShip,
+                        "GOLD_GLOBAL", goldGlobal
+                ));
+
+        CreateOrderRequest.OrderItemRequest itemReq = CreateOrderRequest.OrderItemRequest.builder()
+                .attributesSku("SKU-A")
+                .quantity(1)
+                .build();
+
+        // userRank = null (chưa đăng nhập / guest)
+        OrderDiscountContext guestCtx = OrderDiscountContext.builder()
+                .items(List.of(itemReq))
+                .attributesList(List.of(attrA))
+                .discountCodes(List.of("MEMBER_SHIP", "GOLD_GLOBAL"))
+                .rawShippingFee(30000.0)
+                .shippingMethod(ShippingMethod.DELIVERY)
+                .userRank(null)
+                .build();
+
+        DiscountEvaluationResult res = processor.evaluateDiscount(guestCtx);
+        assertEquals(15000.0, res.getShippingDiscountAmount());
+        assertEquals(0.0, res.getGlobalDiscountAmount());
+        assertTrue(res.getAppliedDiscountCodes().contains("MEMBER_SHIP"));
+        assertFalse(res.getAppliedDiscountCodes().contains("GOLD_GLOBAL"));
+    }
+
+    @Test
+    @DisplayName("Khách GOLD áp dụng được voucher MEMBER, SILVER, GOLD nhưng không dùng được DIAMOND")
+    void testOrderDiscount_GoldUser_CanApplyMemberSilverGold_CannotApplyDiamond() {
+        VoucherCacheDto silverShip = VoucherCacheDto.builder()
+                .code("SILVER_SHIP")
+                .voucherType(VoucherType.SHIPPING)
+                .discountType(DiscountType.FIXED_AMOUNT)
+                .discountValue(20000.0)
+                .minRequiredRank(UserRank.SILVER)
+                .build();
+
+        VoucherCacheDto goldItem = VoucherCacheDto.builder()
+                .code("GOLD_ITEM")
+                .voucherType(VoucherType.PRODUCT_ITEM)
+                .discountType(DiscountType.FIXED_AMOUNT)
+                .discountValue(25000.0)
+                .applicableSkus(List.of("SKU-B"))
+                .minRequiredRank(UserRank.GOLD)
+                .build();
+
+        VoucherCacheDto diamondGlobal = VoucherCacheDto.builder()
+                .code("DIAMOND_GLOBAL")
+                .voucherType(VoucherType.GLOBAL_ORDER)
+                .discountType(DiscountType.PERCENTAGE)
+                .discountValue(50.0)
+                .minRequiredRank(UserRank.DIAMOND)
+                .build();
+
+        VoucherCacheDto memberGlobal = VoucherCacheDto.builder()
+                .code("MEMBER_GLOBAL")
+                .voucherType(VoucherType.GLOBAL_ORDER)
+                .discountType(DiscountType.PERCENTAGE)
+                .discountValue(10.0)
+                .minRequiredRank(UserRank.MEMBER)
+                .build();
+
+        when(voucherRedisService.getValidVouchers(anyList()))
+                .thenReturn(Map.of(
+                        "SILVER_SHIP", silverShip,
+                        "GOLD_ITEM", goldItem,
+                        "DIAMOND_GLOBAL", diamondGlobal,
+                        "MEMBER_GLOBAL", memberGlobal
+                ));
+
+        CreateOrderRequest.OrderItemRequest itemReq = CreateOrderRequest.OrderItemRequest.builder()
+                .attributesSku("SKU-B")
+                .quantity(1)
+                .build();
+
+        OrderDiscountContext goldCtx = OrderDiscountContext.builder()
+                .items(List.of(itemReq))
+                .attributesList(List.of(attrB))
+                .discountCodes(List.of("SILVER_SHIP", "GOLD_ITEM", "DIAMOND_GLOBAL", "MEMBER_GLOBAL"))
+                .rawShippingFee(30000.0)
+                .shippingMethod(ShippingMethod.DELIVERY)
+                .userRank(UserRank.GOLD)
+                .build();
+
+        DiscountEvaluationResult res = processor.evaluateDiscount(goldCtx);
+
+        // 1. SILVER_SHIP được áp dụng (User GOLD >= SILVER)
+        assertEquals(20000.0, res.getShippingDiscountAmount());
+        assertTrue(res.getAppliedDiscountCodes().contains("SILVER_SHIP"));
+
+        // 2. GOLD_ITEM được áp dụng (User GOLD >= GOLD)
+        assertEquals(25000.0, res.getItemLevelDiscountAmount());
+        assertTrue(res.getAppliedDiscountCodes().contains("GOLD_ITEM"));
+
+        // 3. DIAMOND_GLOBAL bị bỏ qua, fallback sang MEMBER_GLOBAL
+        // Net SKU-B = 300k - 25k (item) = 275k
+        // MEMBER_GLOBAL 10% = 27.5k
+        assertEquals(27500.0, res.getGlobalDiscountAmount(), 0.001);
+        assertFalse(res.getAppliedDiscountCodes().contains("DIAMOND_GLOBAL"));
+        assertTrue(res.getAppliedDiscountCodes().contains("MEMBER_GLOBAL"));
     }
 }
 

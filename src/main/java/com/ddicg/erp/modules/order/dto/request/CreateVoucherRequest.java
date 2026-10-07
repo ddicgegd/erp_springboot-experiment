@@ -2,6 +2,7 @@ package com.ddicg.erp.modules.order.dto.request;
 
 import com.ddicg.erp.core.common.model.enums.DiscountType;
 import com.ddicg.erp.core.common.model.enums.VoucherType;
+import com.ddicg.erp.core.common.model.enums.UserRank;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -51,4 +52,6 @@ public class CreateVoucherRequest {
     Integer totalQuantity;
 
     java.util.List<String> applicableSkus;
+    UserRank minRequiredRank;
+    Boolean isExclusive;
 }

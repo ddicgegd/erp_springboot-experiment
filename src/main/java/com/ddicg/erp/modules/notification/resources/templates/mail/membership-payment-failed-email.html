@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org" style="color-scheme: light dark;">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${subject} ?: 'Thanh toán gia hạn gói hội viên không thành công'">Thanh toán thất bại</title>
+</head>
+<body style="margin: 0; padding: 48px 16px; background-color: #F8FAFC; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #0F172A;">
+    <div style="max-width: 600px; margin: 0 auto; background: #FFFFFF; border-radius: 16px; padding: 40px; border: 1px solid #E2E8F0;">
+        <h2 style="color: #DC2626; margin-top: 0;">⚠️ Thanh toán gia hạn không thành công</h2>
+        <p>Xin chào <strong th:text="${username} ?: 'Quý khách'">Quý khách</strong>,</p>
+        <p>Hệ thống không thể thực hiện trừ tiền gia hạn tự động cho gói hội viên <strong th:text="${planName} ?: 'Gói Hội viên'">Gói VIP</strong> của bạn.</p>
+        <p>Lý do: <span th:text="${failureReason} ?: 'Giao dịch bị từ chối hoặc phương thức thanh toán không hợp lệ'">Lỗi thanh toán</span>.</p>
+        <p>Gói hội viên của bạn hiện đang trong thời gian ân hạn 3 ngày. Vui lòng cập nhật thông tin thẻ thanh toán để không bị gián đoạn đặc quyền VIP.</p>
+        <div style="margin-top: 32px; text-align: center;">
+            <a th:href="${paymentUpdateUrl} ?: '#'" style="display: inline-block; padding: 12px 28px; background-color: #DC2626; color: #FFFFFF; text-decoration: none; border-radius: 8px; font-weight: bold;">Cập nhật thẻ thanh toán</a>
+        </div>
+        <hr style="border: none; border-top: 1px solid #E2E8F0; margin: 32px 0 16px;">
+        <p style="font-size: 12px; color: #64748B; text-align: center;">Email này được gửi tự động từ hệ thống ERP.</p>
+    </div>
+</body>
+</html>

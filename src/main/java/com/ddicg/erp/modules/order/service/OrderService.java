@@ -7,6 +7,7 @@ import com.ddicg.erp.core.common.model.embedded.AuditInfo;
 import com.ddicg.erp.core.common.model.enums.OrderStatus;
 import com.ddicg.erp.core.common.model.enums.PaymentMethod;
 import com.ddicg.erp.core.common.model.enums.ShippingMethod;
+import com.ddicg.erp.core.common.model.enums.UserRank;
 import com.ddicg.erp.core.common.model.enums.StockStatus;
 import com.ddicg.erp.core.common.service.RedisService;
 import com.ddicg.erp.core.config.RedisConfiguration.RedisTable;
@@ -95,7 +96,12 @@ public class OrderService implements iOrder {
         Double rawShippingFee = calculateShippingFee(shippingMethod, selectedAddress);
 
         // 3. Tính toán chiết khấu đa tầng (Shipping, Item, Global)
-        String customerId = securityUtil.getCurrentUser().map(u -> String.valueOf(u.getId())).orElse(null);
+        Optional<User> currentUserOpt = securityUtil.getCurrentUser();
+        String customerId = currentUserOpt.map(u -> String.valueOf(u.getId())).orElse(null);
+        UserRank userRank = currentUserOpt.map(User::getUserRank).orElse(UserRank.MEMBER);
+        if (userRank == null) {
+            userRank = UserRank.MEMBER;
+        }
         OrderDiscountContext discountContext = OrderDiscountContext.builder()
                 .items(request.getItems())
                 .attributesList(attributesList)
@@ -103,6 +109,7 @@ public class OrderService implements iOrder {
                 .rawShippingFee(rawShippingFee)
                 .shippingMethod(shippingMethod)
                 .customerId(customerId)
+                .userRank(userRank)
                 .build();
         DiscountEvaluationResult evalResult = orderDiscountProcessor.evaluateDiscount(discountContext);
 

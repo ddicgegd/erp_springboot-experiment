@@ -40,7 +40,11 @@ public class VoucherReservationService {
             return;
         }
 
-        List<String> distinctCodes = codes.stream().filter(Objects::nonNull).map(String::trim).distinct().toList();
+        List<String> distinctCodes = codes.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(c -> !c.startsWith("MA_THUAT_"))
+                .distinct().toList();
         List<RLock> acquiredLocks = new ArrayList<>();
 
         try {

@@ -54,6 +54,7 @@ public class RedisConfiguration {
 
     NOTIFICATION_DEDUP("notification:dedup:", true, 0),
     NOTIFICATION_RATELIMIT("notification:ratelimit:", false, 0),
+    PAYMENT_CARD_DEDUP("payment:card:dedup:", true, 0),
 
     AUTH_RECOVERY_COOLDOWN("auth:action:recovery:cooldown:", false, 0),
     AUTH_RECOVERY_QUOTA("auth:action:recovery:quota:", false, 0),

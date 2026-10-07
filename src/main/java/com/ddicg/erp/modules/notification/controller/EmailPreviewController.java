@@ -53,6 +53,19 @@ public class EmailPreviewController {
             vars.put("giftUrl", url);
             vars.put("voucherCode", "BDAY-2026-PREVIEW");
             vars.put("discountPercent", "15");
+        } else if (code == TemplateCode.VIP_EARLY_ACCESS_EVENT) {
+            vars.put("eventName", "BST Thu Đông VIP Exclusive");
+            vars.put("eventTime", "20:00 hôm nay");
+            vars.put("voucherCode", "VIPACCESS50");
+            vars.put("actionUrl", url);
+        } else if (code == TemplateCode.MEMBERSHIP_RENEWED) {
+            vars.put("planName", "Gói Hội Viên VIP GOLD (12 Tháng)");
+            vars.put("expiryDate", "30/12/2026");
+            vars.put("amount", "1.200.000 đ");
+        } else if (code == TemplateCode.MEMBERSHIP_PAYMENT_FAILED) {
+            vars.put("planName", "Gói Hội Viên VIP GOLD (12 Tháng)");
+            vars.put("failureReason", "Thẻ thanh toán không đủ số dư hoặc đã hết hạn");
+            vars.put("paymentUpdateUrl", url);
         } else {
             vars.put("verificationUrl", url);
             vars.put("expiryMinutes", "15");

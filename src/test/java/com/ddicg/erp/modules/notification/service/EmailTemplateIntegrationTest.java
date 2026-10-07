@@ -203,4 +203,111 @@ class EmailTemplateIntegrationTest {
         assertTrue(html.contains("#D97706"), "HTML phải chứa màu hổ phách #D97706");
         assertFalse(html.contains("SỬ DỤNG QUÀ TẶNG"), "HTML không chứa nút sử dụng quà tặng đã được loại bỏ");
     }
+
+    @Test
+    @DisplayName("Biên dịch thực tế template VIP_EARLY_ACCESS_EVENT với đầy đủ biến")
+    void testRealRender_VipEarlyAccessEvent_Success() {
+        Map<String, String> variables = Map.of(
+                "subject", "Đặc quyền Early Access VIP",
+                "username", "vip_customer",
+                "eventName", "Sneak Peek BST Thu Đông",
+                "eventTime", "20:00 hôm nay",
+                "voucherCode", "VIPACCESS50",
+                "actionUrl", "https://erp.annoeye.com/events/early-access"
+        );
+
+        String html = emailTemplateService.renderHtml(TemplateCode.VIP_EARLY_ACCESS_EVENT.name(), variables);
+
+        assertNotNull(html);
+        assertTrue(html.contains("vip_customer"));
+        assertTrue(html.contains("Sneak Peek BST Thu Đông"));
+        assertTrue(html.contains("VIPACCESS50"));
+    }
+
+    @Test
+    @DisplayName("Biên dịch thực tế template MEMBERSHIP_RENEWED với đầy đủ biến")
+    void testRealRender_MembershipRenewed_Success() {
+        Map<String, String> variables = Map.of(
+                "subject", "Gia hạn thành công",
+                "username", "gold_user",
+                "planName", "Gói Gold 12 Tháng",
+                "expiryDate", "30/12/2026",
+                "amount", "1.200.000 đ"
+        );
+
+        String html = emailTemplateService.renderHtml(TemplateCode.MEMBERSHIP_RENEWED.name(), variables);
+
+        assertNotNull(html);
+        assertTrue(html.contains("gold_user"));
+        assertTrue(html.contains("Gói Gold 12 Tháng"));
+        assertTrue(html.contains("1.200.000 đ"));
+    }
+
+    @Test
+    @DisplayName("Biên dịch thực tế template MEMBERSHIP_PAYMENT_FAILED với đầy đủ biến")
+    void testRealRender_MembershipPaymentFailed_Success() {
+        Map<String, String> variables = Map.of(
+                "subject", "Thanh toán gia hạn thất bại",
+                "username", "gold_user",
+                "planName", "Gói Gold 12 Tháng",
+                "failureReason", "Thẻ không đủ số dư",
+                "paymentUpdateUrl", "https://erp.annoeye.com/billing"
+        );
+
+        String html = emailTemplateService.renderHtml(TemplateCode.MEMBERSHIP_PAYMENT_FAILED.name(), variables);
+
+        assertNotNull(html);
+        assertTrue(html.contains("gold_user"));
+        assertTrue(html.contains("Thẻ không đủ số dư"));
+        assertTrue(html.contains("ân hạn 3 ngày"));
+    }
+
+    @Test
+    @DisplayName("Biên dịch thực tế template VIP_EARLY_ACCESS_EVENT khi không có voucherCode (ẩn block voucher)")
+    void testRealRender_VipEarlyAccessEvent_FallbackWhenNoVoucher() {
+        Map<String, String> variables = Map.of(
+                "username", "guest_vip",
+                "eventName", "Ra Mắt Sản Phẩm Mới"
+        );
+
+        String html = emailTemplateService.renderHtml(TemplateCode.VIP_EARLY_ACCESS_EVENT.name(), variables);
+
+        assertNotNull(html);
+        assertTrue(html.contains("guest_vip"));
+        assertTrue(html.contains("Ra Mắt Sản Phẩm Mới"));
+        assertFalse(html.contains("Mã ưu đãi độc quyền:"));
+        assertTrue(html.contains("href=\"#\""));
+    }
+
+    @Test
+    @DisplayName("Biên dịch thực tế template MEMBERSHIP_RENEWED với biến khuyết (kiểm tra Elvis fallback)")
+    void testRealRender_MembershipRenewed_Fallback() {
+        Map<String, String> variables = Map.of(
+                "planName", "Gói VIP Silver"
+        );
+
+        String html = emailTemplateService.renderHtml(TemplateCode.MEMBERSHIP_RENEWED.name(), variables);
+
+        assertNotNull(html);
+        assertTrue(html.contains("Quý khách"));
+        assertTrue(html.contains("Gói VIP Silver"));
+        assertTrue(html.contains("N/A"));
+    }
+
+    @Test
+    @DisplayName("Biên dịch thực tế template MEMBERSHIP_PAYMENT_FAILED với biến khuyết (kiểm tra Elvis fallback)")
+    void testRealRender_MembershipPaymentFailed_Fallback() {
+        Map<String, String> variables = Map.of(
+                "planName", "Gói VIP Diamond"
+        );
+
+        String html = emailTemplateService.renderHtml(TemplateCode.MEMBERSHIP_PAYMENT_FAILED.name(), variables);
+
+        assertNotNull(html);
+        assertTrue(html.contains("Quý khách"));
+        assertTrue(html.contains("Gói VIP Diamond"));
+        assertTrue(html.contains("Giao dịch bị từ chối hoặc phương thức thanh toán không hợp lệ"));
+        assertTrue(html.contains("href=\"#\""));
+        assertTrue(html.contains("ân hạn 3 ngày"));
+    }
 }

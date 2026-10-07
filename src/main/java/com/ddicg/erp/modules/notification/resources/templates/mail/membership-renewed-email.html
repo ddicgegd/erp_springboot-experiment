@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org" style="color-scheme: light dark;">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${subject} ?: 'Gia hạn gói hội viên thành công'">Gia hạn thành công</title>
+</head>
+<body style="margin: 0; padding: 48px 16px; background-color: #F8FAFC; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #0F172A;">
+    <div style="max-width: 600px; margin: 0 auto; background: #FFFFFF; border-radius: 16px; padding: 40px; border: 1px solid #E2E8F0;">
+        <h2 style="color: #16A34A; margin-top: 0;">🎉 Gia hạn gói hội viên thành công!</h2>
+        <p>Xin chào <strong th:text="${username} ?: 'Quý khách'">Quý khách</strong>,</p>
+        <p>Gói hội viên <strong th:text="${planName} ?: 'Gói Hội viên'">Gói VIP</strong> của bạn đã được gia hạn thành công.</p>
+        <p>Hạn sử dụng mới: <strong th:text="${expiryDate} ?: 'N/A'">30/12/2026</strong>.</p>
+        <p>Số tiền đã thanh toán: <strong th:text="${amount} ?: 'N/A'">100.000 đ</strong>.</p>
+        <p>Cảm ơn bạn đã luôn đồng hành và ủng hộ chúng tôi!</p>
+        <hr style="border: none; border-top: 1px solid #E2E8F0; margin: 32px 0 16px;">
+        <p style="font-size: 12px; color: #64748B; text-align: center;">Email này được gửi tự động từ hệ thống ERP.</p>
+    </div>
+</body>
+</html>

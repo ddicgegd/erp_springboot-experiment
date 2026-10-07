@@ -183,4 +183,88 @@ public class NotificationEventProducer {
 
         dispatchEmail(payload);
     }
+
+    /**
+     * Tiện ích gửi email thông báo sự kiện Early Access cho Hội viên VIP.
+     */
+    public void sendVipEarlyAccessEmail(String recipient, String username, String eventName, String eventTime, String voucherCode, String actionUrl) {
+        Map<String, String> params = new HashMap<>();
+        params.put("subject", TemplateCode.VIP_EARLY_ACCESS_EVENT.getDefaultSubject());
+        params.put("username", username != null ? username : "Quý khách");
+        params.put("email", recipient);
+        params.put("recipient", recipient);
+        params.put("eventName", eventName != null ? eventName : "Sự kiện VIP Đặc biệt");
+        params.put("eventTime", eventTime != null ? eventTime : "Ngay hôm nay");
+        if (voucherCode != null) {
+            params.put("voucherCode", voucherCode);
+        }
+        params.put("actionUrl", actionUrl != null ? actionUrl : "#");
+
+        EmailDispatchPayload payload = EmailDispatchPayload.builder()
+                .messageId(UUID.randomUUID().toString())
+                .recipient(recipient)
+                .subject(TemplateCode.VIP_EARLY_ACCESS_EVENT.getDefaultSubject())
+                .templateCode(TemplateCode.VIP_EARLY_ACCESS_EVENT.name())
+                .params(params)
+                .deduplicationKey("VIP_EARLY_ACCESS:" + recipient + ":" + (voucherCode != null ? voucherCode : eventName))
+                .priority(2)
+                .requestedAt(LocalDateTime.now())
+                .build();
+
+        dispatchEmail(payload);
+    }
+
+    /**
+     * Tiện ích gửi email thông báo gia hạn gói hội viên thành công.
+     */
+    public void sendMembershipRenewedEmail(String recipient, String username, String planName, String expiryDate, String amount) {
+        Map<String, String> params = new HashMap<>();
+        params.put("subject", TemplateCode.MEMBERSHIP_RENEWED.getDefaultSubject());
+        params.put("username", username != null ? username : "Quý khách");
+        params.put("email", recipient);
+        params.put("recipient", recipient);
+        params.put("planName", planName != null ? planName : "Gói Hội viên VIP");
+        params.put("expiryDate", expiryDate != null ? expiryDate : "N/A");
+        params.put("amount", amount != null ? amount : "N/A");
+
+        EmailDispatchPayload payload = EmailDispatchPayload.builder()
+                .messageId(UUID.randomUUID().toString())
+                .recipient(recipient)
+                .subject(TemplateCode.MEMBERSHIP_RENEWED.getDefaultSubject())
+                .templateCode(TemplateCode.MEMBERSHIP_RENEWED.name())
+                .params(params)
+                .deduplicationKey("MEMBERSHIP_RENEWED:" + recipient + ":" + expiryDate)
+                .priority(1)
+                .requestedAt(LocalDateTime.now())
+                .build();
+
+        dispatchEmail(payload);
+    }
+
+    /**
+     * Tiện ích gửi email thông báo trừ tiền gia hạn gói hội viên thất bại (bước vào thời gian ân hạn).
+     */
+    public void sendMembershipPaymentFailedEmail(String recipient, String username, String planName, String failureReason, String paymentUpdateUrl) {
+        Map<String, String> params = new HashMap<>();
+        params.put("subject", TemplateCode.MEMBERSHIP_PAYMENT_FAILED.getDefaultSubject());
+        params.put("username", username != null ? username : "Quý khách");
+        params.put("email", recipient);
+        params.put("recipient", recipient);
+        params.put("planName", planName != null ? planName : "Gói Hội viên VIP");
+        params.put("failureReason", failureReason != null ? failureReason : "Thanh toán không thành công");
+        params.put("paymentUpdateUrl", paymentUpdateUrl != null ? paymentUpdateUrl : "#");
+
+        EmailDispatchPayload payload = EmailDispatchPayload.builder()
+                .messageId(UUID.randomUUID().toString())
+                .recipient(recipient)
+                .subject(TemplateCode.MEMBERSHIP_PAYMENT_FAILED.getDefaultSubject())
+                .templateCode(TemplateCode.MEMBERSHIP_PAYMENT_FAILED.name())
+                .params(params)
+                .deduplicationKey("MEMBERSHIP_PAYMENT_FAILED:" + recipient + ":" + System.currentTimeMillis())
+                .priority(1)
+                .requestedAt(LocalDateTime.now())
+                .build();
+
+        dispatchEmail(payload);
+    }
 }

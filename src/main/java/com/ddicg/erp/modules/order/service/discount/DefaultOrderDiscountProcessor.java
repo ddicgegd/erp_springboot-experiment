@@ -4,6 +4,7 @@ import com.ddicg.erp.core.common.model.embedded.Promotion;
 import com.ddicg.erp.core.common.model.enums.DiscountType;
 import com.ddicg.erp.core.common.model.enums.ShippingMethod;
 import com.ddicg.erp.core.common.model.enums.VoucherType;
+import com.ddicg.erp.core.common.model.enums.UserRank;
 import com.ddicg.erp.modules.merchandise.model.Attributes;
 import com.ddicg.erp.modules.order.dto.VoucherCacheDto;
 import com.ddicg.erp.modules.order.dto.request.CreateOrderRequest;
@@ -34,6 +35,7 @@ public class DefaultOrderDiscountProcessor implements OrderDiscountProcessor {
         List<CreateOrderRequest.OrderItemRequest> items = context.getItems() != null ? context.getItems() : Collections.emptyList();
         Double rawShippingFee = context.getRawShippingFee() != null ? context.getRawShippingFee() : 0.0;
         ShippingMethod shippingMethod = context.getShippingMethod();
+        UserRank userRank = context.getUserRank() != null ? context.getUserRank() : UserRank.MEMBER;
 
         Map<String, Attributes> attrMap = new HashMap<>();
         for (Attributes attr : attributesList) {
@@ -49,7 +51,7 @@ public class DefaultOrderDiscountProcessor implements OrderDiscountProcessor {
         // =========================================================================
         // NHÁNH 3: PHÍ VẬN CHUYỂN (SHIPPING DISCOUNT) - ÁP DỤNG 1 LẦN TRONG 1 ORDER
         // =========================================================================
-        double shippingDiscountAmount = evaluateShippingDiscount(rawShippingFee, shippingMethod, rawCodes, voucherMap, appliedCodes);
+        double shippingDiscountAmount = evaluateShippingDiscount(rawShippingFee, shippingMethod, rawCodes, voucherMap, appliedCodes, userRank);
 
         // =========================================================================
         // NHÁNH 2: THEO TỪNG SẢN PHẨM / ATTRIBUTES (PRODUCT_ITEM DISCOUNT)
@@ -67,7 +69,8 @@ public class DefaultOrderDiscountProcessor implements OrderDiscountProcessor {
                 appliedCodes,
                 itemDiscounts,
                 itemNetSubtotals,
-                itemOriginalPrices
+                itemOriginalPrices,
+                userRank
         );
 
         // =========================================================================
@@ -80,7 +83,8 @@ public class DefaultOrderDiscountProcessor implements OrderDiscountProcessor {
                 appliedCodes,
                 itemNetSubtotals,
                 itemDiscounts,
-                itemOriginalPrices
+                itemOriginalPrices,
+                userRank
         );
 
         // Tính % giảm giá tổng hợp trên từng SKU
@@ -115,17 +119,22 @@ public class DefaultOrderDiscountProcessor implements OrderDiscountProcessor {
             ShippingMethod shippingMethod,
             List<String> rawCodes,
             Map<String, VoucherCacheDto> voucherMap,
-            List<String> appliedCodes
+            List<String> appliedCodes,
+            UserRank userRank
     ) {
         if (rawShippingFee == null || rawShippingFee <= 0.0) {
             return 0.0;
+        }
+        // 0. Gói Ma Thuật (DIAMOND): Luôn MIỄN PHÍ VẬN CHUYỂN 100%
+        if (userRank == UserRank.DIAMOND) {
+            appliedCodes.add("MA_THUAT_FREE_SHIPPING");
+            return rawShippingFee;
         }
 
         // Nhận tại kho -> Miễn phí vận chuyển 100%
         if (ShippingMethod.PICKUP == shippingMethod) {
             return rawShippingFee;
         }
-
         // Tìm đúng 1 mã Shipping hợp lệ đầu tiên
         for (String code : rawCodes) {
             if (code == null || code.isBlank()) continue;
@@ -133,6 +142,9 @@ public class DefaultOrderDiscountProcessor implements OrderDiscountProcessor {
             VoucherCacheDto voucher = voucherMap.get(upperCode);
 
             if (voucher != null && voucher.getVoucherType() == VoucherType.SHIPPING) {
+                if (!isUserEligibleForVoucher(voucher, userRank)) {
+                    continue;
+                }
                 double discount;
                 if (voucher.getDiscountType() == DiscountType.PERCENTAGE) {
                     discount = rawShippingFee * (voucher.getDiscountValue() / 100.0);
@@ -171,7 +183,8 @@ public class DefaultOrderDiscountProcessor implements OrderDiscountProcessor {
             List<String> appliedCodes,
             Map<String, Double> itemDiscounts,
             Map<String, Double> itemNetSubtotals,
-            Map<String, Double> itemOriginalPrices
+            Map<String, Double> itemOriginalPrices,
+            UserRank userRank
     ) {
         double totalItemLevelDiscount = 0.0;
         LocalDateTime now = LocalDateTime.now();
@@ -214,6 +227,9 @@ public class DefaultOrderDiscountProcessor implements OrderDiscountProcessor {
                 VoucherCacheDto voucher = voucherMap.get(upperCode);
 
                 if (voucher != null && voucher.getVoucherType() == VoucherType.PRODUCT_ITEM) {
+                    if (!isUserEligibleForVoucher(voucher, userRank)) {
+                        continue;
+                    }
                     boolean isApplicable = voucher.getApplicableSkus() == null
                             || voucher.getApplicableSkus().isEmpty()
                             || voucher.getApplicableSkus().contains(sku);
@@ -261,7 +277,8 @@ public class DefaultOrderDiscountProcessor implements OrderDiscountProcessor {
             List<String> appliedCodes,
             Map<String, Double> itemNetSubtotals,
             Map<String, Double> itemDiscounts,
-            Map<String, Double> itemOriginalPrices
+            Map<String, Double> itemOriginalPrices,
+            UserRank userRank
     ) {
         double netSubtotal = itemNetSubtotals.values().stream().mapToDouble(Double::doubleValue).sum();
         if (netSubtotal <= 0.0) {
@@ -271,6 +288,14 @@ public class DefaultOrderDiscountProcessor implements OrderDiscountProcessor {
         double globalDiscount = 0.0;
         String appliedGlobalCode = null;
 
+        // Đặc quyền Gói Ma Thuật (DIAMOND): Tự động chiết khấu 3% toàn bộ đơn hàng
+        if (userRank == UserRank.DIAMOND) {
+            double tier3Percent = netSubtotal * 0.03;
+            globalDiscount += tier3Percent;
+            appliedCodes.add("MA_THUAT_3%_DISCOUNT");
+        }
+
+        double voucherDiscount = 0.0;
         // Tìm ĐÚNG 1 VOUCHER GLOBAL_ORDER HỢP LỆ ĐẦU TIÊN
         for (String code : rawCodes) {
             if (code == null || code.isBlank()) continue;
@@ -278,27 +303,31 @@ public class DefaultOrderDiscountProcessor implements OrderDiscountProcessor {
             VoucherCacheDto voucher = voucherMap.get(upperCode);
 
             if (voucher != null && voucher.getVoucherType() == VoucherType.GLOBAL_ORDER) {
+                if (!isUserEligibleForVoucher(voucher, userRank)) {
+                    continue;
+                }
                 if (voucher.getDiscountType() == DiscountType.PERCENTAGE) {
-                    globalDiscount = netSubtotal * (voucher.getDiscountValue() / 100.0);
+                    voucherDiscount = netSubtotal * (voucher.getDiscountValue() / 100.0);
                     if (voucher.getMaxDiscountAmount() != null && voucher.getMaxDiscountAmount() > 0) {
-                        globalDiscount = Math.min(globalDiscount, voucher.getMaxDiscountAmount());
+                        voucherDiscount = Math.min(voucherDiscount, voucher.getMaxDiscountAmount());
                     }
                 } else {
-                    globalDiscount = voucher.getDiscountValue();
+                    voucherDiscount = voucher.getDiscountValue();
                 }
                 appliedGlobalCode = upperCode;
                 break;
             } else if (upperCode.equals("GIAM10") || upperCode.equals("SALE10")) {
-                globalDiscount = netSubtotal * 0.10;
+                voucherDiscount = netSubtotal * 0.10;
                 appliedGlobalCode = upperCode;
                 break;
             } else if (upperCode.equals("50K") || upperCode.equals("GIAM50K")) {
-                globalDiscount = 50000.0;
+                voucherDiscount = 50000.0;
                 appliedGlobalCode = upperCode;
                 break;
             }
         }
 
+        globalDiscount += voucherDiscount;
         if (appliedGlobalCode != null && !appliedCodes.contains(appliedGlobalCode)) {
             appliedCodes.add(appliedGlobalCode);
         }
@@ -322,6 +351,18 @@ public class DefaultOrderDiscountProcessor implements OrderDiscountProcessor {
         }
 
         return globalDiscount;
+    }
+
+    private boolean isUserEligibleForVoucher(VoucherCacheDto voucher, UserRank userRank) {
+        if (voucher == null) return false;
+        UserRank currentRank = userRank != null ? userRank : UserRank.MEMBER;
+        UserRank requiredRank = voucher.getMinRequiredRank() != null ? voucher.getMinRequiredRank() : UserRank.MEMBER;
+        if (currentRank.ordinal() < requiredRank.ordinal()) {
+            log.warn("⚠️ VOUCHER_RANK_INSUFFICIENT: Voucher [{}] yêu cầu hạng tối thiểu [{}] nhưng User có hạng [{}]",
+                    voucher.getCode(), requiredRank, currentRank);
+            return false;
+        }
+        return true;
     }
 }
 

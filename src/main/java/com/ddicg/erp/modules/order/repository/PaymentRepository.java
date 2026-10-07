@@ -7,4 +7,7 @@ import java.util.UUID;
 
 @Repository
 public interface PaymentRepository extends JpaRepository<Payment, UUID> {
+    boolean existsByTransactionCode(String transactionCode);
+
+    java.util.Optional<Payment> findByTransactionCode(String transactionCode);
 }

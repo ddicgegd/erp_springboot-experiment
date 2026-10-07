@@ -13,7 +13,10 @@ public enum TemplateCode {
     VERIFICATION_EMAIL("mail/verification-email", "Xác thực tài khoản"),
     ACCOUNT_RECOVERY("mail/account-recovery-email", "Khôi phục thông tin tài khoản"),
     BIRTHDAY_GREETING("mail/birthday-email", "Chúc mừng sinh nhật quý khách!"),
-    CREDENTIAL_CHANGE("mail/credential-change-email", "Xác thực thay đổi thông tin đăng nhập");
+    CREDENTIAL_CHANGE("mail/credential-change-email", "Xác thực thay đổi thông tin đăng nhập"),
+    VIP_EARLY_ACCESS_EVENT("mail/vip-early-access-email", "Đặc quyền Early Access dành riêng cho Hội viên VIP"),
+    MEMBERSHIP_RENEWED("mail/membership-renewed-email", "Gia hạn gói hội viên thành công"),
+    MEMBERSHIP_PAYMENT_FAILED("mail/membership-payment-failed-email", "Thanh toán gia hạn gói hội viên không thành công");
 
     private final String templateFile;
     private final String defaultSubject;

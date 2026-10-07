@@ -3,6 +3,8 @@ package com.ddicg.erp.modules.subscription.controller;
 import com.ddicg.erp.core.common.dto.response.Response;
 import com.ddicg.erp.core.security.SecurityUtil;
 import com.ddicg.erp.modules.subscription.dto.request.GooglePayWebRegisterRequest;
+import com.ddicg.erp.modules.subscription.dto.request.CancelSubscriptionRequest;
+import com.ddicg.erp.modules.subscription.dto.request.OneTimeSubscriptionPurchaseRequest;
 import com.ddicg.erp.modules.subscription.dto.response.UserSubscriptionResponse;
 import com.ddicg.erp.modules.subscription.model.SubscriptionPlan;
 import com.ddicg.erp.modules.subscription.service.GooglePayWebService;
@@ -54,10 +56,32 @@ public class SubscriptionController {
         return ResponseEntity.ok(Response.ok(response, "Đăng ký gói dùng thử Google Pay Web thành công"));
     }
 
+    @PostMapping("/purchase-onetime")
+    @Operation(summary = "Mua gói dịch vụ trả 1 lần (VNPay/Thẻ/Ngân hàng) - Thu tiền ngay, cộng dồn ngày dùng thử vào thời hạn, không tự động gia hạn")
+    public ResponseEntity<Response<UserSubscriptionResponse>> purchaseOneTimeSubscription(
+            @Valid @RequestBody OneTimeSubscriptionPurchaseRequest request) {
+        String userIdStr = securityUtil.getCurrentUserId();
+        Long currentUserId = userIdStr != null ? Long.parseLong(userIdStr) : 1L;
+        UserSubscriptionResponse response = subscriptionService.purchaseOneTimeSubscription(currentUserId, request);
+        return ResponseEntity.ok(Response.ok(response, "Thanh toán mua gói dịch vụ 1 lần thành công"));
+    }
+
     @PostMapping("/{id}/renew")
     @Operation(summary = "Kích hoạt gia hạn trừ tiền định kỳ MIT và hạch toán tự động vào Fineract")
     public ResponseEntity<Response<Boolean>> triggerRenewal(@PathVariable("id") Long subscriptionId) {
         boolean renewed = billingService.processRecurringRenewal(subscriptionId);
         return ResponseEntity.ok(Response.ok(renewed, renewed ? "Gia hạn và hạch toán Fineract thành công" : "Gia hạn thất bại"));
+    }
+
+    @PostMapping("/{id}/cancel")
+    @Operation(summary = "Hủy tự động gia hạn gói dịch vụ (FTC Click-to-Cancel) - Duy trì quyền lợi VIP cho đến hết ngày hết hạn")
+    public ResponseEntity<Response<UserSubscriptionResponse>> cancelSubscription(
+            @PathVariable("id") Long subscriptionId,
+            @RequestBody(required = false) CancelSubscriptionRequest request) {
+        String userIdStr = securityUtil.getCurrentUserId();
+        Long currentUserId = userIdStr != null ? Long.parseLong(userIdStr) : 1L;
+        String reason = request != null ? request.getReason() : null;
+        UserSubscriptionResponse response = subscriptionService.cancelSubscription(currentUserId, subscriptionId, reason);
+        return ResponseEntity.ok(Response.ok(response, "Hủy gia hạn gói thành công. Quyền lợi hội viên được duy trì đến ngày hết hạn."));
     }
 }

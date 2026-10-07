@@ -16,4 +16,7 @@ public interface UserSubscriptionRepository extends JpaRepository<UserSubscripti
     Optional<UserSubscription> findByPaymentProfileId(String paymentProfileId);
     List<UserSubscription> findBySubscriptionStateAndExpiryTimeBefore(SubscriptionState state, LocalDateTime time);
     List<UserSubscription> findBySubscriptionStateInAndExpiryTimeBefore(List<SubscriptionState> states, LocalDateTime time);
+    List<UserSubscription> findByAutoRenewingTrueAndSubscriptionStateInAndExpiryTimeLessThanEqual(List<SubscriptionState> states, LocalDateTime time);
+    List<UserSubscription> findBySubscriptionStateNotAndExpiryTimeLessThanEqual(SubscriptionState state, LocalDateTime time);
+    boolean existsByUserIdAndSubscriptionStateInAndExpiryTimeAfter(Long userId, List<SubscriptionState> states, LocalDateTime time);
 }

@@ -1,4 +1,7 @@
 package com.ddicg.erp.modules.order.service.impl;
+import com.ddicg.erp.core.common.model.enums.UserRank;
+import com.ddicg.erp.core.security.SecurityUtil;
+import com.ddicg.erp.modules.iam.model.User;
 
 import com.ddicg.erp.core.common.dto.response.PagingResponse;
 import com.ddicg.erp.core.exception.BusinessException;
@@ -31,6 +34,7 @@ public class VoucherServiceImpl implements VoucherService {
 
     private final VoucherRepository voucherRepository;
     private final VoucherRedisService voucherRedisService;
+    private final SecurityUtil securityUtil;
 
     @Override
     @Transactional
@@ -63,6 +67,8 @@ public class VoucherServiceImpl implements VoucherService {
                 .applicableSkus(skusStr)
                 .totalQuantity(request.getTotalQuantity())
                 .usedQuantity(0)
+                .minRequiredRank(request.getMinRequiredRank() != null ? request.getMinRequiredRank() : UserRank.MEMBER)
+                .isExclusive(request.getIsExclusive() != null ? request.getIsExclusive() : false)
                 .isActive(true)
                 .build();
 
@@ -92,6 +98,8 @@ public class VoucherServiceImpl implements VoucherService {
         if (request.getEndDate() != null) voucher.setEndDate(request.getEndDate());
         if (request.getTotalQuantity() != null) voucher.setTotalQuantity(request.getTotalQuantity());
         if (request.getIsActive() != null) voucher.setIsActive(request.getIsActive());
+        if (request.getMinRequiredRank() != null) voucher.setMinRequiredRank(request.getMinRequiredRank());
+        if (request.getIsExclusive() != null) voucher.setIsExclusive(request.getIsExclusive());
 
         if (request.getApplicableSkus() != null) {
             voucher.setApplicableSkus(String.join(",", request.getApplicableSkus()));
@@ -156,8 +164,20 @@ public class VoucherServiceImpl implements VoucherService {
     @Override
     @Transactional(readOnly = true)
     public List<VoucherResponseDto> getActiveVouchers() {
+        UserRank currentRank = securityUtil.getCurrentUser()
+                .map(User::getUserRank)
+                .orElse(UserRank.MEMBER);
+        if (currentRank == null) {
+            currentRank = UserRank.MEMBER;
+        }
+        final UserRank userRank = currentRank;
+
         return voucherRepository.findAll().stream()
                 .filter(Voucher::isCurrentlyValid)
+                .filter(v -> {
+                    UserRank minRank = v.getMinRequiredRank() != null ? v.getMinRequiredRank() : UserRank.MEMBER;
+                    return userRank.ordinal() >= minRank.ordinal();
+                })
                 .map(VoucherResponseDto::fromEntity)
                 .collect(Collectors.toList());
     }
@@ -175,14 +195,40 @@ public class VoucherServiceImpl implements VoucherService {
         }
 
         VoucherCacheDto cached = cacheOpt.get();
+
+        UserRank currentRank = securityUtil.getCurrentUser()
+                .map(User::getUserRank)
+                .orElse(UserRank.MEMBER);
+        if (currentRank == null) {
+            currentRank = UserRank.MEMBER;
+        }
+
+        UserRank minRequiredRank = cached.getMinRequiredRank() != null ? cached.getMinRequiredRank() : UserRank.MEMBER;
+        if (currentRank.ordinal() < minRequiredRank.ordinal()) {
+            throw new BusinessException("Bạn không đủ điều kiện sử dụng mã voucher này (Yêu cầu hạng hội viên tối thiểu: " + minRequiredRank.name() + ")");
+        }
+
+        int total = cached.getTotalQuantity() != null ? cached.getTotalQuantity() : 0;
+        int used = cached.getUsedQuantity() != null ? cached.getUsedQuantity() : 0;
+        int available = Math.max(0, total - used);
+
         return VoucherResponseDto.builder()
+                .id(cached.getId())
                 .code(cached.getCode())
+                .name(cached.getName())
                 .voucherType(cached.getVoucherType())
                 .discountType(cached.getDiscountType())
                 .discountValue(cached.getDiscountValue())
                 .maxDiscountAmount(cached.getMaxDiscountAmount())
                 .minOrderAmount(cached.getMinOrderAmount())
                 .applicableSkus(cached.getApplicableSkus())
+                .minRequiredRank(cached.getMinRequiredRank())
+                .isExclusive(cached.getIsExclusive())
+                .startDate(cached.getStartDate())
+                .endDate(cached.getEndDate())
+                .totalQuantity(total)
+                .usedQuantity(used)
+                .availableQuantity(available)
                 .isValid(true)
                 .build();
     }

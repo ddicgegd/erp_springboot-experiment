@@ -2,6 +2,7 @@ package com.ddicg.erp.modules.order.dto.response;
 
 import com.ddicg.erp.core.common.model.enums.DiscountType;
 import com.ddicg.erp.core.common.model.enums.VoucherType;
+import com.ddicg.erp.core.common.model.enums.UserRank;
 import com.ddicg.erp.modules.order.model.Voucher;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
@@ -32,6 +33,8 @@ public class VoucherResponseDto {
     Boolean isActive;
     Boolean isValid;
     java.util.List<String> applicableSkus;
+    UserRank minRequiredRank;
+    Boolean isExclusive;
     LocalDateTime createdAt;
     LocalDateTime updatedAt;
 
@@ -68,6 +71,8 @@ public class VoucherResponseDto {
                 .isValid(voucher.isCurrentlyValid())
                 .applicableSkus(skus)
                 .createdAt(voucher.getCreatedAt())
+                .minRequiredRank(voucher.getMinRequiredRank() != null ? voucher.getMinRequiredRank() : UserRank.MEMBER)
+                .isExclusive(voucher.getIsExclusive() != null ? voucher.getIsExclusive() : false)
                 .updatedAt(voucher.getUpdatedAt())
                 .build();
     }

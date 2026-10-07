@@ -70,7 +70,8 @@ public class SecurityConfiguration {
             "/api/vouchers/check/**",
             "/api/cart/**",
             "/api/bookmarks/**",
-            "/api/v1/erp/loan-products/**"
+            "/api/v1/erp/loan-products/**",
+            "/api/v1/subscriptions/plans"
     };
 
     @Bean

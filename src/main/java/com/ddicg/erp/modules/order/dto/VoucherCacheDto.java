@@ -2,6 +2,7 @@ package com.ddicg.erp.modules.order.dto;
 
 import com.ddicg.erp.core.common.model.enums.DiscountType;
 import com.ddicg.erp.core.common.model.enums.VoucherType;
+import com.ddicg.erp.core.common.model.enums.UserRank;
 import com.ddicg.erp.modules.order.model.Voucher;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
@@ -32,6 +33,8 @@ public class VoucherCacheDto implements Serializable {
     Integer usedQuantity;
     Boolean isActive;
     List<String> applicableSkus;
+    UserRank minRequiredRank;
+    Boolean isExclusive;
 
     public static VoucherCacheDto fromEntity(Voucher voucher) {
         if (voucher == null) return null;
@@ -58,6 +61,8 @@ public class VoucherCacheDto implements Serializable {
                 .usedQuantity(voucher.getUsedQuantity())
                 .isActive(voucher.getIsActive())
                 .applicableSkus(skus)
+                .minRequiredRank(voucher.getMinRequiredRank() != null ? voucher.getMinRequiredRank() : UserRank.MEMBER)
+                .isExclusive(voucher.getIsExclusive() != null ? voucher.getIsExclusive() : false)
                 .build();
     }
 
